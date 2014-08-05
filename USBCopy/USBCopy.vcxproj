@@ -1,0 +1,207 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{DB9FDE30-55FC-4448-8B38-63A8771DD403}</ProjectGuid>
+    <RootNamespace>USBCopy</RootNamespace>
+    <Keyword>MFCProj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseOfMfc>Dynamic</UseOfMfc>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseOfMfc>Static</UseOfMfc>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>D:\Binggoo\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>D:\Binggoo\common;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <Midl>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+      <ValidateAllParameters>true</ValidateAllParameters>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </Midl>
+    <ResourceCompile>
+      <Culture>0x0409</Culture>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>D:\Binggoo\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>D:\Binggoo\common;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreSpecificDefaultLibraries>libc.lib;msvcrt.lib;libcd.lib;libcmtd.lib;msvcrtd.lib</IgnoreSpecificDefaultLibraries>
+    </Link>
+    <Midl>
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+      <ValidateAllParameters>true</ValidateAllParameters>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </Midl>
+    <ResourceCompile>
+      <Culture>0x0409</Culture>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <None Include="ReadMe.txt" />
+    <None Include="res\SD_gray.bmp" />
+    <None Include="res\SD_green.bmp" />
+    <None Include="res\SD_normal.bmp" />
+    <None Include="res\SD_red.bmp" />
+    <None Include="res\SD_yellow.bmp" />
+    <None Include="res\USBCopy.ico" />
+    <None Include="res\USBCopy.rc2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.h" />
+    <ClInclude Include="..\..\..\Binggoo\common\Ini.h" />
+    <ClInclude Include="..\..\..\Binggoo\common\Utils.h" />
+    <ClInclude Include="..\..\..\Binggoo\common\zlib.h" />
+    <ClInclude Include="Checksum32.h" />
+    <ClInclude Include="CompleteMsg.h" />
+    <ClInclude Include="CRC32.h" />
+    <ClInclude Include="DataQueue.h" />
+    <ClInclude Include="DeviceList.h" />
+    <ClInclude Include="Disk.h" />
+    <ClInclude Include="DiskCleanSettingDlg.h" />
+    <ClInclude Include="DiskCompareSettingDlg.h" />
+    <ClInclude Include="EnumStorage.h" />
+    <ClInclude Include="EnumUSB.h" />
+    <ClInclude Include="FullCopySettingDlg.h" />
+    <ClInclude Include="GlobalDef.h" />
+    <ClInclude Include="GlobalSetting.h" />
+    <ClInclude Include="HashMethod.h" />
+    <ClInclude Include="ImageCopySetting.h" />
+    <ClInclude Include="ImageMakeSetting.h" />
+    <ClInclude Include="ImageManager.h" />
+    <ClInclude Include="ImageNameDlg.h" />
+    <ClInclude Include="MD5.h" />
+    <ClInclude Include="Password.h" />
+    <ClInclude Include="Port.h" />
+    <ClInclude Include="PortCommand.h" />
+    <ClInclude Include="PortDlg.h" />
+    <ClInclude Include="QuickCopySettingDlg.h" />
+    <ClInclude Include="Resource.h" />
+    <ClInclude Include="ScanningDlg.h" />
+    <ClInclude Include="SelectCurModeDlg.h" />
+    <ClInclude Include="SerialPort.h" />
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="SystemMenu.h" />
+    <ClInclude Include="targetver.h" />
+    <ClInclude Include="Thread.h" />
+    <ClInclude Include="USBCopy.h" />
+    <ClInclude Include="USBCopyDlg.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.cpp" />
+    <ClCompile Include="..\..\..\Binggoo\common\Ini.cpp" />
+    <ClCompile Include="..\..\..\Binggoo\common\Utils.cpp" />
+    <ClCompile Include="Checksum32.cpp" />
+    <ClCompile Include="CompleteMsg.cpp" />
+    <ClCompile Include="CRC32.cpp" />
+    <ClCompile Include="DataQueue.cpp" />
+    <ClCompile Include="DeviceList.cpp" />
+    <ClCompile Include="Disk.cpp" />
+    <ClCompile Include="DiskCleanSettingDlg.cpp" />
+    <ClCompile Include="DiskCompareSettingDlg.cpp" />
+    <ClCompile Include="EnumStorage.cpp" />
+    <ClCompile Include="EnumUSB.cpp" />
+    <ClCompile Include="FullCopySettingDlg.cpp" />
+    <ClCompile Include="GlobalSetting.cpp" />
+    <ClCompile Include="HashMethod.cpp" />
+    <ClCompile Include="ImageCopySetting.cpp" />
+    <ClCompile Include="ImageMakeSetting.cpp" />
+    <ClCompile Include="ImageManager.cpp" />
+    <ClCompile Include="ImageNameDlg.cpp" />
+    <ClCompile Include="MD5.cpp" />
+    <ClCompile Include="Password.cpp" />
+    <ClCompile Include="Port.cpp" />
+    <ClCompile Include="PortCommand.cpp" />
+    <ClCompile Include="PortDlg.cpp" />
+    <ClCompile Include="QuickCopySettingDlg.cpp" />
+    <ClCompile Include="ScanningDlg.cpp" />
+    <ClCompile Include="SelectCurModeDlg.cpp" />
+    <ClCompile Include="SerialPort.cpp" />
+    <ClCompile Include="stdafx.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="SystemMenu.cpp" />
+    <ClCompile Include="Thread.cpp" />
+    <ClCompile Include="USBCopy.cpp" />
+    <ClCompile Include="USBCopyDlg.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="USBCopy.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <ProjectExtensions>
+    <VisualStudio>
+      <UserProperties RESOURCE_FILE="USBCopy.rc" />
+    </VisualStudio>
+  </ProjectExtensions>
+</Project>
