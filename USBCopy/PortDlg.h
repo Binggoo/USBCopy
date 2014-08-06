@@ -31,9 +31,14 @@ private:
 	PortList *m_PortList;
 	CPortCommand *m_pCommand;
 
+	BOOL m_bOnlineCommand;
+	BOOL m_bStopCommand;
+
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 
 	BOOL IsSlowest();
+
+	void UpdateState();
 
 public:
 	virtual BOOL OnInitDialog();

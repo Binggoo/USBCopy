@@ -5,7 +5,6 @@
 #include "USBCopy.h"
 #include "CompleteMsg.h"
 #include "afxdialogex.h"
-#include "USBCopyDlg.h"
 
 // CCompleteMsg 对话框
 
@@ -16,6 +15,13 @@ CCompleteMsg::CCompleteMsg(CString strMessage,BOOL bPass,CWnd* pParent /*=NULL*/
 {
 	m_strMessage = strMessage;
 	m_bPass = bPass;
+
+	m_strMessage.Trim();
+
+	if (m_strMessage.IsEmpty())
+	{
+		m_strMessage = _T("Completed ! Completed ! Completed !");
+	}
 }
 
 CCompleteMsg::~CCompleteMsg()
@@ -57,16 +63,6 @@ BOOL CCompleteMsg::OnInitDialog()
 	// 异常: OCX 属性页应返回 FALSE
 }
 
-
-BOOL CCompleteMsg::DestroyWindow()
-{
-	// TODO: 在此添加专用代码和/或调用基类
-	::PostMessage(GetParent()->GetSafeHwnd(),WM_RESET_MACHIEN_PORT,0,0);
-
-	return CDialogEx::DestroyWindow();
-}
-
-
 HBRUSH CCompleteMsg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
 	HBRUSH hbr = CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
@@ -87,6 +83,8 @@ HBRUSH CCompleteMsg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 		}
 		break;
 	}
+
+	hbr = CreateSolidBrush(RGB(255,255,0));
 
 	// TODO:  如果默认的不是所需画笔，则返回另一个画笔
 	return hbr;

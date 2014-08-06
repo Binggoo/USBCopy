@@ -16,6 +16,9 @@ CPortDlg::CPortDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CPortDlg::IDD, pParent)
 {
 	m_Port = NULL;
+
+	m_bOnlineCommand = FALSE;
+	m_bStopCommand = FALSE;
 }
 
 CPortDlg::~CPortDlg()
@@ -103,6 +106,7 @@ void CPortDlg::Update( BOOL bStart /*= TRUE*/ )
 	else
 	{
 		KillTimer(TIMER_UPDATE);
+		UpdateState();
 	}
 	
 }
@@ -111,118 +115,7 @@ void CPortDlg::Update( BOOL bStart /*= TRUE*/ )
 void CPortDlg::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	CString strSpeed,strSize;
-	int iPercent = 0;
-	switch (m_Port->GetPortState())
-	{
-	case PortState_Offline:
-		if (m_Bitmap.m_hObject != NULL)
-		{
-			m_Bitmap.DeleteObject();
-		}
-		m_Bitmap.LoadBitmap(IDB_GRAY);
-
-		strSpeed = _T("");
-		strSize = _T("");
-		iPercent = 0;
-
-		break;
-
-	case PortState_Online:
-		if (m_Bitmap.m_hObject != NULL)
-		{
-			m_Bitmap.DeleteObject();
-		}
-		m_Bitmap.LoadBitmap(IDB_NORMAL);
-
-		strSpeed = _T("");
-		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
-		iPercent = 0;
-
-// 		if (m_Port->GetPortType() == PortType_MASTER_DISK)
-// 		{
-// 			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE,TRUE);
-// 			m_pCommand->RedLight(m_Port->GetPortNum(),TRUE,TRUE);
-// 		}
-// 		else
-// 		{
-// 			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE,FALSE);
-// 			m_pCommand->RedLight(m_Port->GetPortNum(),TRUE,FALSE);
-// 		}
-
-		break;
-
-	case PortState_Active:
-		if (m_Bitmap.m_hObject != NULL)
-		{
-			m_Bitmap.DeleteObject();
-		}
-
-		if (IsSlowest())
-		{
-			m_Bitmap.LoadBitmap(IDB_YELLOW);
-		}
-		else
-		{
-			m_Bitmap.LoadBitmap(IDB_NORMAL);
-		}
-
-		strSpeed = m_Port->GetRealSpeedString();
-		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
-		iPercent = m_Port->GetPercent();
-
-		break;
-
-	case PortState_Pass:
-		if (m_Bitmap.m_hObject != NULL)
-		{
-			m_Bitmap.DeleteObject();
-		}
-		m_Bitmap.LoadBitmap(IDB_GREEN);
-
-		strSpeed = m_Port->GetRealSpeedString();
-		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
-		iPercent = 100;
-
-		if (m_Port->GetPortType() == PortType_MASTER_DISK)
-		{
-			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE,TRUE);
-		}
-		else
-		{
-			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE,FALSE);
-		}
-		
-
-		break;
-
-	case PortState_Fail:
-		if (m_Bitmap.m_hObject != NULL)
-		{
-			m_Bitmap.DeleteObject();
-		}
-		m_Bitmap.LoadBitmap(IDB_RED);
-
-		strSpeed = m_Port->GetRealSpeedString();
-		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
-		iPercent = m_Port->GetPercent();
-
-		if (m_Port->GetPortType() == PortType_MASTER_DISK)
-		{
-			m_pCommand->RedLight(m_Port->GetPortNum(),TRUE,TRUE);
-		}
-		else
-		{
-			m_pCommand->RedLight(m_Port->GetPortNum(),TRUE,FALSE);
-		}
-
-		break;
-	}
-
-	m_PictureCtrol.SetBitmap(m_Bitmap);
-	SetDlgItemText(IDC_TEXT_SIZE,strSize);
-	SetDlgItemText(IDC_TEXT_SPEED,strSpeed);
-	m_ProgressCtrl.SetPos(iPercent);
+	UpdateState();
 
 	CDialogEx::OnTimer(nIDEvent);
 }
@@ -241,6 +134,9 @@ void CPortDlg::Initial()
 	SetDlgItemText(IDC_TEXT_SIZE,_T(""));
 
 	m_ProgressCtrl.SetPos(0);
+
+	m_bOnlineCommand = FALSE;
+	m_bStopCommand = FALSE;
 
 	Invalidate(TRUE);
 }
@@ -290,4 +186,114 @@ BOOL CPortDlg::IsSlowest()
 CPort * CPortDlg::GetPort()
 {
 	return m_Port;
+}
+
+void CPortDlg::UpdateState()
+{
+	CString strSpeed,strSize;
+	int iPercent = 0;
+	switch (m_Port->GetPortState())
+	{
+	case PortState_Offline:
+		if (m_Bitmap.m_hObject != NULL)
+		{
+			m_Bitmap.DeleteObject();
+		}
+		m_Bitmap.LoadBitmap(IDB_GRAY);
+
+		strSpeed = _T("");
+		strSize = _T("");
+		iPercent = 0;
+
+		if (m_bOnlineCommand)
+		{
+			m_pCommand->RedGreenLight(m_Port->GetPortNum(),FALSE);
+			m_bOnlineCommand = FALSE;
+		}
+
+		break;
+
+	case PortState_Online:
+		if (m_Bitmap.m_hObject != NULL)
+		{
+			m_Bitmap.DeleteObject();
+		}
+		m_Bitmap.LoadBitmap(IDB_NORMAL);
+
+		strSpeed = _T("");
+		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		iPercent = 0;
+
+		if (!m_bOnlineCommand)
+		{
+			m_pCommand->RedGreenLight(m_Port->GetPortNum(),TRUE);
+			m_bOnlineCommand = TRUE;
+		}
+
+		break;
+
+	case PortState_Active:
+		if (m_Bitmap.m_hObject != NULL)
+		{
+			m_Bitmap.DeleteObject();
+		}
+
+		if (IsSlowest())
+		{
+			m_Bitmap.LoadBitmap(IDB_YELLOW);
+		}
+		else
+		{
+			m_Bitmap.LoadBitmap(IDB_NORMAL);
+		}
+
+		strSpeed = m_Port->GetRealSpeedString();
+		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		iPercent = m_Port->GetPercent();
+
+		break;
+
+	case PortState_Pass:
+		if (m_Bitmap.m_hObject != NULL)
+		{
+			m_Bitmap.DeleteObject();
+		}
+		m_Bitmap.LoadBitmap(IDB_GREEN);
+
+		strSpeed = m_Port->GetRealSpeedString();
+		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		iPercent = 100;
+
+		if (!m_bStopCommand)
+		{	
+			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE);
+			m_bStopCommand = TRUE;
+		}
+
+		break;
+
+	case PortState_Fail:
+		if (m_Bitmap.m_hObject != NULL)
+		{
+			m_Bitmap.DeleteObject();
+		}
+		m_Bitmap.LoadBitmap(IDB_RED);
+
+		strSpeed = m_Port->GetRealSpeedString();
+		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		iPercent = m_Port->GetPercent();
+
+		if (!m_bStopCommand)
+		{
+			m_pCommand->RedLight(m_Port->GetPortNum(),TRUE);
+			m_bStopCommand = TRUE;
+		}
+
+		break;
+	}
+
+	m_PictureCtrol.SetBitmap(m_Bitmap);
+	SetDlgItemText(IDC_TEXT_SIZE,strSize);
+	SetDlgItemText(IDC_TEXT_SPEED,strSpeed);
+	m_ProgressCtrl.SetPos(iPercent);
 }

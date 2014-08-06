@@ -2150,6 +2150,11 @@ BOOL CDisk::OnCopyDisk()
 			CloseHandle(hVerifyThreads[i]);
 		}
 		delete []hVerifyThreads;
+
+		if (!bResult)
+		{
+			m_MasterPort->SetErrorCode(ErrorType_Custom,CustomError_Compare_Failed);
+		}
 	}
 
 	return bResult;
@@ -2322,6 +2327,11 @@ BOOL CDisk::OnCopyImage()
 			CloseHandle(hVerifyThreads[i]);
 		}
 		delete []hVerifyThreads;
+
+		if (!bResult)
+		{
+			m_MasterPort->SetErrorCode(ErrorType_Custom,CustomError_Compare_Failed);
+		}
 	}
 
 	return bResult;
@@ -3996,9 +4006,22 @@ BOOL CDisk::CleanDisk( CPort *port )
 	case CleanMode_Quick:
 		{
 			port->SetStartTime(CTime::GetCurrentTime());
+			port->SetValidSize(port->GetTotalSize());
 			DWORD dwErrorCode = 0;
-			BOOL bResult = QuickClean(port,&dwErrorCode);
 
+			// 计算精确速度
+			LARGE_INTEGER freq,t0,t1;
+			double dbTimeNoWait = 0.0;
+			QueryPerformanceFrequency(&freq);
+			QueryPerformanceCounter(&t0);
+			BOOL bResult = QuickClean(port,&dwErrorCode);
+			QueryPerformanceCounter(&t1);
+
+			dbTimeNoWait = (double)(t1.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
+
+			port->SetUsedNoWaitTimeS(dbTimeNoWait);
+			port->SetUsedWaitTimeS(dbTimeNoWait);
+			port->SetCompleteSize(port->GetTotalSize());
 			port->SetEndTime(CTime::GetCurrentTime());
 			port->SetResult(bResult);
 

@@ -17,7 +17,6 @@
 #define TIMER_UPDATE_STATISTIC 1
 #define WM_UPDATE_STATISTIC (WM_USER + 1)
 #define WM_RESET_MACHIEN_PORT (WM_USER + 2)
-#define WM_COMPLETE (WM_USER + 3)
 
 // CUSBCopyDlg dialog
 class CUSBCopyDlg : public CDialogEx
@@ -71,6 +70,10 @@ private:
 
 	CString       m_strMsg;
 	BOOL          m_bResult;
+	BOOL          m_bVerify;
+	BOOL          m_bRunning;
+
+	HANDLE        m_hEvent;
 
 	enum
 	{
@@ -104,8 +107,12 @@ private:
 
 	void OnStart();
 
+	void EnumDevice();
+	void MatchDevice();
+
 	static DWORD StartThreadProc(LPVOID lpParm);
 	static DWORD InitialMachineThreadProc(LPVOID lpParm);
+	static DWORD EnumDeviceThreadProc(LPVOID lpParm);
 
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -128,5 +135,5 @@ public:
 protected:
 	afx_msg LRESULT OnComReceive(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnResetMachienPort(WPARAM wParam, LPARAM lParam);
-	afx_msg LRESULT OnComplete(WPARAM wParam, LPARAM lParam);
+	afx_msg BOOL OnDeviceChange(UINT nEventType, DWORD_PTR dwData);
 };

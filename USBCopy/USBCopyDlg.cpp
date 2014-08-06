@@ -21,6 +21,10 @@
 #include "ScanningDlg.h"
 #include "CompleteMsg.h"
 
+#include <dbt.h>
+#include "EnumUSB.h"
+#include "EnumStorage.h"
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -71,6 +75,8 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bLock = TRUE;
 	m_bCancel = FALSE;
 	m_bResult = TRUE;
+	m_bVerify = FALSE;
+	m_bRunning = FALSE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -97,7 +103,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_SEND_FUNCTION_TEXT, &CUSBCopyDlg::OnSendFunctionText)
 	ON_MESSAGE(ON_COM_RECEIVE, &CUSBCopyDlg::OnComReceive)
 	ON_MESSAGE(WM_RESET_MACHIEN_PORT, &CUSBCopyDlg::OnResetMachienPort)
-	ON_MESSAGE(WM_COMPLETE, &CUSBCopyDlg::OnComplete)
+	ON_WM_DEVICECHANGE()
 END_MESSAGE_MAP()
 
 
@@ -149,6 +155,8 @@ BOOL CUSBCopyDlg::OnInitDialog()
 		SendMessage(WM_CLOSE);
 	}
 
+	m_hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
+
 	//添加状态栏
 	CString strVersion,strSN,strModel,strAlias;
 
@@ -196,6 +204,10 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	m_Command.Init(&m_SerialPort,m_hLogFile);
 
 	AfxBeginThread((AFX_THREADPROC)InitialMachineThreadProc,this);
+
+	UpdatePortFrame(TRUE);
+
+	AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this);
 
 	GetDlgItem(IDC_BTN_START)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BTN_STOP)->EnableWindow(FALSE);
@@ -718,6 +730,8 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 	m_bCancel = FALSE;
 	m_bResult = TRUE;
+	m_bRunning = TRUE;
+	m_bVerify = FALSE;
 
 	GetDlgItem(IDC_BTN_START)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BTN_STOP)->EnableWindow(TRUE);
@@ -730,40 +744,6 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("%s begain......"),strWorkMode);
 
 	SetDlgItemText(IDC_TEXT_FUNCTION2,strWorkMode);
-
-	switch (m_WorkMode)
-	{
-	case WorkMode_ImageMake:
-		// 只给母盘上电
-		m_Command.Power(0,TRUE);
-		break;
-
-	case WorkMode_DiskClean:
-	case WorkMode_ImageCopy:
-		// 只给子盘上电
-		for (UINT i = 1; i < m_nPortNum;i++)
-		{
-			m_Command.Power(i,TRUE);
-		}
-		break;
-
-	default:
-		// 全部上电
-		m_Command.Power(0,TRUE);
-
-		for (UINT i = 1; i < m_nPortNum;i++)
-		{
-			m_Command.Power(i,TRUE);
-		}
-
-		break;
-
-	}
-
-	UpdatePortFrame(TRUE);
-
-	// 使能闪烁命令
-	m_Command.WorkLight();
 
 	CScanningDlg dlg;
 	dlg.SetLogFile(m_hLogFile);
@@ -778,6 +758,8 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 		// 全部FAIL
 		m_Command.AllFail();
 
+		m_bRunning = FALSE;
+
 		PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_STOP, BN_CLICKED), (LPARAM)m_hWnd); 
 		return;
 	}
@@ -787,7 +769,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 	switch (m_WorkMode)
 	{
 	case WorkMode_ImageMake:
-		m_Command.GreenLightFlash(0,TRUE);
+		m_Command.GreenLightFlash(0);
 		break;
 
 	case WorkMode_DiskClean:
@@ -798,17 +780,17 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 			CPort *port = m_TargetPorts.GetNext(pos);
 			if (port->IsConnected())
 			{
-				m_Command.GreenLightFlash(port->GetPortNum(),FALSE);
+				m_Command.GreenLightFlash(port->GetPortNum());
 			}
 			else
 			{
-				m_Command.RedLight(port->GetPortNum(),TRUE,FALSE);
+				m_Command.RedLight(port->GetPortNum(),TRUE);
 			}
 		}
 		break;
 
 	default:
-		m_Command.GreenLightFlash(0,TRUE);
+		m_Command.GreenLightFlash(0);
 
 		pos = m_TargetPorts.GetHeadPosition();
 		while (pos)
@@ -816,17 +798,20 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 			CPort *port = m_TargetPorts.GetNext(pos);
 			if (port->IsConnected())
 			{
-				m_Command.GreenLightFlash(port->GetPortNum(),FALSE);
+				m_Command.GreenLightFlash(port->GetPortNum());
 			}
 			else
 			{
-				m_Command.RedLight(port->GetPortNum(),TRUE,FALSE);
+				m_Command.RedLight(port->GetPortNum(),TRUE);
 			}
 		}
 
 		break;
 
 	}
+
+	// 使能闪烁命令
+	m_Command.EnableFlashLight();
 
 	AfxBeginThread((AFX_THREADPROC)StartThreadProc,this);
 }
@@ -844,7 +829,19 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 // 	dlg.SetBegining(FALSE);
 // 	dlg.DoModal();
 
+	while (m_bRunning)
+	{
+		Sleep(100);
+	}
+
 	UpdatePortFrame(FALSE);
+
+	// 弹出结束对话框
+	CCompleteMsg completeMsg(m_strMsg,m_bResult);
+	completeMsg.DoModal();
+
+	//复位
+	PostMessage(WM_RESET_MACHIEN_PORT);
 
 	GetDlgItem(IDC_BTN_START)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BTN_STOP)->EnableWindow(FALSE);
@@ -852,7 +849,7 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 	EnableControls(TRUE);
 	GetDlgItem(IDC_BTN_START)->SetFocus();
 
-	PostMessage(WM_COMPLETE);
+	m_bRunning = FALSE;
 }
 
 
@@ -872,7 +869,6 @@ void CUSBCopyDlg::OnTimer(UINT_PTR nIDEvent)
 void CUSBCopyDlg::UpdateStatisticInfo()
 {
 	int iMinPercent = m_MasterPort.GetPercent();
-	double dbAvgSpeed = 0;
 	ULONGLONG ullMinCompleteSize = m_MasterPort.GetCompleteSize();
 	ULONGLONG ullMaxValidSize = m_MasterPort.GetValidSize();
 
@@ -886,60 +882,105 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 	else
 	{
 		nIndex++;
-		dbAvgSpeed += m_MasterPort.GetAvgSpeed();
 	}
 
 	if (m_WorkMode != WorkMode_ImageMake)
 	{
+		// 拷贝过程中
 		POSITION pos = m_TargetPorts.GetHeadPosition();
-
 		while (pos)
 		{
 			CPort *port = m_TargetPorts.GetNext(pos);
 
-			if (port->IsConnected() && port->GetResult() && port->GetPortState() == PortState_Active)
+			if (port->IsConnected())
 			{
-				if (port->GetPercent() < iMinPercent)
+				if (port->GetResult() && port->GetPortState() == PortState_Active)
 				{
-					iMinPercent = port->GetPercent();
+					if (port->GetPercent() < iMinPercent)
+					{
+						iMinPercent = port->GetPercent();
+					}
+
+					if (port->GetCompleteSize() < ullMinCompleteSize)
+					{
+						ullMinCompleteSize = port->GetCompleteSize();
+					}
+
+					if (port->GetValidSize() > ullMaxValidSize)
+					{
+						ullMaxValidSize = port->GetValidSize();
+					}
+
+					nIndex++;
 				}
-
-				if (port->GetCompleteSize() < ullMinCompleteSize)
-				{
-					ullMinCompleteSize = port->GetCompleteSize();
-				}
-
-				if (port->GetValidSize() > ullMaxValidSize)
-				{
-					ullMaxValidSize = port->GetValidSize();
-				}
-
-				dbAvgSpeed += port->GetAvgSpeed();
-
-				nIndex++;
+				
 			}
 		}
+
+		// 全部完成
+		if (nIndex == 0)
+		{
+			pos = m_TargetPorts.GetHeadPosition();
+
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+
+				if (port->IsConnected())
+				{
+					if (port->GetResult() && port->GetPortState() != PortState_Active)
+					{
+						if (port->GetPercent() < iMinPercent)
+						{
+							iMinPercent = port->GetPercent();
+						}
+
+						if (port->GetValidSize() > ullMaxValidSize)
+						{
+							ullMaxValidSize = port->GetValidSize();
+							ullMinCompleteSize = ullMaxValidSize;
+						}
+
+						nIndex++;
+					}
+				}
+			}
+		}
+
+
 	}
 
 	if (nIndex > 0)
 	{
-		dbAvgSpeed /= nIndex;
-
 		m_ProgressCtrl.SetPos(iMinPercent);
 
 		CString strText;
 		strText.Format(_T("%s / %s"),CUtils::AdjustFileSize(ullMinCompleteSize),CUtils::AdjustFileSize(ullMaxValidSize));
 		SetDlgItemText(IDC_TEXT_USAGE,strText);
 
-		strText.Format(_T("%d MB/s"),(int)dbAvgSpeed);
-		SetDlgItemText(IDC_TEXT_SPEED2,strText);
-	
 		CTimeSpan spanU = CTime::GetCurrentTime() - m_StartTime;
 		SetDlgItemText(IDC_TEXT_TIME_ELAPSED2,spanU.Format(_T("%H:%M:%S")));	
 
-		if (dbAvgSpeed > 0)
+		ULONGLONG ullCompleteSize = ullMinCompleteSize;
+
+		// 如果在验证阶段，实际的读取量要加上有效数据量
+		if (m_bVerify)
 		{
-			__time64_t time = (__time64_t)((ullMaxValidSize - ullMinCompleteSize)/1024/1024/dbAvgSpeed);
+			ullCompleteSize += ullMaxValidSize;
+		}
+		UINT uAvgSpeed = 0;
+
+		if (spanU.GetTotalSeconds() > 0)
+		{
+			uAvgSpeed = (UINT)((ullCompleteSize / 1024 / 1024) / spanU.GetTotalSeconds());
+		}
+
+		strText.Format(_T("%d MB/s"),uAvgSpeed);
+		SetDlgItemText(IDC_TEXT_SPEED2,strText);
+
+		if (uAvgSpeed > 0)
+		{
+			__time64_t time = (__time64_t)((ullMaxValidSize - ullMinCompleteSize)/1024/1024/uAvgSpeed);
 			CTimeSpan spanR(time);
 			SetDlgItemText(IDC_TEXT_TIME_REMAINNING2,spanR.Format(_T("%H:%M:%S")));
 		}
@@ -1148,7 +1189,7 @@ void CUSBCopyDlg::OnStart()
 
 			bResult = disk.Start();
 
-			CString strMsg,strHashValue;
+			CString strHashValue;
 			if (bResult)
 			{
 				if (bComputeHash)
@@ -1219,7 +1260,6 @@ void CUSBCopyDlg::OnStart()
 
 			bResult = disk.Start();
 
-			CString strMsg;
 			if (bResult)
 			{
 				strMsg.Format(_T("DISK CLEAN Completed !!!"));
@@ -1282,7 +1322,7 @@ void CUSBCopyDlg::OnStart()
 
 			bResult = disk.Start();
 
-			CString strMsg,strHashValue;
+			CString strHashValue;
 			if (bResult)
 			{
 				int len = m_MasterPort.GetHashLength();
@@ -1358,7 +1398,7 @@ void CUSBCopyDlg::OnStart()
 
 			bResult = disk.Start();
 
-			CString strMsg,strHashValue;
+			CString strHashValue;
 			if (bResult)
 			{
 				MoveFile(strTempFile,strImageFile);
@@ -1441,7 +1481,7 @@ void CUSBCopyDlg::OnStart()
 
 			bResult = disk.Start();
 
-			CString strMsg,strHashValue;
+			CString strHashValue;
 			if (bResult)
 			{
 				int len = m_MasterPort.GetHashLength();
@@ -1487,7 +1527,14 @@ void CUSBCopyDlg::OnStart()
 
 	KillTimer(TIMER_UPDATE_STATISTIC);
 	PostMessage(WM_UPDATE_STATISTIC);
-	PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_STOP, BN_CLICKED), (LPARAM)m_hWnd); 
+
+	m_bRunning = FALSE;
+
+	if (!m_bCancel)
+	{
+		PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_STOP, BN_CLICKED), (LPARAM)m_hWnd); 
+	}
+	
 }
 
 DWORD CUSBCopyDlg::StartThreadProc( LPVOID lpParm )
@@ -1574,6 +1621,8 @@ afx_msg LRESULT CUSBCopyDlg::OnSendFunctionText(WPARAM wParam, LPARAM lParam)
 
 	SetDlgItemText(IDC_TEXT_FUNCTION2,strMsg);
 
+	m_bVerify = TRUE;
+
 	return 0;
 }
 
@@ -1615,10 +1664,18 @@ BOOL CUSBCopyDlg::DestroyWindow()
 		m_hLogFile = INVALID_HANDLE_VALUE;
 	}
 
+	if (m_hEvent != NULL)
+	{
+		CloseHandle(m_hEvent);
+		m_hEvent = NULL;
+	}
+
 	m_Config.SetPathName(m_strAppPath + MACHINE_INFO);
 	CString strAlias;
 	GetDlgItemText(IDC_TEXT_ALIAS,strAlias);
 	m_Config.WriteString(_T("MachineInfo"),_T("Alias"),strAlias);
+
+	m_Command.ResetPower();
 
 	return CDialogEx::DestroyWindow();
 }
@@ -1626,7 +1683,7 @@ BOOL CUSBCopyDlg::DestroyWindow()
 void CUSBCopyDlg::InitailMachine()
 {
 	//初始化上电
-	m_Command.Reset();
+	m_Command.ResetPower();
 
 	// 全部上电
 	for (UINT i = 0; i < m_nPortNum;i++)
@@ -1639,7 +1696,7 @@ void CUSBCopyDlg::InitailMachine()
 	m_Command.SwitchScreen();
 
 	// 使能闪烁命令
-	m_Command.WorkLight();
+	m_Command.EnableFlashLight();
 }
 
 DWORD CUSBCopyDlg::InitialMachineThreadProc( LPVOID lpParm )
@@ -1692,17 +1749,202 @@ afx_msg LRESULT CUSBCopyDlg::OnResetMachienPort(WPARAM wParam, LPARAM lParam)
 	ResetPortFrame();
 	ResetPortInfo();
 
+	UpdatePortFrame(TRUE);
+
 	// 复位
-	m_Command.Reset();
+	m_Command.ResetLight();
+
+	AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this);
+
 	return 0;
 }
 
-
-afx_msg LRESULT CUSBCopyDlg::OnComplete(WPARAM wParam, LPARAM lParam)
+BOOL CUSBCopyDlg::OnDeviceChange( UINT nEventType, DWORD_PTR dwData )
 {
-	CCompleteMsg completeMsg(m_strMsg,m_bResult);
+	PDEV_BROADCAST_HDR   pDevBroadcastHdr;   
+	//这里进行信息匹配,比如guid等
 
-	completeMsg.DoModal();
+	switch (nEventType)
+	{		
+	case DBT_DEVICEREMOVECOMPLETE:
+	case DBT_DEVICEARRIVAL:
+		pDevBroadcastHdr = (PDEV_BROADCAST_HDR)dwData;
+		if (/*pDevBroadcastHdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE || */pDevBroadcastHdr->dbch_devicetype == DBT_DEVTYP_VOLUME)
+		{
 
-	return 0;
+		}
+		break;
+	default:
+		break;
+	}
+	return TRUE;
+}
+
+void CUSBCopyDlg::EnumDevice()
+{
+	while (!m_bRunning)
+	{
+		WaitForSingleObject(m_hEvent,INFINITE);
+
+		EnumStorage();
+		EnumVolume();
+
+		MatchDevice();
+
+		CleanupStorage();
+		CleanupVolume();
+
+		SetEvent(m_hEvent);
+	}
+	
+}
+
+DWORD CUSBCopyDlg::EnumDeviceThreadProc( LPVOID lpParm )
+{
+	CUSBCopyDlg *pDlg = (CUSBCopyDlg *)lpParm;
+
+	pDlg->EnumDevice();
+
+	return 1;
+}
+
+void CUSBCopyDlg::MatchDevice()
+{
+	POSITION pos = m_TargetPorts.GetHeadPosition();
+	CString strPath;
+	int nConnectIndex = -1;
+	int nCount = 0;
+	CString strModel,strSN;
+	while (pos)
+	{
+		PUSBDEVICEINFO pUsbDeviceInfo = NULL;
+		PDEVICELIST pStorageList = NULL;
+		PDEVICELIST pVolumeList = NULL;
+		CPort *port;
+
+		if (nCount == 0)
+		{
+			port = &m_MasterPort;
+		}
+		else
+		{
+			port = m_TargetPorts.GetNext(pos);
+		}
+
+		nCount++;
+
+		strPath = port->GetPath1();
+		nConnectIndex = port->GetConnectIndex1();
+		pUsbDeviceInfo = GetHubPortDeviceInfo(strPath.GetBuffer(),nConnectIndex);
+
+		if (pUsbDeviceInfo == NULL)
+		{
+			strPath = port->GetPath2();
+			nConnectIndex = port->GetConnectIndex2();
+			pUsbDeviceInfo = GetHubPortDeviceInfo(strPath.GetBuffer(),nConnectIndex);
+		}
+
+		if (pUsbDeviceInfo)
+		{
+			pStorageList = MatchStorageDeivceIDs(pUsbDeviceInfo->DeviceID);
+
+			if (pStorageList)
+			{
+				PDEVICELIST pListNode = pStorageList->pNext;
+				while (pListNode)
+				{
+					PSTORAGEDEVIEINFO pStorageDevInfo = (PSTORAGEDEVIEINFO)pListNode->pDevInfo;
+					if (pStorageDevInfo)
+					{
+						DWORD dwErrorCode = 0;
+						HANDLE hDevice = CDisk::GetHandleOnPhysicalDrive(pStorageDevInfo->nDiskNum,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+						if (hDevice != INVALID_HANDLE_VALUE)
+						{
+							ULONGLONG ullSectorNums = 0;
+							DWORD dwBytesPerSector = 0;
+							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector);
+							CloseHandle(hDevice);
+
+							if (ullSectorNums > 0)
+							{
+								// 一个磁盘中有几个volume
+								CStringArray strVolumeArray;
+								pVolumeList = MatchVolumeDeviceDiskNums(pStorageDevInfo->nDiskNum);
+
+								if (pVolumeList)
+								{
+									PDEVICELIST pVolumeNode = pVolumeList->pNext;
+									while (pVolumeNode)
+									{
+										PVOLUMEDEVICEINFO pVolumeInfo = (PVOLUMEDEVICEINFO)pVolumeNode->pDevInfo;
+										if (pVolumeInfo)
+										{
+											strVolumeArray.Add(pVolumeInfo->pszVolumePath);
+										}
+
+										pVolumeNode = pVolumeNode->pNext;
+									}
+
+									CleanupVolumeDeviceList(pVolumeList);
+								}
+
+								port->SetConnected(TRUE);
+								port->SetDiskNum(pStorageDevInfo->nDiskNum);
+								port->SetPortState(PortState_Online);
+								port->SetBytesPerSector(dwBytesPerSector);
+								port->SetTotalSize(ullSectorNums * dwBytesPerSector);
+								port->SetVolumeArray(strVolumeArray);
+
+								CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,ModelName=%s,SN=%s")
+									,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
+									,ullSectorNums * dwBytesPerSector,strModel,strSN);
+
+								break;
+							}
+							else
+							{
+								port->Initial();
+
+							}
+
+						}
+						else
+						{
+							port->Initial();
+						}
+					}
+					else
+					{
+						port->Initial();
+					}
+
+					pListNode = pListNode->pNext;
+				}				
+				CleanupStorageDeviceList(pStorageList);
+
+			}
+			else
+			{
+				port->Initial();
+
+				// 重新上电
+				m_Command.Power(port->GetPortNum(),FALSE);
+				Sleep(1000);
+				m_Command.Power(port->GetPortNum(),TRUE);
+			}
+
+			CleanupInfo(pUsbDeviceInfo);
+			pUsbDeviceInfo = NULL;
+		}
+		else
+		{
+			port->Initial();
+
+			// 重新上电
+			m_Command.Power(port->GetPortNum(),FALSE);
+			Sleep(1000);
+			m_Command.Power(port->GetPortNum(),TRUE);
+		}
+	}
 }

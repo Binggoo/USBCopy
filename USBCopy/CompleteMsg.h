@@ -25,7 +25,6 @@ private:
 	CString m_strMessage;
 public:
 	virtual BOOL OnInitDialog();
-	virtual BOOL DestroyWindow();
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
