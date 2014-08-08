@@ -10,7 +10,7 @@
 
 #define BUF_SECTORS             (2 * 512) //512KB
 #define MAX_COMPRESS_BUF        ((BUF_SECTORS + 8) * 512)
-#define CLEAN_LENGTH           (10 * 512) //1¸öÉÈÇø
+#define CLEAN_LENGTH           (1 * 1024 * 1024) //1M
 #define BYTES_PER_SECTOR        512
 
 #define ALLOC(dwBytes)			GlobalAlloc(GPTR,(dwBytes))
@@ -44,7 +44,11 @@ typedef enum _ENUM_CUSTOM_ERROR
 	CustomError_Master_Failed,
 	CustomError_Image_Format_Error,
 	CustomError_Compress_Error,
-	CustomError_UnCompress_Error
+	CustomError_UnCompress_Error,
+	CustomError_Speed_Too_Slow,
+	CustomError_Unrecognized_Partition,
+	CustomError_No_File_Select,
+	CustomError_Target_Small
 
 }CustomError;
 

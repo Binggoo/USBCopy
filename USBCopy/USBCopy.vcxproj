@@ -106,6 +106,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
+    <None Include="res\logo.bmp" />
     <None Include="res\SD_gray.bmp" />
     <None Include="res\SD_green.bmp" />
     <None Include="res\SD_normal.bmp" />
@@ -129,6 +130,7 @@
     <ClInclude Include="DiskCompareSettingDlg.h" />
     <ClInclude Include="EnumStorage.h" />
     <ClInclude Include="EnumUSB.h" />
+    <ClInclude Include="FileCopySetting.h" />
     <ClInclude Include="FullCopySettingDlg.h" />
     <ClInclude Include="GlobalDef.h" />
     <ClInclude Include="GlobalSetting.h" />
@@ -168,6 +170,7 @@
     <ClCompile Include="DiskCompareSettingDlg.cpp" />
     <ClCompile Include="EnumStorage.cpp" />
     <ClCompile Include="EnumUSB.cpp" />
+    <ClCompile Include="FileCopySetting.cpp" />
     <ClCompile Include="FullCopySettingDlg.cpp" />
     <ClCompile Include="GlobalSetting.cpp" />
     <ClCompile Include="HashMethod.cpp" />

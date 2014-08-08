@@ -19,6 +19,8 @@ CPortDlg::CPortDlg(CWnd* pParent /*=NULL*/)
 
 	m_bOnlineCommand = FALSE;
 	m_bStopCommand = FALSE;
+
+	m_bEnableKickOff = FALSE;
 }
 
 CPortDlg::~CPortDlg()
@@ -36,6 +38,7 @@ void CPortDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CPortDlg, CDialogEx)
 	ON_WM_SIZE()
 	ON_WM_TIMER()
+	ON_MESSAGE(WM_PORT_RESET_POWER, &CPortDlg::OnPortResetPower)
 END_MESSAGE_MAP()
 
 
@@ -90,11 +93,13 @@ void CPortDlg::ChangeSize( CWnd *pWnd,int cx, int cy )
 	}
 }
 
-void CPortDlg::SetPort(CPortCommand *pCommand, CPort *port,PortList *pPortList )
+void CPortDlg::SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand, CPort *port,PortList *pPortList )
 {
 	m_pCommand = pCommand;
 	m_Port = port;
 	m_PortList = pPortList;
+	m_pIni = pIni;
+	m_hLogFile = hLogFile;
 }
 
 void CPortDlg::Update( BOOL bStart /*= TRUE*/ )
@@ -156,9 +161,22 @@ void CPortDlg::SetBitmap( UINT nResource )
 
 BOOL CPortDlg::IsSlowest()
 {
+	// ÅÅ³ýÄ¸ÅÌ±È½Ï
+	if (m_Port->GetPortNum() == 0 && m_Port->GetPortType() == PortType_MASTER_DISK)
+	{
+		return FALSE;
+	}
+
+	BOOL bCheckRelativeSpeed = m_pIni->GetBool(_T("Option"),_T("En_RelativeSpeed"),FALSE);
+	UINT nRelativeSpeed = m_pIni->GetUInt(_T("Option"),_T("RelativeSpeed"),60);
+
+	BOOL bCheckAbsoluteSpeed = m_pIni->GetBool(_T("Option"),_T("En_AbsoluteSpeed"),FALSE);
+	UINT nAbsolteSpeed = m_pIni->GetUInt(_T("Option"),_T("AbsoluteSpeed"),5);
+
 	BOOL bSlow = TRUE;
 	double dbSpeed = m_Port->GetRealSpeed();
 	POSITION pos = m_PortList->GetHeadPosition();
+	double dbTotolSpeed = dbSpeed;
 	int nCount = 0;
 	while(pos)
 	{
@@ -166,10 +184,10 @@ BOOL CPortDlg::IsSlowest()
 		if (port->IsConnected() && port->GetPortState() == PortState_Active && port->GetPortNum() != m_Port->GetPortNum())
 		{
 			nCount++;
+			dbTotolSpeed += port->GetRealSpeed();
 			if (port->GetRealSpeed() < dbSpeed)
 			{
 				bSlow = FALSE;
-				break;
 			}
 		}
 	}
@@ -178,6 +196,38 @@ BOOL CPortDlg::IsSlowest()
 	if (nCount == 0)
 	{
 		bSlow = FALSE;
+	}
+
+	if (bSlow && m_bEnableKickOff)
+	{
+		if (bCheckRelativeSpeed)
+		{
+			double dbAvgSpeed = dbTotolSpeed / (nCount + 1);
+			if (dbSpeed < dbAvgSpeed * nRelativeSpeed / 100)
+			{
+				PostMessage(WM_PORT_RESET_POWER);
+
+				m_Port->SetResult(FALSE);
+				m_Port->SetErrorCode(ErrorType_Custom,CustomError_Speed_Too_Slow);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+					,m_Port->GetPortName(),m_Port->GetDiskNum(),m_Port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+			}
+		}
+
+		if (bCheckAbsoluteSpeed)
+		{
+			if (dbSpeed < nAbsolteSpeed)
+			{
+				PostMessage(WM_PORT_RESET_POWER);
+
+				m_Port->SetResult(FALSE);
+				m_Port->SetErrorCode(ErrorType_Custom,CustomError_Speed_Too_Slow);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+					,m_Port->GetPortName(),m_Port->GetDiskNum(),m_Port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+			}
+		}
 	}
 
 	return bSlow;
@@ -296,4 +346,20 @@ void CPortDlg::UpdateState()
 	SetDlgItemText(IDC_TEXT_SIZE,strSize);
 	SetDlgItemText(IDC_TEXT_SPEED,strSpeed);
 	m_ProgressCtrl.SetPos(iPercent);
+}
+
+
+afx_msg LRESULT CPortDlg::OnPortResetPower(WPARAM wParam, LPARAM lParam)
+{
+	m_pCommand->Power(m_Port->GetPortNum(),FALSE);
+
+	Sleep(2000);
+
+	m_pCommand->Power(m_Port->GetPortNum(),TRUE);
+	return 0;
+}
+
+void CPortDlg::EnableKickOff(BOOL bEnable)
+{
+	m_bEnableKickOff = bEnable;
 }

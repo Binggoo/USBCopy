@@ -13,10 +13,9 @@
 #define CONFIG_NAME     _T("\\USBCopy.INI")
 #define MACHINE_INFO    _T("\\MachineInfo.INI")
 #define LOG_FILE     _T("\\USBCopy.LOG")
+#define MASTER_PATH  _T("M:\\")
 
 #define TIMER_UPDATE_STATISTIC 1
-#define WM_UPDATE_STATISTIC (WM_USER + 1)
-#define WM_RESET_MACHIEN_PORT (WM_USER + 2)
 
 // CUSBCopyDlg dialog
 class CUSBCopyDlg : public CDialogEx
@@ -72,8 +71,7 @@ private:
 	BOOL          m_bResult;
 	BOOL          m_bVerify;
 	BOOL          m_bRunning;
-
-	HANDLE        m_hEvent;
+	BOOL          m_bUpdate;
 
 	enum
 	{
@@ -88,6 +86,7 @@ private:
 	void InitialPortFrame();
 	void ResetPortFrame();
 	void UpdatePortFrame(BOOL bStart);
+	void EnableKickOff(BOOL bEnable);
 
 	void InitialPortPath();
 	void InitialSerialPort();
@@ -136,4 +135,5 @@ protected:
 	afx_msg LRESULT OnComReceive(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnResetMachienPort(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnDeviceChange(UINT nEventType, DWORD_PTR dwData);
+	afx_msg LRESULT OnUpdateSoftware(WPARAM wParam, LPARAM lParam);
 };

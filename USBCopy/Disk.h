@@ -4,6 +4,8 @@
 
 #define WM_SEND_FUNCTION_TEXT (WM_USER + 101)
 
+typedef CMap<CString,LPCTSTR,ULONGLONG,ULONGLONG> CMapStringToULL;
+
 class CDisk
 {
 public:
@@ -18,11 +20,13 @@ public:
 	static void DeleteDirectory( LPCTSTR lpszPath );
 	static BOOL CreateDisk(int disk,ULONG PartitionNumber);
 	static BOOL DestroyDisk(int disk);
+	static BOOL DestroyDisk(HANDLE hDisk);
 	static BOOL ChangeLetter(LPCTSTR lpszVolumeName,LPCTSTR lpszVolumePath);
 	static BOOL LockOnVolume(HANDLE hVolume,DWORD *pdwErrorCode);
 	static BOOL UnLockVolume(HANDLE hVolume,DWORD *pdwErrorCode);
 	static BOOL UnmountVolume(HANDLE hVolume,DWORD *pdwErrorCode);
 	static BOOL IsVolumeUnmount(HANDLE hVolume);
+	static BOOL SetDiskAtrribute(HANDLE hDisk,BOOL bReadOnly,BOOL bOffline,PDWORD pdwErrorCode);
 
 	// 公共方法
 	void Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile);
@@ -32,6 +36,7 @@ public:
 	void SetWorkMode(WorkMode workMode);
 	void SetCleanMode(CleanMode cleanMode,int nFillValue);
 	void SetCompareMode(CompareMode compareMode);
+	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
 	BOOL Start();
 
 private:
@@ -68,6 +73,11 @@ private:
 
 	volatile UINT m_nCurrentTargetCount;
 
+	CStringArray  m_FileArray;
+	CStringArray  m_FodlerArray;
+
+	CMapStringToULL m_MapFiles;
+
 	BOOL ReadSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode);
 	BOOL WriteSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode);
 
@@ -93,6 +103,8 @@ private:
 	void AddDataQueueList(DATA_INFO dataInfo);
 	bool IsReachLimitQty(int limit);
 
+	int EnumFile(CString strSource);
+
 	BOOL QuickClean(CPort *port,PDWORD pdwErrorCode);
 
 	// 线程
@@ -105,11 +117,16 @@ private:
 	static DWORD WINAPI UnCompressThreadProc(LPVOID lpParm);
 	static DWORD WINAPI CleanDiskThreadProc(LPVOID lpParm);
 
+	static DWORD WINAPI ReadFilesThreadProc(LPVOID lpParm);
+	static DWORD WINAPI WriteFilesThreadProc(LPVOID lpParm);
+	static DWORD WINAPI VerifyFilesThreadProc(LPVOID lpParm);
+
 	BOOL OnCopyDisk();
 	BOOL OnCopyImage();
 	BOOL OnMakeImage();
 	BOOL OnCompareDisk();
 	BOOL OnCleanDisk();
+	BOOL OnCopyFiles();
 
 	BOOL ReadDisk();
 	BOOL ReadImage();
@@ -120,6 +137,10 @@ private:
 	BOOL Uncompress();
 	BOOL CleanDisk(CPort *port);
 
+	BOOL ReadFiles();
+	BOOL WriteFiles(CPort *port,CDataQueue *pDataQueue);
+	BOOL VerifyFiles(CPort *port,CHashMethod *pHashMethod);
+
 };
 
 typedef struct _STRUCT_LPVOID_PARM
@@ -129,3 +150,102 @@ typedef struct _STRUCT_LPVOID_PARM
 	LPVOID lpVoid3;   //CHashMethod or CDataQueue
 }VOID_PARM,*LPVOID_PARM;
 
+//
+// IOCTLs to query and modify attributes
+// associated with the given disk. These
+// are persisted within the registry.
+//
+
+#define IOCTL_DISK_GET_DISK_ATTRIBUTES      CTL_CODE(IOCTL_DISK_BASE, 0x003c, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_DISK_SET_DISK_ATTRIBUTES      CTL_CODE(IOCTL_DISK_BASE, 0x003d, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define DISK_ATTRIBUTE_OFFLINE              0x0000000000000001
+#define DISK_ATTRIBUTE_READ_ONLY            0x0000000000000002
+
+//
+// IOCTL_DISK_GET_DISK_ATTRIBUTES
+//
+// Input Buffer:
+//     None
+//
+// Output Buffer:
+//     Structure of type GET_DISK_ATTRIBUTES
+//
+
+typedef struct _GET_DISK_ATTRIBUTES {
+
+	//
+	// Specifies the size of the
+	// structure for versioning.
+	//
+	ULONG Version;
+
+	//
+	// For alignment purposes.
+	//
+	ULONG Reserved1;
+
+	//
+	// Specifies the attributes
+	// associated with the disk.
+	//
+	ULONGLONG Attributes;
+
+} GET_DISK_ATTRIBUTES, *PGET_DISK_ATTRIBUTES;
+
+//
+// IOCTL_DISK_SET_DISK_ATTRIBUTES
+//
+// Input Buffer:
+//     Structure of type SET_DISK_ATTRIBUTES
+//
+// Output Buffer:
+//     None
+//
+
+typedef struct _SET_DISK_ATTRIBUTES {
+
+	//
+	// Specifies the size of the
+	// structure for versioning.
+	//
+	ULONG Version;
+
+	//
+	// Indicates whether to remember
+	// these settings across reboots
+	// or not.
+	//
+	BOOLEAN Persist;
+
+	//
+	// Indicates whether the ownership
+	// taken earlier is being released.
+	//
+	BOOLEAN RelinquishOwnership;
+
+	//
+	// For alignment purposes.
+	//
+	BOOLEAN Reserved1[2];
+
+	//
+	// Specifies the new attributes.
+	//
+	ULONGLONG Attributes;
+
+	//
+	// Specifies the attributes
+	// that are being modified.
+	//
+	ULONGLONG AttributesMask;
+
+	//
+	// Specifies an identifier to be
+	// associated  with  the caller.
+	// This setting is not persisted
+	// across reboots.
+	//
+	GUID Owner;
+
+} SET_DISK_ATTRIBUTES, *PSET_DISK_ATTRIBUTES;

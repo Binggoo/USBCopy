@@ -120,6 +120,8 @@ void MD5::reset() {
 	_state[1] = 0xefcdab89;
 	_state[2] = 0x98badcfe;
 	_state[3] = 0x10325476;
+
+	memset(_digest,0,16);
 }
 
 /* Updating the context with a input buffer. */

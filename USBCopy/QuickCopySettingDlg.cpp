@@ -59,7 +59,7 @@ BOOL CQuickCopySettingDlg::OnInitDialog()
 		m_bEnCompare = FALSE;
 	}
 
-#ifndef SD_CF
+#ifndef SD_TF
 	m_bEnMutiMBRSupported = m_pIni->GetBool(_T("QuickCopy"),_T("En_MutiMBR"),FALSE);
 	UINT nMBRLastLBA = m_pIni->GetUInt(_T("QuickCopy"),_T("MBRLastLBA"),5);
 
@@ -97,7 +97,7 @@ void CQuickCopySettingDlg::OnBnClickedOk()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 
-#ifndef SD_CF
+#ifndef SD_TF
 	UINT nMBRLastLBA = GetDlgItemInt(IDC_COMBO_MUTI_MBR);
 	m_pIni->WriteBool(_T("QuickCopy"),_T("En_MutiMBR"),m_bEnMutiMBRSupported);
 	m_pIni->WriteUInt(_T("QuickCopy"),_T("MBRLastLBA"),nMBRLastLBA);

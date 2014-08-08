@@ -48,6 +48,13 @@ DATA_INFO CDataQueue::GetHeadRemove()
 		temp.pData = new BYTE[dataInfo.dwDataSize];
 		memcpy(temp.pData,dataInfo.pData,dataInfo.dwDataSize);
 
+		if (dataInfo.szFileName)
+		{
+			temp.szFileName = new TCHAR[_tcslen(dataInfo.szFileName)+1];
+			_tcscpy_s(temp.szFileName,_tcslen(dataInfo.szFileName)+1,dataInfo.szFileName);
+
+			delete []dataInfo.szFileName;
+		}
 		delete []dataInfo.pData;
 		m_DataQueue.RemoveHead();
 	}	
@@ -69,6 +76,13 @@ void CDataQueue::RemoveHead()
 	{
 		delete [] dataInfo->pData;
 		dataInfo->pData = NULL;
+
+		if (dataInfo->szFileName)
+		{
+			delete []dataInfo->szFileName;
+			dataInfo->szFileName = NULL;
+		}
+
 		m_DataQueue.RemoveHead();
 	}
 	m_cs.Unlock();
@@ -84,6 +98,12 @@ void CDataQueue::Clear()
 
 		delete [] dataInfo->pData;
 		dataInfo->pData = NULL;
+
+		if (dataInfo->szFileName)
+		{
+			delete []dataInfo->szFileName;
+			dataInfo->szFileName = NULL;
+		}
 	}
 	m_DataQueue.RemoveAll();
 	m_cs.Unlock();

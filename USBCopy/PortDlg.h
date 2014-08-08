@@ -4,6 +4,7 @@
 #include "Port.h"
 #include "ProgressCtrlEx.h"
 #include "PortCommand.h"
+#include "Ini.h"
 
 // CPortDlg ¶Ô»°¿ò
 
@@ -33,6 +34,9 @@ private:
 
 	BOOL m_bOnlineCommand;
 	BOOL m_bStopCommand;
+	CIni *m_pIni;
+	HANDLE m_hLogFile;
+	volatile BOOL m_bEnableKickOff;
 
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 
@@ -44,10 +48,13 @@ public:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 
-	void SetPort(CPortCommand *pCommand,CPort *port,PortList *pPortList);
+	void SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand,CPort *port,PortList *pPortList);
 	CPort *GetPort();
 	void Update(BOOL bStart = TRUE);
+	void EnableKickOff(BOOL bEnable);
 	void Initial();
 	void SetBitmap(UINT nResource);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+protected:
+	afx_msg LRESULT OnPortResetPower(WPARAM wParam, LPARAM lParam);
 };

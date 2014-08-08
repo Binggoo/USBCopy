@@ -26,7 +26,7 @@
 
 #include <afxdisp.h>        // MFC Automation classes
 
-
+#define SD_TF
 
 #ifndef _AFX_NO_OLE_SUPPORT
 #include <afxdtctl.h>           // MFC support for Internet Explorer 4 Common Controls

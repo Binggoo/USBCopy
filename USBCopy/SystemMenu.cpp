@@ -56,19 +56,23 @@ BOOL CSystemMenu::OnInitDialog()
 	CString strPath = CUtils::GetAppPath();
 	m_strAppPath = CUtils::GetFilePathWithoutName(strPath);
 
+	m_nTargetNum = m_pIni->GetInt(_T("TargetDrives"),_T("NumOfTargetDrives"),0);
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
 }
 
-void CSystemMenu::SetConfig( CIni *pIni )
+void CSystemMenu::SetConfig( CIni *pIni ,CPortCommand *pCommand)
 {
 	m_pIni = pIni;
+	m_pCommand = pCommand;
 }
 
 
 void CSystemMenu::OnBnClickedButtonUpdate()
 {
 	// TODO: 在此添加控件通知处理程序代码
+
 	STARTUPINFO si;
 	PROCESS_INFORMATION pi;
 	ZeroMemory(&si,sizeof(STARTUPINFO));
@@ -184,6 +188,13 @@ void CSystemMenu::OnBnClickedButtonViewLog()
 void CSystemMenu::OnBnClickedButtonExportLog()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	// 只允许从USB接口导log
+
+	for (UINT i = 0; i <= m_nTargetNum;i++)
+	{
+		m_pCommand->Power(i,FALSE);
+	}
+
 	CString strDrive,strPath;
 
 	while (1)
@@ -257,6 +268,13 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 			}
 		}
 	}
+
+	// 上电
+	for (UINT i = 0; i <= m_nTargetNum;i++)
+	{
+		m_pCommand->Power(i,TRUE);
+	}
+
 	CDialogEx::OnOK();
 	
 }

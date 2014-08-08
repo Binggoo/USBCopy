@@ -235,6 +235,36 @@ void CScanningDlg::ScanningDevice()
 
 						if (hDevice != INVALID_HANDLE_VALUE)
 						{
+
+							switch (m_WorkMode)
+							{
+							case WorkMode_FullCopy:
+							case WorkMode_QuickCopy:
+							case WorkMode_ImageCopy:
+							case WorkMode_DiskClean:
+								// 去掉子盘readonly属性并且offline
+								if (port->GetPortNum() != 0)
+								{
+									CDisk::SetDiskAtrribute(hDevice,FALSE,TRUE,&dwErrorCode);
+								}
+								break;
+
+							case WorkMode_DiskCompare:
+								// 只读
+								if (port->GetPortNum() != 0)
+								{
+									CDisk::SetDiskAtrribute(hDevice,TRUE,FALSE,&dwErrorCode);
+								}
+								break;
+
+							case WorkMode_FileCopy:
+								// 去掉只读，并且online
+								if (port->GetPortNum() != 0)
+								{
+									CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
+								}
+							}
+
 							ULONGLONG ullSectorNums = 0;
 							DWORD dwBytesPerSector = 0;
 							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector);

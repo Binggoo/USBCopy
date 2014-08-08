@@ -50,7 +50,7 @@ BOOL CImageMakeSetting::OnInitDialog()
 
 	m_nRadioSelectIndex = m_pIni->GetUInt(_T("ImageMake"),_T("PathType"),0);
 
-#ifndef SD_CF
+#ifndef SD_TF
 	m_bCheckSupportMutiMBR = m_pIni->GetBool(_T("ImageMake"),_T("En_MutiMBR"),FALSE);
 	UINT nMBRLastLBA = m_pIni->GetUInt(_T("ImageMake"),_T("MBRLastLBA"),5);
 
@@ -95,7 +95,7 @@ void CImageMakeSetting::OnBnClickedOk()
 
 	m_pIni->WriteUInt(_T("ImageMake"),_T("SavePath"),m_nRadioSelectIndex);
 
-#ifndef SD_CF
+#ifndef SD_TF
 	UINT nMBRLastLBA = GetDlgItemInt(IDC_COMBO_MUTI_MBR);
 	m_pIni->WriteBool(_T("ImageMake"),_T("En_MutiMBR"),m_bCheckSupportMutiMBR);
 	m_pIni->WriteUInt(_T("ImageMake"),_T("MBRLastLBA"),nMBRLastLBA);

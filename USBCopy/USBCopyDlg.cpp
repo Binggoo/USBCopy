@@ -20,6 +20,7 @@
 #include "ImageNameDlg.h"
 #include "ScanningDlg.h"
 #include "CompleteMsg.h"
+#include "FileCopySetting.h"
 
 #include <dbt.h>
 #include "EnumUSB.h"
@@ -77,6 +78,7 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bResult = TRUE;
 	m_bVerify = FALSE;
 	m_bRunning = FALSE;
+	m_bUpdate = FALSE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -104,6 +106,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(ON_COM_RECEIVE, &CUSBCopyDlg::OnComReceive)
 	ON_MESSAGE(WM_RESET_MACHIEN_PORT, &CUSBCopyDlg::OnResetMachienPort)
 	ON_WM_DEVICECHANGE()
+	ON_MESSAGE(WM_UPDATE_SOFTWARE, &CUSBCopyDlg::OnUpdateSoftware)
 END_MESSAGE_MAP()
 
 
@@ -154,8 +157,6 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 		SendMessage(WM_CLOSE);
 	}
-
-	m_hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
 
 	//添加状态栏
 	CString strVersion,strSN,strModel,strAlias;
@@ -276,7 +277,7 @@ void CUSBCopyDlg::InitialPortFrame()
 	int nHeight = (rectFrame.Height()-2) / ROWS;
 
 	// 母盘
-	m_PortFrames[0].SetPort(&m_Command,&m_MasterPort,&m_TargetPorts);
+	m_PortFrames[0].SetPort(&m_Config,m_hLogFile,&m_Command,&m_MasterPort,&m_TargetPorts);
 
 	m_PortFrames[0].Create(IDD_DIALOG_PORT,this);
 
@@ -295,7 +296,7 @@ void CUSBCopyDlg::InitialPortFrame()
 	{
 		CPort *port = m_TargetPorts.GetNext(pos);
 
-		m_PortFrames[nItem].SetPort(&m_Command,port,&m_TargetPorts);
+		m_PortFrames[nItem].SetPort(&m_Config,m_hLogFile,&m_Command,port,&m_TargetPorts);
 
 		m_PortFrames[nItem].Create(IDD_DIALOG_PORT,this);
 
@@ -324,10 +325,16 @@ void CUSBCopyDlg::ResetPortFrame()
 void CUSBCopyDlg::UpdatePortFrame(BOOL bStart)
 {
 	for (UINT i = 0;i < m_nPortNum;i++)
-	{
-		CPort *port = m_PortFrames[i].GetPort();
-		
+	{	
 		m_PortFrames[i].Update(bStart);
+	}
+}
+
+void CUSBCopyDlg::EnableKickOff(BOOL bEnable)
+{
+	for (UINT i = 0;i < m_nPortNum;i++)
+	{
+		m_PortFrames[i].EnableKickOff(bEnable);
 	}
 }
 
@@ -620,7 +627,7 @@ void CUSBCopyDlg::OnBnClickedBtnSystem()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	CSystemMenu menu;
-	menu.SetConfig(&m_Config);
+	menu.SetConfig(&m_Config,&m_Command);
 	menu.DoModal();
 
 	CString strAlias = m_Config.GetString(_T("Option"),_T("MachineAlias"),_T("PHIYO"));
@@ -689,6 +696,26 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 			CImageCopySetting dlg;
 			dlg.SetConfig(&m_Config);
 			dlg.DoModal();
+		}
+		break;
+
+	case WorkMode_FileCopy:
+		{
+			if (m_MasterPort.IsConnected() && PathFileExists(MASTER_PATH))
+			{
+				CFileCopySetting dlg;
+				dlg.SetConfig(&m_Config,&m_MasterPort);
+				dlg.DoModal();
+			}
+			else if (!m_MasterPort.IsConnected())
+			{
+				MessageBox(_T("No Master"));
+			}
+			else
+			{
+				MessageBox(_T("Master partition can't be recognized"));
+			}
+			
 		}
 		break;
 	}
@@ -973,6 +1000,16 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 		if (spanU.GetTotalSeconds() > 0)
 		{
 			uAvgSpeed = (UINT)((ullCompleteSize / 1024 / 1024) / spanU.GetTotalSeconds());
+		}
+
+		// 超过5s，使能踢盘功能
+		if (spanU.GetTotalSeconds() > 5)
+		{
+			EnableKickOff(TRUE);
+		}
+		else
+		{
+			EnableKickOff(FALSE);
 		}
 
 		strText.Format(_T("%d MB/s"),uAvgSpeed);
@@ -1520,6 +1557,132 @@ void CUSBCopyDlg::OnStart()
 		}
 		
 		break;
+
+	case WorkMode_FileCopy:
+		{
+			BOOL bComputeHash = m_Config.GetBool(_T("FileCopy"),_T("En_ComputeHash"),FALSE);
+			BOOL bCompare = m_Config.GetBool(_T("FileCopy"),_T("En_Compare"),FALSE);
+			
+			UINT nNumOfFolders = m_Config.GetUInt(_T("FileCopy"),_T("NumOfFolders"),0);
+			UINT nNumOfFiles = m_Config.GetUInt(_T("FileCopy"),_T("NumOfFiles"),0);
+
+			
+			CStringArray filesArray,folderArray;
+			CString strKey,strFile,strPath;
+
+			for (UINT i = 0;i < nNumOfFolders;i++)
+			{
+				strKey.Format(_T("Folder_%d"),i);
+				strFile = m_Config.GetString(_T("FileCopy"),strKey);
+
+				if (strFile.IsEmpty())
+				{
+					continue;
+				}
+
+				strPath = MASTER_PATH + strFile;
+
+				if (PathFileExists(strPath))
+				{
+					folderArray.Add(strPath);
+				}
+				else
+				{
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("File Copy,folder %s doesn't exist."),strPath);
+				}
+
+			}
+
+			for (UINT i = 0;i < nNumOfFiles;i++)
+			{
+				strKey.Format(_T("Files_%d"),i);
+				strFile = m_Config.GetString(_T("FileCopy"),strKey);
+
+				if (strFile.IsEmpty())
+				{
+					continue;
+				}
+
+				strPath = MASTER_PATH + strFile;
+
+				if (PathFileExists(strPath))
+				{
+					filesArray.Add(strPath);
+				}
+				else
+				{
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("File Copy,file %s doesn't exist."),strPath);
+				}
+
+			}
+
+			// 设置端口状态
+			m_MasterPort.SetHashMethod(hashMethod);
+			m_MasterPort.SetWorkMode(m_WorkMode);
+
+			POSITION pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					port->SetHashMethod(hashMethod);
+					port->SetWorkMode(m_WorkMode);
+				}
+			}
+
+			disk.SetMasterPort(&m_MasterPort);
+			disk.SetTargetPorts(&m_TargetPorts);
+			disk.SetHashMethod(bComputeHash,bCompare,hashMethod);
+			disk.SetFileAndFolder(filesArray,folderArray);
+
+			bResult = disk.Start();
+
+			CString strHashValue;
+			if (bResult)
+			{
+				if (bComputeHash)
+				{
+					int len = m_MasterPort.GetHashLength();
+					BYTE *pHash = new BYTE[len];
+					ZeroMemory(pHash,len);
+					m_MasterPort.GetHash(pHash,len);
+					for (int i = 0;i < len;i++)
+					{
+						CString strHash;
+						strHash.Format(_T("%02X"),pHash[i]);
+
+						strHashValue += strHash;
+					}
+					delete []pHash;
+					strMsg.Format(_T("FILE COPY Completed ! Hash Method = %s,Hash Value = %s")
+						,m_MasterPort.GetHashMethodString(),strHashValue);
+				}
+				else
+				{
+					strMsg.Format(_T("FILE COPY Completed !!!"));
+				}
+			}
+			else
+			{
+				ErrorType errType = ErrorType_System;
+				DWORD dwErrorCode = 0;
+				errType = m_MasterPort.GetErrorCode(&dwErrorCode);
+
+				if (errType == ErrorType_System)
+				{
+					strMsg.Format(_T("FILE COPY Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				}
+				else
+				{
+					strMsg.Format(_T("FILE COPY Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+				}
+
+			}
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+		}
+		break;
 	}
 
 	m_strMsg = strMsg;
@@ -1585,6 +1748,22 @@ CString CUSBCopyDlg::GetCustomErrorMsg( CustomError customError )
 		case CustomError_UnCompress_Error:
 			strError = _T("Uncompress error.");
 			break;
+
+		case CustomError_Speed_Too_Slow:
+			strError = _T("Speed too slow.");
+			break;
+
+		case CustomError_Unrecognized_Partition:
+			strError = _T("Unrecognized partition.");
+			break;
+
+		case CustomError_No_File_Select:
+			strError = _T("No file has been selected.");
+			break;
+
+		case CustomError_Target_Small:
+			strError = _T("Target is small.");
+			break;
 	}
 
 	return strError;
@@ -1643,6 +1822,11 @@ void CUSBCopyDlg::ResetPortInfo()
 BOOL CUSBCopyDlg::DestroyWindow()
 {
 	// TODO: 在此添加专用代码和/或调用基类
+
+	m_bRunning = TRUE;
+
+	UpdatePortFrame(FALSE);
+
 	POSITION pos = m_TargetPorts.GetHeadPosition();
 
 	while(pos)
@@ -1653,9 +1837,16 @@ BOOL CUSBCopyDlg::DestroyWindow()
 
 	m_TargetPorts.RemoveAll();
 
-	for (UINT i = 0;i < m_nPortNum;i++)
+	if (m_bUpdate)
 	{
-		m_PortFrames[i].DestroyWindow();
+		for (UINT i = 1;i < m_nPortNum;i++)
+		{
+			m_Command.Power(i,FALSE);
+		}
+	}
+	else
+	{
+		m_Command.ResetPower();
 	}
 
 	if (m_hLogFile != INVALID_HANDLE_VALUE)
@@ -1664,18 +1855,12 @@ BOOL CUSBCopyDlg::DestroyWindow()
 		m_hLogFile = INVALID_HANDLE_VALUE;
 	}
 
-	if (m_hEvent != NULL)
-	{
-		CloseHandle(m_hEvent);
-		m_hEvent = NULL;
-	}
-
 	m_Config.SetPathName(m_strAppPath + MACHINE_INFO);
 	CString strAlias;
 	GetDlgItemText(IDC_TEXT_ALIAS,strAlias);
 	m_Config.WriteString(_T("MachineInfo"),_T("Alias"),strAlias);
 
-	m_Command.ResetPower();
+	delete []m_PortFrames;
 
 	return CDialogEx::DestroyWindow();
 }
@@ -1784,8 +1969,6 @@ void CUSBCopyDlg::EnumDevice()
 {
 	while (!m_bRunning)
 	{
-		WaitForSingleObject(m_hEvent,INFINITE);
-
 		EnumStorage();
 		EnumVolume();
 
@@ -1793,8 +1976,6 @@ void CUSBCopyDlg::EnumDevice()
 
 		CleanupStorage();
 		CleanupVolume();
-
-		SetEvent(m_hEvent);
 	}
 	
 }
@@ -1864,6 +2045,21 @@ void CUSBCopyDlg::MatchDevice()
 							ULONGLONG ullSectorNums = 0;
 							DWORD dwBytesPerSector = 0;
 							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector);
+
+							// 如果是母盘设置ReadOnly
+							if (port->GetPortNum() == 0)
+							{
+								if (m_WorkMode == WorkMode_FileCopy)
+								{
+									CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
+								}
+								else
+								{
+									CDisk::SetDiskAtrribute(hDevice,TRUE,FALSE,&dwErrorCode);
+								}
+								
+							}
+
 							CloseHandle(hDevice);
 
 							if (ullSectorNums > 0)
@@ -1880,7 +2076,15 @@ void CUSBCopyDlg::MatchDevice()
 										PVOLUMEDEVICEINFO pVolumeInfo = (PVOLUMEDEVICEINFO)pVolumeNode->pDevInfo;
 										if (pVolumeInfo)
 										{
-											strVolumeArray.Add(pVolumeInfo->pszVolumePath);
+											CString strVolume(pVolumeInfo->pszVolumePath);
+											strVolumeArray.Add(strVolume);
+
+											if (port->GetPortNum() == 0 && m_WorkMode == WorkMode_FileCopy)
+											{
+												//给母盘分配盘符
+												strVolume += _T("\\");
+												CDisk::ChangeLetter(strVolume,MASTER_PATH);
+											}
 										}
 
 										pVolumeNode = pVolumeNode->pNext;
@@ -1907,6 +2111,7 @@ void CUSBCopyDlg::MatchDevice()
 								port->Initial();
 
 							}
+
 
 						}
 						else
@@ -1947,4 +2152,11 @@ void CUSBCopyDlg::MatchDevice()
 			m_Command.Power(port->GetPortNum(),TRUE);
 		}
 	}
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnUpdateSoftware(WPARAM wParam, LPARAM lParam)
+{
+	m_bUpdate = TRUE;
+	return 0;
 }

@@ -1,6 +1,6 @@
 #pragma once
 #include "Ini.h"
-
+#include "PortCommand.h"
 // CSystemMenu ¶Ô»°¿ò
 
 class CSystemMenu : public CDialogEx
@@ -20,11 +20,13 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
-	void SetConfig(CIni *pIni);
+	void SetConfig(CIni *pIni,CPortCommand *pCommand);
 
 private:
 	CIni *m_pIni;
+	CPortCommand *m_pCommand;
 	CString m_strAppPath;
+	UINT m_nTargetNum;
 public:
 	afx_msg void OnBnClickedButtonUpdate();
 	afx_msg void OnBnClickedButtonRestore();

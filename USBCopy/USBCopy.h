@@ -13,6 +13,10 @@
 // CUSBCopyApp:
 // See USBCopy.cpp for the implementation of this class
 //
+#define WM_UPDATE_STATISTIC (WM_USER + 1)
+#define WM_RESET_MACHIEN_PORT (WM_USER + 2)
+#define WM_PORT_RESET_POWER  (WM_USER + 3)
+#define WM_UPDATE_SOFTWARE   (WM_USER + 4)
 
 class CUSBCopyApp : public CWinApp
 {

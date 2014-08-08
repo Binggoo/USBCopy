@@ -2,6 +2,7 @@
 
 typedef struct _STRUCT_DATA_INFO
 {
+	LPTSTR szFileName;
 	ULONGLONG ullOffset;
 	DWORD     dwDataSize;
 	LPBYTE    pData;
