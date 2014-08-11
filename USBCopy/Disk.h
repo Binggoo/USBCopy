@@ -37,6 +37,7 @@ public:
 	void SetCleanMode(CleanMode cleanMode,int nFillValue);
 	void SetCompareMode(CompareMode compareMode);
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
+	void SetFormatParm(CString strVolumeLabel,CString strFileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
 	BOOL Start();
 
 private:
@@ -46,7 +47,6 @@ private:
 	HANDLE   m_hLogFile;
 	LPBOOL   m_lpCancel;
 	HANDLE   m_hMaster;
-	CCriticalSection m_CS;
 	
 	ULONGLONG m_ullCapacity;
 	ULONGLONG m_ullSectorNums;
@@ -58,6 +58,7 @@ private:
 	HashMethod m_HashMethod;
 	CHashMethod *m_pMasterHashMethod;
 	BYTE m_ImageHash[LEN_DIGEST];
+	CString m_strMasterHash;
 
 	WorkMode m_WorkMode;
 
@@ -77,6 +78,13 @@ private:
 	CStringArray  m_FodlerArray;
 
 	CMapStringToULL m_MapFiles;
+
+	BOOL m_bQuickFormat;
+	CString m_strFileSystem;
+	DWORD m_dwClusterSize;
+	CString m_strVolumnLabel;
+
+	BOOL m_bCompressComplete; //压缩线程和解压线程是否结束
 
 	BOOL ReadSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode);
 	BOOL WriteSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode);
@@ -121,12 +129,15 @@ private:
 	static DWORD WINAPI WriteFilesThreadProc(LPVOID lpParm);
 	static DWORD WINAPI VerifyFilesThreadProc(LPVOID lpParm);
 
+	static DWORD WINAPI FormatDiskThreadProc(LPVOID lpParm);
+
 	BOOL OnCopyDisk();
 	BOOL OnCopyImage();
 	BOOL OnMakeImage();
 	BOOL OnCompareDisk();
 	BOOL OnCleanDisk();
 	BOOL OnCopyFiles();
+	BOOL OnFormatDisk();
 
 	BOOL ReadDisk();
 	BOOL ReadImage();
@@ -140,6 +151,8 @@ private:
 	BOOL ReadFiles();
 	BOOL WriteFiles(CPort *port,CDataQueue *pDataQueue);
 	BOOL VerifyFiles(CPort *port,CHashMethod *pHashMethod);
+
+	BOOL FormatDisk(CPort *port);
 
 };
 

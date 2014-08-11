@@ -36,6 +36,7 @@ BEGIN_MESSAGE_MAP(CSelectCurModeDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_FILE_COPY, &CSelectCurModeDlg::OnBnClickedBtnFileCopy)
 	ON_BN_CLICKED(IDC_BTN_DISK_COMPARE, &CSelectCurModeDlg::OnBnClickedBtnDiskCompare)
 	ON_WM_SETCURSOR()
+	ON_BN_CLICKED(IDC_BTN_DISK_FORMAT, &CSelectCurModeDlg::OnBnClickedBtnDiskFormat)
 END_MESSAGE_MAP()
 
 
@@ -132,12 +133,27 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	case WorkMode_DiskCompare:
 		strMode = _T(" - Disk Compare");
 		break;
+
+	case WorkMode_DiskFormat:
+		strMode = _T(" - Disk Format");
+		break;
 	}
 
 	CString strTitle;
 	GetWindowText(strTitle);
 	strTitle += strMode;
 	SetWindowText(strTitle);
+
+	m_font.CreatePointFont(200,_T("Arial"));
+
+	GetDlgItem(IDC_BTN_FULL_COPY)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_QUICK_COPY)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_FILE_COPY)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_IMAGE_COPY)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_IMAGE_MAKE)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_DISK_COMPARE)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_DISK_CLEAN)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_DISK_FORMAT)->SetFont(&m_font);
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -174,7 +190,8 @@ BOOL CSelectCurModeDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		case IDC_BTN_IMAGE_MAKE:
 		case IDC_BTN_DISK_COMPARE:
 		case IDC_BTN_DISK_CLEAN:
-		case IDOK:
+		case IDC_BTN_DISK_FORMAT:
+		//case IDOK:
 			if (pWnd->IsWindowEnabled())
 			{
 				SetCursor(LoadCursor(NULL,MAKEINTRESOURCE(IDC_HAND)));
@@ -185,4 +202,12 @@ BOOL CSelectCurModeDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 	
 
 	return CDialogEx::OnSetCursor(pWnd, nHitTest, message);
+}
+
+
+void CSelectCurModeDlg::OnBnClickedBtnDiskFormat()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_WorkMode = WorkMode_DiskFormat;
+	OnOK();
 }

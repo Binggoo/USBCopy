@@ -111,8 +111,6 @@ void CDataQueue::Clear()
 
 int CDataQueue::GetCount()
 {
-	m_cs.Lock();
 	int nCount = m_DataQueue.GetCount();
-	m_cs.Unlock();
 	return nCount;
 }

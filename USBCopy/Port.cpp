@@ -11,8 +11,11 @@ CPort::CPort(void)
 	m_iConnectIndex2 = 0;
 	m_PortType = PortType_NULL;
 
-	memset(&m_Overlapped,0,sizeof(m_Overlapped));
-	m_Overlapped.hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
+	memset(&m_ReadOverlapped,0,sizeof(m_ReadOverlapped));
+	m_ReadOverlapped.hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
+
+	memset(&m_WriteOverlapped,0,sizeof(m_WriteOverlapped));
+	m_WriteOverlapped.hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
 
 	Initial();
 }
@@ -20,9 +23,14 @@ CPort::CPort(void)
 
 CPort::~CPort(void)
 {
-	if (m_Overlapped.hEvent != INVALID_HANDLE_VALUE)
+	if (m_ReadOverlapped.hEvent != INVALID_HANDLE_VALUE)
 	{
-		CloseHandle(m_Overlapped.hEvent);
+		CloseHandle(m_ReadOverlapped.hEvent);
+	}
+
+	if (m_WriteOverlapped.hEvent != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(m_WriteOverlapped.hEvent);
 	}
 }
 
@@ -528,9 +536,17 @@ ErrorType CPort::GetErrorCode( PDWORD pdwErrorCode )
 	return m_ErrorType;
 }
 
-LPOVERLAPPED CPort::GetOverlapped()
+LPOVERLAPPED CPort::GetOverlapped(BOOL bRead)
 {
-	return &m_Overlapped;
+	if (bRead)
+	{
+		return &m_ReadOverlapped;
+	}
+	else
+	{
+		return &m_WriteOverlapped;
+	}
+	
 }
 
 

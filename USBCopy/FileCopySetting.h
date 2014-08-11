@@ -34,6 +34,8 @@ private:
 
 	void UpdateListCtrl();
 
+	BOOL IsAdded(CString strItem);
+
 	static DWORD WINAPI UpdateListCtrlThreadProc(LPVOID lpParm);
 	static int CALLBACK BrowseCallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpData);
 

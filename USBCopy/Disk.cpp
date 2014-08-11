@@ -33,6 +33,11 @@ CDisk::CDisk(void)
 	m_nCurrentTargetCount = 0;
 
 	ZeroMemory(m_ImageHash,LEN_DIGEST);
+
+	m_bQuickFormat = TRUE;
+	m_dwClusterSize = 0;
+
+	m_bCompressComplete = TRUE;
 }
 
 
@@ -49,6 +54,11 @@ CDisk::~CDisk(void)
 	{
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(pos);
 		delete dataQueue;
+	}
+
+	if (m_pMasterHashMethod != NULL)
+	{
+		delete m_pMasterHashMethod;
 	}
 }
 
@@ -676,7 +686,6 @@ BOOL CDisk::ReadFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE 
 		lpOverlap->Offset = LODWORD(ullOffset);
 		lpOverlap->OffsetHigh = HIDWORD(ullOffset);
 	}
-	
 
 	if (!ReadFile(hFile,lpBuffer,dwSize,&dwReadLen,lpOverlap))
 	{
@@ -927,7 +936,7 @@ BootSector CDisk::GetBootSectorType( const PBYTE pXBR )
 		BYTE *pDBRTemp = new BYTE[m_dwBytesPerSector];
 		ZeroMemory(pDBRTemp,m_dwBytesPerSector);
 		
-		if (!ReadSectors(m_hMaster,ullStartSector,1,m_dwBytesPerSector,pDBRTemp,m_MasterPort->GetOverlapped(),&dwErrorCode))
+		if (!ReadSectors(m_hMaster,ullStartSector,1,m_dwBytesPerSector,pDBRTemp,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 		{
 			delete []pDBRTemp;
 			pDBRTemp = NULL;
@@ -1037,7 +1046,7 @@ FileSystem CDisk::GetFileSystem( const PBYTE pDBR,ULONGLONG ullStartSector )
 		ZeroMemory(pByte,BYTES_PER_SECTOR);
 
 		DWORD dwErrorCode = 0;
-		if (ReadSectors(m_hMaster,ullStartSector + 2,1,BYTES_PER_SECTOR,pByte,m_MasterPort->GetOverlapped(),&dwErrorCode))
+		if (ReadSectors(m_hMaster,ullStartSector + 2,1,BYTES_PER_SECTOR,pByte,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 		{
 			if (ReadOffset(pByte,0x38,2) == 0xEF53)
 			{
@@ -1073,7 +1082,7 @@ BOOL CDisk::BriefAnalyze()
 
 	BYTE *pXBR = new BYTE[m_dwBytesPerSector];
 	ZeroMemory(pXBR,m_dwBytesPerSector);
-	if (!ReadSectors(m_hMaster,0,1,m_dwBytesPerSector,pXBR,m_MasterPort->GetOverlapped(),&dwErrorCode))
+	if (!ReadSectors(m_hMaster,0,1,m_dwBytesPerSector,pXBR,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 	{
 		m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 		m_MasterPort->SetPortState(PortState_Fail);
@@ -1131,7 +1140,7 @@ BOOL CDisk::BriefAnalyze()
 			BYTE *pEFI = new BYTE[m_dwBytesPerSector];
 			ZeroMemory(pEFI,m_dwBytesPerSector);
 
-			if (!ReadSectors(m_hMaster,1,1,m_dwBytesPerSector,pEFI,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,1,1,m_dwBytesPerSector,pEFI,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 				m_MasterPort->SetPortState(PortState_Fail);
@@ -1172,7 +1181,7 @@ BOOL CDisk::BriefAnalyze()
 			{
 				BYTE *pByte = new BYTE[m_dwBytesPerSector];
 				ZeroMemory(pByte,m_dwBytesPerSector);
-				if (!ReadSectors(m_hMaster,ullStartSectors+i,1,m_dwBytesPerSector,pByte,m_MasterPort->GetOverlapped(),&dwErrorCode))
+				if (!ReadSectors(m_hMaster,ullStartSectors+i,1,m_dwBytesPerSector,pByte,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 				{
 					m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 					m_MasterPort->SetPortState(PortState_Fail);
@@ -1219,7 +1228,7 @@ BOOL CDisk::BriefAnalyze()
 
 					BYTE *pTempDBR = new BYTE[m_dwBytesPerSector];
 					ZeroMemory(pTempDBR,m_dwBytesPerSector);
-					if (!ReadSectors(m_hMaster,ullTempStartSector,1,m_dwBytesPerSector,pTempDBR,m_MasterPort->GetOverlapped(),&dwErrorCode))
+					if (!ReadSectors(m_hMaster,ullTempStartSector,1,m_dwBytesPerSector,pTempDBR,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 					{
 						m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 						m_MasterPort->SetPortState(PortState_Fail);
@@ -1336,7 +1345,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			ULONGLONG ullFatStartSectors = fatInfo.ullStartSector + fatInfo.wReserverSectors;
 			BYTE *pFATByte = new BYTE[dwFATLen];
 			ZeroMemory(pFATByte,dwFATLen);
-			if (!ReadSectors(m_hMaster,ullFatStartSectors,fatInfo.dwFATLength,fatInfo.wBytesPerSector,pFATByte,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,ullFatStartSectors,fatInfo.dwFATLength,fatInfo.wBytesPerSector,pFATByte,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 				m_MasterPort->SetPortState(PortState_Fail);
@@ -1426,7 +1435,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			ZeroMemory(pRoot,exfatInfo.wBytesPerSector);
 
 			ULONGLONG ullTempStartSector = exfatInfo.ullPartitionOffset + dwRootDirectoryStartSector;
-			if (!ReadSectors(m_hMaster,ullTempStartSector,1,exfatInfo.wBytesPerSector,pRoot,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,ullTempStartSector,1,exfatInfo.wBytesPerSector,pRoot,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 				m_MasterPort->SetPortState(PortState_Fail);
@@ -1464,7 +1473,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			ZeroMemory(pBitMap,dwBitMapLength);
 
 			ullTempStartSector = exfatInfo.ullPartitionOffset + dwBitMapStartSectors;
-			if (!ReadSectors(m_hMaster,ullTempStartSector,dwBitMapLength/exfatInfo.wBytesPerSector,exfatInfo.wBytesPerSector,pBitMap,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,ullTempStartSector,dwBitMapLength/exfatInfo.wBytesPerSector,exfatInfo.wBytesPerSector,pBitMap,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 				m_MasterPort->SetPortState(PortState_Fail);
@@ -1548,7 +1557,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			// Step2 找BITMAP的DATA属性，即属性类型为0x80
 			BYTE *pMFT = new BYTE[1024];
 			ZeroMemory(pMFT,1024);
-			if (!ReadSectors(m_hMaster,ullBitMapMFTStartSector,1024/ntfsInfo.wBytesPerSectors,ntfsInfo.wBytesPerSectors,pMFT,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,ullBitMapMFTStartSector,1024/ntfsInfo.wBytesPerSectors,ntfsInfo.wBytesPerSectors,pMFT,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 				m_MasterPort->SetPortState(PortState_Fail);
@@ -1624,7 +1633,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			{
 				ZeroMemory(pBitmap,dwLengthPerCluster);
 				ULONGLONG ullTempStart = ullBitMapDataStartSector + i * ntfsInfo.bySectorsPerCluster;
-				if (!ReadSectors(m_hMaster,ullTempStart,ntfsInfo.bySectorsPerCluster,ntfsInfo.wBytesPerSectors,pBitmap,m_MasterPort->GetOverlapped(),&dwErrorCode))
+				if (!ReadSectors(m_hMaster,ullTempStart,ntfsInfo.bySectorsPerCluster,ntfsInfo.wBytesPerSectors,pBitmap,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 				{
 					m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 					m_MasterPort->SetPortState(PortState_Fail);
@@ -1690,7 +1699,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			BYTE *pSuperBlock = new BYTE[m_dwBytesPerSector];
 			ZeroMemory(pSuperBlock,m_dwBytesPerSector);
 
-			if (!ReadSectors(m_hMaster,ullTempStartSector,1,m_dwBytesPerSector,pSuperBlock,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,ullTempStartSector,1,m_dwBytesPerSector,pSuperBlock,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 				m_MasterPort->SetPortState(PortState_Fail);
@@ -1764,7 +1773,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			ZeroMemory(pGroupDescrption,dwGroupDescriptionLen);
 
 			ullTempStartSector = ullStartSector + dwGroupDescriptionStartSector;
-			if (!ReadSectors(m_hMaster,ullTempStartSector,dwGroupDescriptionBlocks * superBlockInfo.dwSectorsPerBlock,m_dwBytesPerSector,pGroupDescrption,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,ullTempStartSector,dwGroupDescriptionBlocks * superBlockInfo.dwSectorsPerBlock,m_dwBytesPerSector,pGroupDescrption,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 				m_MasterPort->SetPortState(PortState_Fail);
@@ -1793,7 +1802,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 				ZeroMemory(pBitMap,dwBlockBitMapLength);
 
 				ullTempStartSector = ullStartSector + dwBlockBitMapStartSector;
-				if (!ReadSectors(m_hMaster,ullTempStartSector,dwBlockBitMapLength/m_dwBytesPerSector,m_dwBytesPerSector,pBitMap,m_MasterPort->GetOverlapped(),&dwErrorCode))
+				if (!ReadSectors(m_hMaster,ullTempStartSector,dwBlockBitMapLength/m_dwBytesPerSector,m_dwBytesPerSector,pBitMap,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 				{
 					m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 					m_MasterPort->SetPortState(PortState_Fail);
@@ -1920,7 +1929,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 					ullTempStartSector += ullStartSector;
 				}
 
-				if (!ReadSectors(m_hMaster,ullTempStartSector,1,m_dwBytesPerSector,pDBRTemp,m_MasterPort->GetOverlapped(),&dwErrorCode))
+				if (!ReadSectors(m_hMaster,ullTempStartSector,1,m_dwBytesPerSector,pDBRTemp,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 				{
 					m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 					m_MasterPort->SetPortState(PortState_Fail);
@@ -2300,7 +2309,7 @@ BOOL CDisk::OnCopyImage()
 	IMAGE_HEADER imgHead = {0};
 	DWORD dwErrorCode = 0;
 	DWORD dwLen = SIZEOF_IMAGE_HEADER;
-	if (!ReadFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(),&dwErrorCode))
+	if (!ReadFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 	{
 		m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 		m_MasterPort->SetPortState(PortState_Fail);
@@ -2314,11 +2323,15 @@ BOOL CDisk::OnCopyImage()
 	}
 
 	m_ullValidSize = imgHead.ullValidSize;
+	m_ullSectorNums = imgHead.ullCapacitySize / imgHead.dwBytesPerSector;
+	m_ullCapacity = imgHead.ullImageSize;
+	m_dwBytesPerSector = imgHead.dwBytesPerSector;
+
 	HashMethod hashMethod = (HashMethod)imgHead.dwHashType;
 
 	memcpy(m_ImageHash,imgHead.byImageDigest,imgHead.dwHashLen);
 
-	SetValidSize(imgHead.ullValidSize);
+	SetValidSize(m_ullValidSize);
 	SetHashMethod(m_bComputeHash,m_bHashVerify,hashMethod);
 
 	m_MasterPort->SetHashMethod(hashMethod);
@@ -2332,14 +2345,9 @@ BOOL CDisk::OnCopyImage()
 		,m_MasterPort->GetFileName(),dwReadId,hReadThread);
 
 	// 创建多个解压缩线程
-	HANDLE *hUncompressThreads = new HANDLE[COMPRESS_THREAD_COUNT];
-
-	for (UINT i = 0;i < COMPRESS_THREAD_COUNT;i++)
-	{
-		hUncompressThreads[i] = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
-		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Uncompress Image(%02d) - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
-			,i,dwUncompressId,hUncompressThreads[i]);
-	}
+	HANDLE hUncompressThread = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
+	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Uncompress Image - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
+		,dwUncompressId,hUncompressThread);
 
 	UINT nCount = 0;
 	HANDLE *hWriteThreads = new HANDLE[m_nCurrentTargetCount];
@@ -2379,12 +2387,8 @@ BOOL CDisk::OnCopyImage()
 	delete []hWriteThreads;
 
 	// 等待解压缩线程结束
-	WaitForMultipleObjects(COMPRESS_THREAD_COUNT,hUncompressThreads,TRUE,INFINITE);
-	for (UINT i = 0;i < COMPRESS_THREAD_COUNT;i++)
-	{
-		CloseHandle(hUncompressThreads[i]);
-	}
-	delete []hUncompressThreads;
+	WaitForSingleObject(hUncompressThread,INFINITE);
+	CloseHandle(hUncompressThread);
 
 	//等待读磁盘线程结束
 	WaitForSingleObject(hReadThread,INFINITE);
@@ -2519,14 +2523,11 @@ BOOL CDisk::OnMakeImage()
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image Make(Master) - CreateReadDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
 		,dwReadId,hReadThread);
 
-	HANDLE *hCompressThreads = new HANDLE[COMPRESS_THREAD_COUNT];
-	for (UINT i = 0; i < COMPRESS_THREAD_COUNT;i++)
-	{
-		hCompressThreads[i] = CreateThread(NULL,0,CompressThreadProc,this,0,&dwCompressId);
+	HANDLE hCompressThread = CreateThread(NULL,0,CompressThreadProc,this,0,&dwCompressId);
 
-		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Compress Image(%02d) - CreateCompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
-			,i,dwCompressId,hCompressThreads[i]);
-	}
+	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Compress Image - CreateCompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
+		,dwCompressId,hCompressThread);
+
 
 	UINT nCount = 0;
 	HANDLE *hWriteThreads = new HANDLE[m_nCurrentTargetCount];
@@ -2564,12 +2565,8 @@ BOOL CDisk::OnMakeImage()
 	delete []hWriteThreads;
 
 	//等待压缩线程结束
-	WaitForMultipleObjects(COMPRESS_THREAD_COUNT,hCompressThreads,TRUE,INFINITE);
-	for (UINT i = 0; i < COMPRESS_THREAD_COUNT;i++)
-	{
-		CloseHandle(hCompressThreads[i]);
-	}
-	delete []hCompressThreads;
+	WaitForSingleObject(hCompressThread,INFINITE);
+	CloseHandle(hCompressThread);
 
 	//等待读磁盘线程结束
 	WaitForSingleObject(hReadThread,INFINITE);
@@ -2752,7 +2749,7 @@ BOOL CDisk::OnCleanDisk()
 		}
 	}
 
-	//等待校验线程结束
+	//等待线程结束
 	WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
 	for (UINT i = 0; i < nCount;i++)
 	{
@@ -2963,6 +2960,46 @@ BOOL CDisk::OnCopyFiles()
 	return bResult;
 }
 
+BOOL CDisk::OnFormatDisk()
+{
+	BOOL bResult = FALSE;
+	DWORD dwWriteId,dwErrorCode;
+
+	//子盘写线程
+	HANDLE *hWriteThreads = new HANDLE[m_nCurrentTargetCount];
+	UINT nCount = 0;
+	POSITION pos = m_TargetPorts->GetHeadPosition();
+	while (pos)
+	{
+		CPort *port = m_TargetPorts->GetNext(pos);
+		if (port->IsConnected() && port->GetResult())
+		{
+			LPVOID_PARM lpVoid = new VOID_PARM;
+			lpVoid->lpVoid1 = this;
+			lpVoid->lpVoid2 = port;
+
+			hWriteThreads[nCount] = CreateThread(NULL,0,FormatDiskThreadProc,lpVoid,0,&dwWriteId);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateFormatDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
+				,port->GetPortName(),port->GetDiskNum(),dwWriteId,hWriteThreads[nCount]);
+
+			nCount++;
+		}
+	}
+
+	//等待线程结束
+	WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
+	for (UINT i = 0; i < nCount;i++)
+	{
+		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
+		bResult |= dwErrorCode;
+		CloseHandle(hWriteThreads[i]);
+	}
+	delete []hWriteThreads;
+
+	return bResult;
+}
+
 BOOL CDisk::ReadDisk()
 {
 	BOOL bResult = TRUE;
@@ -2998,7 +3035,7 @@ BOOL CDisk::ReadDisk()
 			// 判断队列是否达到限制值
 			while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE) && !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 			{
-				Sleep(0);
+				Sleep(10);
 			}
 
 			if (*m_lpCancel)
@@ -3033,7 +3070,7 @@ BOOL CDisk::ReadDisk()
 			ZeroMemory(pByte,dwLen);
 
 			QueryPerformanceCounter(&t1);
-			if (!ReadSectors(m_hMaster,ullStartSectors,dwSectors,effData.wBytesPerSector,pByte,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(m_hMaster,ullStartSectors,dwSectors,effData.wBytesPerSector,pByte,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				bResult = FALSE;
 				delete []pByte;
@@ -3079,10 +3116,6 @@ BOOL CDisk::ReadDisk()
 				m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 				m_MasterPort->AppendCompleteSize(dwLen);
 
-				// 				TRACE1("ReadDisk NoWaitSpeed:%.1f MB/s",(double)dwLen / (dbTimeNoWait * 1024 * 1024));
-				// 				TRACE2("ReadDisk WaitTimeSpeed:%.1f MB/s, WaitTime:%f ms",(double)dwLen / (dbTimeWait * 1024 * 1024),(dbTimeWait - dbTimeNoWait)*1000);
-				TRACE1("ReadDisk NoWaitTime:%.1f ms",dbTimeNoWait * 1000);
-				TRACE1("ReadDisk WaitTime:%.1f ms",dbTimeWait * 1000);
 			}
 
 		}
@@ -3098,21 +3131,13 @@ BOOL CDisk::ReadDisk()
 			,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),m_MasterPort->GetRealSpeed(),dwErrorCode);
 	}
 
-	// 所有数据都拷贝完
-	if (bResult)
-	{
-		POSITION posQueue = m_DataQueueList.GetHeadPosition();
-		POSITION posTarg = m_TargetPorts->GetHeadPosition();
-		while (posQueue && posTarg)
-		{
-			CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-			CPort *port = m_TargetPorts->GetNext(posTarg);
+	// 先设置为停止状态
+	m_MasterPort->SetPortState(PortState_Stop);
 
-			while (dataQueue->GetCount() > 0 && m_MasterPort->GetResult() && port->GetResult())
-			{
-				Sleep(100);
-			}
-		}
+	// 所有数据都拷贝完
+	while (!m_bCompressComplete)
+	{
+		Sleep(100);
 	}
 
 	if (!m_MasterPort->GetResult())
@@ -3131,17 +3156,16 @@ BOOL CDisk::ReadDisk()
 		{
 			m_MasterPort->SetHash(m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
 
-			CString strMasterHash;
 			for (int i = 0; i < m_pMasterHashMethod->getHashLength();i++)
 			{
 				CString strHash;
 				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
-				strMasterHash += strHash;
+				m_strMasterHash += strHash;
 			}
 
 			CString strHashMethod(m_pMasterHashMethod->getHashMetod());
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - %s,HashValue=%s")
-				,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),strHashMethod,strMasterHash);
+				,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),strHashMethod,m_strMasterHash);
 
 		}
 	}
@@ -3224,9 +3248,10 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 	{
 		QueryPerformanceCounter(&t0);
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
-			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult())
+			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
+			&& port->GetResult())
 		{
-			Sleep(0);
+			Sleep(10);
 		}
 
 		if (!m_MasterPort->GetResult())
@@ -3251,7 +3276,7 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 			break;
 		}
 
-		if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active)
+		if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active && m_bCompressComplete)
 		{
 			dwErrorCode = 0;
 			bResult = TRUE;
@@ -3269,7 +3294,7 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		DWORD dwSectors = dataInfo.dwDataSize / dwBytesPerSector;
 
 		QueryPerformanceCounter(&t1);
-		if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytesPerSector,dataInfo.pData,port->GetOverlapped(),&dwErrorCode))
+		if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytesPerSector,dataInfo.pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
 
@@ -3290,11 +3315,6 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 			port->AppendCompleteSize(dataInfo.dwDataSize);
 
 			delete []dataInfo.pData;
-
-			// 			TRACE1("WriteDisk NoWaitSpeed:%.1f MB/s",(double)dataInfo.dwDataSize / (dbTimeNoWait * 1024 * 1024));
-			// 			TRACE2("WriteDisk WaitSpeed %.1f MB/s, WaitTime:%f ms",(double)dataInfo.dwDataSize / (dbTimeWait * 1024 * 1024),(dbTimeWait - dbTimeNoWait) * 1000);
-			TRACE1("WriteDisk NoWaitTime:%.1f ms",dbTimeNoWait * 1000);
-			TRACE1("WriteDisk WaitTime:%.1f ms",dbTimeWait * 1000);
 		}
 
 	}
@@ -3362,12 +3382,12 @@ BOOL CDisk::QuickClean(CPort *port,PDWORD pdwErrorCode )
 		DWORD dwSectors = CLEAN_LENGTH/dwBytesPerSector;
 		DWORD dwSize = 0;
 
-		if (!WriteSectors(hDisk,0,dwSectors,dwBytesPerSector,pByte,port->GetOverlapped(),pdwErrorCode))
+		if (!WriteSectors(hDisk,0,dwSectors,dwBytesPerSector,pByte,port->GetOverlapped(FALSE),pdwErrorCode))
 		{
 			bResult = FALSE;
 		}
 
-		if (!WriteSectors(hDisk,ullSectorNums-dwSectors,dwSectors,dwBytesPerSector,pByte,port->GetOverlapped(),pdwErrorCode))
+		if (!WriteSectors(hDisk,ullSectorNums-dwSectors,dwSectors,dwBytesPerSector,pByte,port->GetOverlapped(FALSE),pdwErrorCode))
 		{
 			bResult = FALSE;
 		}
@@ -3413,7 +3433,7 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 	ULONGLONG ullRemainSectors = 0;
 	ULONGLONG ullStartSectors = 0;
 	DWORD dwSectors = BUF_SECTORS;
-	DWORD dwLen = BUF_SECTORS * m_dwBytesPerSector;
+	DWORD dwLen = BUF_SECTORS * BYTES_PER_SECTOR;
 
 	if (m_WorkMode == WorkMode_DiskCompare)
 	{
@@ -3453,7 +3473,7 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 		ullRemainSectors = 0;
 		ullStartSectors = effData.ullStartSector;
 		dwSectors = BUF_SECTORS;
-		dwLen = BUF_SECTORS * m_dwBytesPerSector;
+		dwLen = BUF_SECTORS * effData.wBytesPerSector;
 
 		while (bResult && !*m_lpCancel && ullReadSectors < effData.ullSectors && ullStartSectors < m_ullSectorNums)
 		{
@@ -3477,7 +3497,7 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 			ZeroMemory(pByte,dwLen);
 
 			QueryPerformanceCounter(&t1);
-			if (!ReadSectors(hDisk,ullStartSectors,dwSectors,effData.wBytesPerSector,pByte,port->GetOverlapped(),&dwErrorCode))
+			if (!ReadSectors(hDisk,ullStartSectors,dwSectors,effData.wBytesPerSector,pByte,port->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				bResult = FALSE;
 				delete []pByte;
@@ -3504,10 +3524,6 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 				port->AppendUsedNoWaitTimeS(dbTimeNoWait);
 				port->AppendCompleteSize(dwLen);
 
-				// 				TRACE1("ReadDisk NoWaitSpeed:%.1f MB/s",(double)dwLen / (dbTimeNoWait * 1024 * 1024));
-				// 				TRACE2("ReadDisk WaitTimeSpeed:%.1f MB/s, WaitTime:%f ms",(double)dwLen / (dbTimeWait * 1024 * 1024),(dbTimeWait - dbTimeNoWait)*1000);
-				TRACE1("ReadDisk NoWaitTime:%.1f ms",dbTimeNoWait * 1000);
-				TRACE1("ReadDisk WaitTime:%.1f ms",dbTimeWait * 1000);
 			}
 
 		}
@@ -3540,13 +3556,10 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 			}
 
 			// 比较HASH值
-			CString strVerifyHash,strMasterHash;
+			CString strVerifyHash;
 			for (int i = 0; i < pHashMethod->getHashLength();i++)
 			{
 				CString strHash;
-				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
-				strMasterHash += strHash;
-
 				strHash.Format(_T("%02X"),pHashMethod->digest()[i]);
 				strVerifyHash += strHash;
 			}
@@ -3555,7 +3568,7 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - %s,HashValue=%s")
 				,port->GetPortName(),port->GetDiskNum(),strHashMethod,strVerifyHash);
 
-			if (0 == strMasterHash.CompareNoCase(strVerifyHash))
+			if (0 == m_strMasterHash.CompareNoCase(strVerifyHash))
 			{
 				bResult = TRUE;
 				port->SetEndTime(CTime::GetCurrentTime());
@@ -3571,24 +3584,22 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 				port->SetErrorCode(ErrorType_Custom,CustomError_Compare_Failed);
 
 				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Verify FAIL,Target=%s,Master=%s")
-					,port->GetPortName(),port->GetDiskNum(),strVerifyHash,strMasterHash);
+					,port->GetPortName(),port->GetDiskNum(),strVerifyHash,m_strMasterHash);
 			}
 		}
 		else if (port->GetPortType() == PortType_MASTER_DISK)
 		{
 
-			// 比较HASH值
-			CString strMasterHash;
 			for (int i = 0; i < pHashMethod->getHashLength();i++)
 			{
 				CString strHash;
 				strHash.Format(_T("%02X"),pHashMethod->digest()[i]);
-				strMasterHash += strHash;
+				m_strMasterHash += strHash;
 			}
 
 			CString strHashMethod(pHashMethod->getHashMetod());
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - %s,HashValue=%s")
-				,port->GetPortName(),port->GetDiskNum(),strHashMethod,strMasterHash);
+				,port->GetPortName(),port->GetDiskNum(),strHashMethod,m_strMasterHash);
 
 			bResult = TRUE;
 			port->SetEndTime(CTime::GetCurrentTime());
@@ -3654,7 +3665,7 @@ BOOL CDisk::ReadFiles()
 			// 判断队列是否达到限制值
 			while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE) && !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 			{
-				Sleep(0);
+				Sleep(10);
 			}
 
 			if (*m_lpCancel)
@@ -3680,7 +3691,7 @@ BOOL CDisk::ReadFiles()
 			ZeroMemory(pByte,dwLen);
 
 			QueryPerformanceCounter(&t1);
-			if (!ReadFileAsyn(hFile,ullCompleteSize,dwLen,pByte,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadFileAsyn(hFile,ullCompleteSize,dwLen,pByte,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				bResult = FALSE;
 				delete []pByte;
@@ -3745,21 +3756,13 @@ BOOL CDisk::ReadFiles()
 			,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),m_MasterPort->GetRealSpeed(),dwErrorCode);
 	}
 
-	// 所有数据都拷贝完
-	if (bResult)
-	{
-		POSITION posQueue = m_DataQueueList.GetHeadPosition();
-		POSITION posTarg = m_TargetPorts->GetHeadPosition();
-		while (posQueue && posTarg)
-		{
-			CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-			CPort *port = m_TargetPorts->GetNext(posTarg);
+	// 先设置为停止状态
+	m_MasterPort->SetPortState(PortState_Stop);
 
-			while (dataQueue->GetCount() > 0 && m_MasterPort->GetResult() && port->GetResult())
-			{
-				Sleep(100);
-			}
-		}
+	// 所有数据都拷贝完
+	while (!m_bCompressComplete)
+	{
+		Sleep(100);
 	}
 
 	if (!m_MasterPort->GetResult())
@@ -3778,17 +3781,16 @@ BOOL CDisk::ReadFiles()
 		{
 			m_MasterPort->SetHash(m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
 
-			CString strMasterHash;
 			for (int i = 0; i < m_pMasterHashMethod->getHashLength();i++)
 			{
 				CString strHash;
 				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
-				strMasterHash += strHash;
+				m_strMasterHash += strHash;
 			}
 
 			CString strHashMethod(m_pMasterHashMethod->getHashMetod());
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - %s,HashValue=%s")
-				,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),strHashMethod,strMasterHash);
+				,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),strHashMethod,m_strMasterHash);
 
 		}
 	}
@@ -3842,7 +3844,7 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult())
 		{
-			Sleep(0);
+			Sleep(10);
 		}
 
 		if (!m_MasterPort->GetResult())
@@ -3912,7 +3914,7 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 		}
 
 		QueryPerformanceCounter(&t1);
-		if (!WriteFileAsyn(hFile,dataInfo.ullOffset,dataInfo.dwDataSize,dataInfo.pData,port->GetOverlapped(),&dwErrorCode))
+		if (!WriteFileAsyn(hFile,dataInfo.ullOffset,dataInfo.dwDataSize,dataInfo.pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
 
@@ -4034,7 +4036,7 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 
 		strDestFile = strVolume + strDestFile;
 
-		HANDLE hFile = GetHandleOnFile(strDestFile,OPEN_EXISTING,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+		HANDLE hFile = GetHandleOnFile(strDestFile,OPEN_EXISTING,FILE_FLAG_OVERLAPPED|FILE_FLAG_NO_BUFFERING,&dwErrorCode);
 
 		if (hFile == INVALID_HANDLE_VALUE)
 		{
@@ -4056,13 +4058,19 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 			if (ullFileSize - ullCompleteSize < dwLen)
 			{
 				dwLen = (DWORD)(ullFileSize - ullCompleteSize);
+
+				// 判断是否是一个整的扇区,以FILE_FLAG_NO_BUFFERING标志打开文件必须扇区对齐
+				if (dwLen % BYTES_PER_SECTOR != 0)
+				{
+					dwLen = (dwLen / BYTES_PER_SECTOR + 1) * BYTES_PER_SECTOR;
+				}
 			}
 
 			PBYTE pByte = new BYTE[dwLen];
 			ZeroMemory(pByte,dwLen);
 
 			QueryPerformanceCounter(&t1);
-			if (!ReadFileAsyn(hFile,ullCompleteSize,dwLen,pByte,m_MasterPort->GetOverlapped(),&dwErrorCode))
+			if (!ReadFileAsyn(hFile,ullCompleteSize,dwLen,pByte,port->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				bResult = FALSE;
 				delete []pByte;
@@ -4109,13 +4117,10 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 		port->SetHash(pHashMethod->digest(),pHashMethod->getHashLength());
 
 		// 比较HASH值
-		CString strVerifyHash,strMasterHash;
+		CString strVerifyHash;
 		for (int i = 0; i < pHashMethod->getHashLength();i++)
 		{
 			CString strHash;
-			strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
-			strMasterHash += strHash;
-
 			strHash.Format(_T("%02X"),pHashMethod->digest()[i]);
 			strVerifyHash += strHash;
 		}
@@ -4124,7 +4129,7 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - %s,HashValue=%s")
 			,port->GetPortName(),port->GetDiskNum(),strHashMethod,strVerifyHash);
 
-		if (0 == strMasterHash.CompareNoCase(strVerifyHash))
+		if (0 == m_strMasterHash.CompareNoCase(strVerifyHash))
 		{
 			bResult = TRUE;
 			port->SetEndTime(CTime::GetCurrentTime());
@@ -4140,7 +4145,7 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 			port->SetErrorCode(ErrorType_Custom,CustomError_Compare_Failed);
 
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Verify FAIL,Target=%s,Master=%s")
-				,port->GetPortName(),port->GetDiskNum(),strVerifyHash,strMasterHash);
+				,port->GetPortName(),port->GetDiskNum(),strVerifyHash,m_strMasterHash);
 		}
 
 	}
@@ -4194,6 +4199,10 @@ BOOL CDisk::Start()
 		bRet = OnCopyFiles();
 		break;
 
+	case WorkMode_DiskFormat:
+		bRet = OnFormatDisk();
+		break;
+
 	}
 
 	return bRet;
@@ -4222,7 +4231,7 @@ BOOL CDisk::ReadImage()
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			Sleep(0);
+			Sleep(10);
 		}
 
 		if (*m_lpCancel)
@@ -4243,7 +4252,7 @@ BOOL CDisk::ReadImage()
 
 		BYTE pkgHead[PKG_HEADER_SIZE] = {NULL};
 		dwLen = PKG_HEADER_SIZE;
-		if (!ReadFileAsyn(m_hMaster,ullOffset,dwLen,pkgHead,m_MasterPort->GetOverlapped(),&dwErrorCode))
+		if (!ReadFileAsyn(m_hMaster,ullOffset,dwLen,pkgHead,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 		{
 			bResult = FALSE;
 
@@ -4257,7 +4266,7 @@ BOOL CDisk::ReadImage()
 		PBYTE pByte = new BYTE[dwLen];
 		ZeroMemory(pByte,dwLen);
 
-		if (!ReadFileAsyn(m_hMaster,ullOffset,dwLen,pByte,m_MasterPort->GetOverlapped(),&dwErrorCode))
+		if (!ReadFileAsyn(m_hMaster,ullOffset,dwLen,pByte,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 		{
 			bResult = FALSE;
 			delete []pByte;
@@ -4295,12 +4304,6 @@ BOOL CDisk::ReadImage()
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 		m_MasterPort->AppendCompleteSize(dwLen);
 
-		// 		TRACE1("ReadImage NoWaitSpeed:%.1f MB/s",(double)dwLen / (dbTimeNoWait * 1024 * 1024));
-		// 		TRACE2("ReadImage WaitSpeed:%.1f MB/s, WaitTime:%f ms",(double)dwLen / (dbTimeWait * 1024 * 1024),(dbTimeWait-dbTimeNoWait)*1000);
-
-		TRACE1("ReadImage NoWaitTime:%.1f ms",dbTimeNoWait * 1000);
-		TRACE1("ReadImage WaitTime:%.1f ms",dbTimeWait * 1000);
-
 	}
 
 	if (*m_lpCancel)
@@ -4313,21 +4316,13 @@ BOOL CDisk::ReadImage()
 			,m_MasterPort->GetFileName(),m_MasterPort->GetRealSpeed(),dwErrorCode);
 	}
 
-	// 所有数据都拷贝完
-	if (bResult)
-	{
-		POSITION posQueue = m_DataQueueList.GetHeadPosition();
-		POSITION posTarg = m_TargetPorts->GetHeadPosition();
-		while (posQueue && posTarg)
-		{
-			CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-			CPort *port = m_TargetPorts->GetNext(posTarg);
+	// 先设置为停止状态
+	m_MasterPort->SetPortState(PortState_Stop);
 
-			while (dataQueue->GetCount() > 0 && m_MasterPort->GetResult() && port->GetResult())
-			{
-				Sleep(100);
-			}
-		}
+	// 所有数据都拷贝完
+	while (!m_bCompressComplete)
+	{
+		Sleep(100);
 	}
 
 	if (!m_MasterPort->GetResult())
@@ -4343,6 +4338,23 @@ BOOL CDisk::ReadImage()
 	if (bResult)
 	{
 		m_MasterPort->SetPortState(PortState_Pass);
+
+		if (m_bComputeHash)
+		{
+			m_MasterPort->SetHash(m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
+
+			for (int i = 0; i < m_pMasterHashMethod->getHashLength();i++)
+			{
+				CString strHash;
+				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
+				m_strMasterHash += strHash;
+			}
+
+			CString strHashMethod(m_pMasterHashMethod->getHashMetod());
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,HashValue=%s")
+				,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash);
+
+		}
 	}
 	else
 	{
@@ -4355,6 +4367,7 @@ BOOL CDisk::ReadImage()
 
 BOOL CDisk::Compress()
 {
+	m_bCompressComplete = FALSE;
 	BOOL bResult = TRUE;
 
 	// 计算精确速度
@@ -4370,7 +4383,7 @@ BOOL CDisk::Compress()
 			&& m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active)
 		{
-			Sleep(0);
+			Sleep(10);
 		}
 
 		if (!m_MasterPort->GetResult() || *m_lpCancel )
@@ -4427,11 +4440,6 @@ BOOL CDisk::Compress()
 			dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
 			dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 
-			//			TRACE1("Compress NoWaitSpeed:%.1f MB/s",(double)dwSourceLen / (dbTimeNoWait * 1024 * 1024));
-			//			TRACE2("Compress WaitSpeed:%.1f MB/s, WaitTime:%f ms",(double)dwSourceLen / (dbTimeWait * 1024 * 1024),(dbTimeWait - dbTimeNoWait) * 1000);
-
-			TRACE1("Compress NoWaitTime:%.1f ms",dbTimeNoWait * 1000);
-			TRACE1("Compress WaitTime:%.1f ms",dbTimeWait * 1000);
 		}
 		else if (ret == Z_DATA_ERROR)
 		{
@@ -4474,11 +4482,15 @@ BOOL CDisk::Compress()
 		delete []pDest;
 	}
 
+	m_bCompressComplete = TRUE;
+
 	return bResult;
 }
 
 BOOL CDisk::Uncompress()
 {
+	m_bCompressComplete = FALSE;
+
 	BOOL bResult = TRUE;
 	// 计算精确速度
 	LARGE_INTEGER freq,t0,t1,t2;
@@ -4537,7 +4549,6 @@ BOOL CDisk::Uncompress()
 			
 			AddDataQueueList(uncompressData);
 
-			m_CS.Lock();
 			EFF_DATA effData;
 			effData.ullStartSector = uncompressData.ullOffset/BYTES_PER_SECTOR;
 			effData.ullSectors = uncompressData.dwDataSize/BYTES_PER_SECTOR;
@@ -4551,17 +4562,11 @@ BOOL CDisk::Uncompress()
 
 			delete []uncompressData.pData;
 
-			m_CS.Unlock();
-
 			QueryPerformanceCounter(&t2);
 
 			dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
 			dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
 
-			// 			TRACE1("Uncompress NoWaitSpeed:%.1f MB/s",(double)dataInfo.dwDataSize / (dbTimeNoWait * 1024 * 1024));
-			// 			TRACE2("Uncompress WaitSpeed:%.1f MB/s, WaitTime:%f ms",(double)dataInfo.dwDataSize / (dbTimeWait * 1024 * 1024),(dbTimeWait-dbTimeNoWait) * 1000);
-			TRACE1("Uncompress NoWaitTime:%.1f ms",dbTimeNoWait * 1000);
-			TRACE1("Uncompress WaitTime:%.1f ms",dbTimeWait * 1000);
 		}
 		else if (ret == Z_DATA_ERROR)
 		{
@@ -4603,6 +4608,8 @@ BOOL CDisk::Uncompress()
 		delete []pDest;
 	}
 
+	m_bCompressComplete = TRUE;
+
 	return bResult;
 }
 
@@ -4642,7 +4649,8 @@ BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 		//dwTimeWait = timeGetTime();
 		QueryPerformanceCounter(&t0);
 		while(pDataQueue->GetCount() <=0 && !*m_lpCancel && m_MasterPort->GetResult() 
-			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult())
+			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
+			&& port->GetResult())
 		{
 			Sleep(10);
 		}
@@ -4669,7 +4677,7 @@ BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 			break;
 		}
 
-		if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active)
+		if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active && m_bCompressComplete)
 		{
 			dwErrorCode = 0;
 			bResult = TRUE;
@@ -4689,7 +4697,7 @@ BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 
 		dwLen = dataInfo.dwDataSize;
 
-		if (!WriteFileAsyn(hFile,ullOffset,dwLen,dataInfo.pData,port->GetOverlapped(),&dwErrorCode))
+		if (!WriteFileAsyn(hFile,ullOffset,dwLen,dataInfo.pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
@@ -4713,10 +4721,6 @@ BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 
 		delete []dataInfo.pData;
 
-		// 		TRACE1("WriteImage NoWaitSpeed:%.1f MB/s",(double)dataInfo.dwDataSize / (dbTimeNoWait * 1024 * 1024));
-		// 		TRACE2("WriteImage WaitSpeed:%.1f MB/s, WaitTime:%f ms",(double)dataInfo.dwDataSize / (dbTimeWait * 1024 * 1024),(dbTimeWait - dbTimeNoWait) * 1000);
-		TRACE1("WriteImage NoWaitTime:%.1f ms",dbTimeNoWait * 1000);
-		TRACE1("WriteImage WaitTime:%.1f ms",dbTimeWait * 1000);
 	}
 
 	if (*m_lpCancel)
@@ -4767,7 +4771,7 @@ BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 
 		dwLen = SIZEOF_IMAGE_HEADER;
 
-		if (!WriteFileAsyn(hFile,0,dwLen,(LPBYTE)&imgHead,port->GetOverlapped(),&dwErrorCode))
+		if (!WriteFileAsyn(hFile,0,dwLen,(LPBYTE)&imgHead,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
 		}
@@ -4845,8 +4849,6 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 			port->SetStartTime(CTime::GetCurrentTime());
 
-			QuickClean(port,&dwErrorCode);
-
 			HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
 
 			if (hDisk == INVALID_HANDLE_VALUE)
@@ -4860,6 +4862,8 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 				return FALSE;
 			}
+
+			SetDiskAtrribute(hDisk,FALSE,TRUE,&dwErrorCode);
 
 			// 计算精确速度
 			LARGE_INTEGER freq,t0,t1,t2;
@@ -4897,7 +4901,7 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 				//dwTimeNoWait = timeGetTime();
 				QueryPerformanceCounter(&t1);
-				if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytePerSector,pFillByte,port->GetOverlapped(),&dwErrorCode))
+				if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytePerSector,pFillByte,port->GetOverlapped(FALSE),&dwErrorCode))
 				{
 					bResult = FALSE;
 					delete []pFillByte;
@@ -4961,8 +4965,6 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 			port->SetStartTime(CTime::GetCurrentTime());
 
-			QuickClean(port,&dwErrorCode);
-
 			HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
 
 			if (hDisk == INVALID_HANDLE_VALUE)
@@ -4976,6 +4978,8 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 				return FALSE;
 			}
+
+			SetDiskAtrribute(hDisk,FALSE,TRUE,&dwErrorCode);
 
 			// 计算精确速度
 			LARGE_INTEGER freq,t0,t1,t2;
@@ -5038,7 +5042,7 @@ BOOL CDisk::CleanDisk( CPort *port )
 					}
 
 					QueryPerformanceCounter(&t1);
-					if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytePerSector,pFillByte,port->GetOverlapped(),&dwErrorCode))
+					if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytePerSector,pFillByte,port->GetOverlapped(FALSE),&dwErrorCode))
 					{
 						bResult = FALSE;
 						delete []pFillByte;
@@ -5099,6 +5103,111 @@ BOOL CDisk::CleanDisk( CPort *port )
 	}
 
 	return TRUE;
+}
+
+BOOL CDisk::FormatDisk(CPort *port)
+{
+	BOOL bResult = TRUE;
+	DWORD dwErrorCode = 0;
+	port->SetStartTime(CTime::GetCurrentTime());
+	port->SetValidSize(port->GetTotalSize());
+
+	HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+	if (hDisk == INVALID_HANDLE_VALUE)
+	{
+		port->SetEndTime(CTime::GetCurrentTime());
+		port->SetResult(FALSE);
+		port->SetErrorCode(ErrorType_System,dwErrorCode);
+		port->SetPortState(PortState_Fail);
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - OpenDisk error,system errorcode=%ld,%s")
+			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return FALSE;
+	}
+
+	SetDiskAtrribute(hDisk,FALSE,FALSE,&dwErrorCode);
+
+	CString strFile,strComand,strBuffer;
+	strFile.Format(_T("format_%d.script"),port->GetPortNum());
+	strComand.Format(_T("diskpart.exe /s %s"),strFile);
+	CFile file(strFile,CFile::modeCreate | CFile::modeWrite);
+
+	if (m_dwClusterSize == 0)
+	{
+		strBuffer.Format(_T("select disk=%d\r\n")
+						 _T("clean\r\n")
+						 _T("create partition primary\r\n")
+						 _T("select partition=1\r\n")
+						 _T("format fs=%s label=\"%s\" quick override\r\n")
+						 _T("exit\r\n"),port->GetDiskNum(),m_strFileSystem,m_strVolumnLabel);
+	}
+	else
+	{
+		strBuffer.Format(_T("select disk=%d\r\n")
+						 _T("clean\r\n")
+						 _T("create partition primary\r\n")
+						 _T("select partition=1\r\n")
+						 _T("format fs=%s label=\"%s\" unit=%d quick override\r\n")
+						 _T("exit\r\n"),port->GetDiskNum(),m_strFileSystem,m_strVolumnLabel,m_dwClusterSize);
+	}
+
+	USES_CONVERSION;
+	char *buffer = W2A(strBuffer);
+
+	file.Write(buffer,strlen(buffer));
+	file.Flush();
+	file.Close();
+
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	ZeroMemory(&si,sizeof(STARTUPINFO));
+	si.cb = sizeof(STARTUPINFO);
+	si.dwFlags = STARTF_USESHOWWINDOW;
+	si.wShowWindow = SW_HIDE;
+	
+	if (CreateProcess(NULL,strComand.GetBuffer(),NULL,NULL,FALSE,0,NULL,NULL,&si,&pi))
+	{
+		WaitForSingleObject(pi.hProcess,INFINITE);
+
+		GetExitCodeProcess(pi.hProcess,&dwErrorCode);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+
+		if (dwErrorCode != 0)
+		{
+			bResult = FALSE;
+		}
+		else
+		{
+			bResult = TRUE;
+		}
+		
+	}
+	else
+	{
+		bResult = FALSE;
+	}
+
+	DeleteFile(strFile);
+	
+	port->SetCompleteSize(port->GetTotalSize());
+	port->SetEndTime(CTime::GetCurrentTime());
+	port->SetResult(bResult);
+
+	if (bResult)
+	{
+		port->SetPortState(PortState_Pass);
+	}
+	else
+	{
+		port->SetPortState(PortState_Fail);
+		port->SetErrorCode(ErrorType_Custom,CustomError_Format_Error);
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port=%s,Disk %d,custom errorcode=0x%X,disk format error.")
+			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Format_Error);
+	}
+
+	return bResult;
 }
 
 DWORD WINAPI CDisk::ReadDiskThreadProc( LPVOID lpParm )
@@ -5230,6 +5339,19 @@ DWORD WINAPI CDisk::VerifyFilesThreadProc(LPVOID lpParm)
 	return bResult;
 }
 
+DWORD WINAPI CDisk::FormatDiskThreadProc(LPVOID lpParm)
+{
+	LPVOID_PARM parm = (LPVOID_PARM)lpParm;
+	CDisk *disk = (CDisk *)parm->lpVoid1;
+	CPort *port = (CPort *)parm->lpVoid2;
+
+	BOOL bResult = disk->FormatDisk(port);
+
+	delete parm;
+
+	return bResult;
+}
+
 void CDisk::AddDataQueueList( DATA_INFO dataInfo )
 {
 	POSITION pos1 = m_DataQueueList.GetHeadPosition();
@@ -5242,7 +5364,7 @@ void CDisk::AddDataQueueList( DATA_INFO dataInfo )
 
 		if (port->GetResult())
 		{
-			DATA_INFO data;
+			DATA_INFO data = {0};
 
 			if (dataInfo.szFileName)
 			{
@@ -5332,5 +5454,13 @@ int CDisk::EnumFile( CString strSource )
 	ff.Close();
 
 	return nCount;
+}
+
+void CDisk::SetFormatParm( CString strVolumeLabel,CString strFileSystem,DWORD dwClusterSize,BOOL bQuickFormat )
+{
+	m_strVolumnLabel = strVolumeLabel;
+	m_strFileSystem = strFileSystem;
+	m_dwClusterSize = dwClusterSize;
+	m_bQuickFormat = bQuickFormat;
 }
 

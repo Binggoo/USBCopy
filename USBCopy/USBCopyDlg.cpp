@@ -21,6 +21,7 @@
 #include "ScanningDlg.h"
 #include "CompleteMsg.h"
 #include "FileCopySetting.h"
+#include "DiskFormatSetting.h"
 
 #include <dbt.h>
 #include "EnumUSB.h"
@@ -107,6 +108,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_RESET_MACHIEN_PORT, &CUSBCopyDlg::OnResetMachienPort)
 	ON_WM_DEVICECHANGE()
 	ON_MESSAGE(WM_UPDATE_SOFTWARE, &CUSBCopyDlg::OnUpdateSoftware)
+	ON_MESSAGE(WM_RESET_POWER, &CUSBCopyDlg::OnResetPower)
 END_MESSAGE_MAP()
 
 
@@ -156,6 +158,26 @@ BOOL CUSBCopyDlg::OnInitDialog()
 		MessageBox(_T("CreateFile Error"),_T("Error"),MB_ICONERROR);
 
 		SendMessage(WM_CLOSE);
+	}
+
+	// 如果log文件大小超过2M，备份一下
+	LARGE_INTEGER liFillSize = {0};
+	GetFileSizeEx(m_hLogFile,&liFillSize);
+	if (liFillSize.QuadPart > 2 * 1024 * 1024)
+	{
+		BackupLogfile(m_hLogFile,(DWORD)liFillSize.QuadPart);
+		CloseHandle(m_hLogFile);
+		DeleteFile(strLogFile);
+
+		m_hLogFile = CreateFile(strLogFile,GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+
+		if (m_hLogFile == INVALID_HANDLE_VALUE)
+		{
+			MessageBox(_T("CreateFile Error"),_T("Error"),MB_ICONERROR);
+
+			SendMessage(WM_CLOSE);
+		}
+
 	}
 
 	//添加状态栏
@@ -208,7 +230,9 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 	UpdatePortFrame(TRUE);
 
-	AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this);
+	m_ThreadListen = AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this,0,CREATE_SUSPENDED);
+	m_ThreadListen->m_bAutoDelete = FALSE;
+	m_ThreadListen->ResumeThread();
 
 	GetDlgItem(IDC_BTN_START)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BTN_STOP)->EnableWindow(FALSE);
@@ -535,6 +559,17 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 			}
 		}
 		break;
+
+	case WorkMode_DiskFormat:
+		{
+			strWorkMode = strWorkModeParm = _T("Disk Format");
+
+			if (m_Config.GetBool(_T("DiskFormat"),_T("En_Quick"),TRUE))
+			{
+				strWorkModeParm = _T("FileCopy + QuickFormat");
+			}
+		}
+		break;
 	}
 
 	SetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
@@ -718,6 +753,14 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 			
 		}
 		break;
+
+	case WorkMode_DiskFormat:
+		{
+			CDiskFormatSetting dlg;
+			dlg.SetConfig(&m_Config);
+			dlg.DoModal();
+		}
+		break;
 	}
 
 	InitialCurrentWorkMode();
@@ -760,6 +803,10 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 	m_bRunning = TRUE;
 	m_bVerify = FALSE;
 
+	WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
+	delete m_ThreadListen;
+	m_ThreadListen = NULL;
+
 	GetDlgItem(IDC_BTN_START)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BTN_STOP)->EnableWindow(TRUE);
 
@@ -801,6 +848,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 	case WorkMode_DiskClean:
 	case WorkMode_ImageCopy:
+	case WorkMode_DiskFormat:
 		pos = m_TargetPorts.GetHeadPosition();
 		while (pos)
 		{
@@ -864,7 +912,7 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 	UpdatePortFrame(FALSE);
 
 	// 弹出结束对话框
-	CCompleteMsg completeMsg(m_strMsg,m_bResult);
+	CCompleteMsg completeMsg(&m_Command,m_strMsg,m_bResult);
 	completeMsg.DoModal();
 
 	//复位
@@ -900,7 +948,7 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 	ULONGLONG ullMaxValidSize = m_MasterPort.GetValidSize();
 
 	int nIndex = 0;
-	if (m_WorkMode == WorkMode_DiskClean || m_WorkMode == WorkMode_ImageCopy)
+	if (m_WorkMode == WorkMode_DiskClean || m_WorkMode == WorkMode_ImageCopy || m_WorkMode == WorkMode_DiskFormat)
 	{
 		iMinPercent = 100;
 		ullMinCompleteSize = -1;
@@ -995,11 +1043,12 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 		{
 			ullCompleteSize += ullMaxValidSize;
 		}
-		UINT uAvgSpeed = 0;
+
+		ULONGLONG ullAvgSpeed = 0;
 
 		if (spanU.GetTotalSeconds() > 0)
 		{
-			uAvgSpeed = (UINT)((ullCompleteSize / 1024 / 1024) / spanU.GetTotalSeconds());
+			ullAvgSpeed = ullCompleteSize / spanU.GetTotalSeconds();
 		}
 
 		// 超过5s，使能踢盘功能
@@ -1012,12 +1061,12 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 			EnableKickOff(FALSE);
 		}
 
-		strText.Format(_T("%d MB/s"),uAvgSpeed);
+		strText = CUtils::AdjustSpeed(ullAvgSpeed);
 		SetDlgItemText(IDC_TEXT_SPEED2,strText);
 
-		if (uAvgSpeed > 0)
+		if (ullAvgSpeed > 0)
 		{
-			__time64_t time = (__time64_t)((ullMaxValidSize - ullMinCompleteSize)/1024/1024/uAvgSpeed);
+			__time64_t time = (__time64_t)((ullMaxValidSize - ullMinCompleteSize)/ullAvgSpeed);
 			CTimeSpan spanR(time);
 			SetDlgItemText(IDC_TEXT_TIME_REMAINNING2,spanR.Format(_T("%H:%M:%S")));
 		}
@@ -1036,9 +1085,10 @@ BOOL CUSBCopyDlg::IsReady()
 	{
 	case WorkMode_ImageCopy:
 	case WorkMode_DiskClean:
+	case WorkMode_DiskFormat:
 		if (!IsExistTarget())
 		{
-			strMsg.Format(_T("%s failed! Custom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Target);
+			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Target);
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 
 			bRet = FALSE;
@@ -1048,7 +1098,7 @@ BOOL CUSBCopyDlg::IsReady()
 	case WorkMode_ImageMake:
 		if (!IsExistMaster())
 		{
-			strMsg.Format(_T("%s failed! Custom errorcode=0x%X, No Master."),strWorkMode,CustomError_No_Master);
+			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Master."),strWorkMode,CustomError_No_Master);
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 
 			bRet = FALSE;
@@ -1058,7 +1108,7 @@ BOOL CUSBCopyDlg::IsReady()
 	default:
 		if (!IsExistMaster())
 		{
-			strMsg.Format(_T("%s failed! Custom errorcode=0x%X, No Master."),strWorkMode,CustomError_No_Master);
+			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Master."),strWorkMode,CustomError_No_Master);
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 
 			bRet = FALSE;
@@ -1066,7 +1116,7 @@ BOOL CUSBCopyDlg::IsReady()
 
 		if (!IsExistTarget())
 		{
-			strMsg.Format(_T("%s failed! Custom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Master);
+			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Master);
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 
 			bRet = FALSE;
@@ -1170,7 +1220,7 @@ void CUSBCopyDlg::OnStart()
 						strHashValue += strHash;
 					}
 					delete []pHash;
-					strMsg.Format(_T("FULL COPY Completed ! Hash Method = %s,Hash Value = %s")
+					strMsg.Format(_T("FULL COPY Completed !\r\nHashMethod=%s, HashValue=%s")
 						,m_MasterPort.GetHashMethodString(),strHashValue);
 				}
 				else
@@ -1186,11 +1236,11 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("FULL COPY Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("FULL COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("FULL COPY Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("FULL COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 				
 			}
@@ -1243,7 +1293,7 @@ void CUSBCopyDlg::OnStart()
 						strHashValue += strHash;
 					}
 					delete []pHash;
-					strMsg.Format(_T("QUICK COPY Completed ! Hash Method = %s,Hash Value = %s")
+					strMsg.Format(_T("QUICK COPY Completed !\r\nHashMethod=%s, HashValue=%s")
 						,m_MasterPort.GetHashMethodString(),strHashValue);
 				}
 				else
@@ -1259,11 +1309,11 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("QUICK COPY Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("QUICK COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("QUICK COPY Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("QUICK COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1320,11 +1370,11 @@ void CUSBCopyDlg::OnStart()
 				
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("DISK CLEAN Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("DISK CLEAN Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("DISK CLEAN Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("DISK CLEAN Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 			}
 
@@ -1374,7 +1424,7 @@ void CUSBCopyDlg::OnStart()
 					strHashValue += strHash;
 				}
 				delete []pHash;
-				strMsg.Format(_T("DISK COMPARE Completed ! Hash Method = %s,Hash Value = %s")
+				strMsg.Format(_T("DISK COMPARE Completed !\r\nHashMethod=%s, HashValue=%s")
 					,m_MasterPort.GetHashMethodString(),strHashValue);
 
 			}
@@ -1386,11 +1436,11 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("DISK COMPARE Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("DISK COMPARE Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("DISK COMPARE Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("DISK COMPARE Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1452,7 +1502,7 @@ void CUSBCopyDlg::OnStart()
 					strHashValue += strHash;
 				}
 				delete []pHash;
-				strMsg.Format(_T("IMAGE MAKE Completed ! Hash Method = %s,Hash Value = %s")
+				strMsg.Format(_T("IMAGE MAKE Completed !\r\nHashMethod=%s, HashValue=%s")
 					,m_MasterPort.GetHashMethodString(),strHashValue);
 				
 			}
@@ -1466,11 +1516,11 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("IMAGE MAKE Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("IMAGE MAKE Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("IMAGE MAKE Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("IMAGE MAKE Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1521,10 +1571,10 @@ void CUSBCopyDlg::OnStart()
 			CString strHashValue;
 			if (bResult)
 			{
-				int len = m_MasterPort.GetHashLength();
+				int len = m_FilePort.GetHashLength();
 				BYTE *pHash = new BYTE[len];
 				ZeroMemory(pHash,len);
-				m_MasterPort.GetHash(pHash,len);
+				m_FilePort.GetHash(pHash,len);
 				for (int i = 0;i < len;i++)
 				{
 					CString strHash;
@@ -1533,7 +1583,8 @@ void CUSBCopyDlg::OnStart()
 					strHashValue += strHash;
 				}
 				delete []pHash;
-				strMsg.Format(_T("IMAGE COPY Completed ! Hash Value = %s"),strHashValue);
+				strMsg.Format(_T("IMAGE COPY Completed !\r\nHashMethod=%s, HashValue=%s")
+					,m_FilePort.GetHashMethodString(),strHashValue);
 				
 			}
 			else
@@ -1544,11 +1595,11 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("IMAGE COPY Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("IMAGE COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("IMAGE COPY Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("IMAGE COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1595,7 +1646,7 @@ void CUSBCopyDlg::OnStart()
 
 			for (UINT i = 0;i < nNumOfFiles;i++)
 			{
-				strKey.Format(_T("Files_%d"),i);
+				strKey.Format(_T("File_%d"),i);
 				strFile = m_Config.GetString(_T("FileCopy"),strKey);
 
 				if (strFile.IsEmpty())
@@ -1655,7 +1706,7 @@ void CUSBCopyDlg::OnStart()
 						strHashValue += strHash;
 					}
 					delete []pHash;
-					strMsg.Format(_T("FILE COPY Completed ! Hash Method = %s,Hash Value = %s")
+					strMsg.Format(_T("FILE COPY Completed !\r\nHashMethod=%s, HashValue=%s")
 						,m_MasterPort.GetHashMethodString(),strHashValue);
 				}
 				else
@@ -1671,13 +1722,74 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("FILE COPY Failed ! System errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("FILE COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("FILE COPY Failed ! Custom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("FILE COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
+			}
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+		}
+		break;
+
+	case WorkMode_DiskFormat:
+		{
+			CString strVolumeLable = m_Config.GetString(_T("DiskFormat"),_T("VolumeLabel"));
+			CString strFileSystem = m_Config.GetString(_T("DiskFormat"),_T("FileSystem"),_T("NTFS"));
+			UINT nClusterSize = m_Config.GetUInt(_T("DiskFormat"),_T("ClusterSize"),0);
+			BOOL bQuickFormat = m_Config.GetBool(_T("DiskFormat"),_T("QuickFormat"),TRUE);
+
+			// 设置端口状态
+			m_MasterPort.Initial();
+
+			POSITION pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					port->SetHashMethod(hashMethod);
+					port->SetWorkMode(m_WorkMode);
+				}
+			}
+
+			disk.SetTargetPorts(&m_TargetPorts);
+			disk.SetFormatParm(strVolumeLable,strFileSystem,nClusterSize,TRUE);
+
+			bResult = disk.Start();
+
+			if (bResult)
+			{
+				strMsg.Format(_T("DISK FORMAT Completed !!!"));
+			}
+			else
+			{
+				// 任意取一个错误
+				ErrorType errType = ErrorType_System;
+				DWORD dwErrorCode = 0;
+				pos = m_TargetPorts.GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts.GetNext(pos);
+
+					if (port->IsConnected() && !port->GetResult())
+					{
+						errType = port->GetErrorCode(&dwErrorCode);
+						break;
+					}
+				}
+
+				if (errType == ErrorType_System)
+				{
+					strMsg.Format(_T("DISK FORMAT Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				}
+				else
+				{
+					strMsg.Format(_T("DISK FORMAT Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+				}
 			}
 
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
@@ -1764,6 +1876,10 @@ CString CUSBCopyDlg::GetCustomErrorMsg( CustomError customError )
 		case CustomError_Target_Small:
 			strError = _T("Target is small.");
 			break;
+
+		case CustomError_Format_Error:
+			strError = _T("Disk format error.");
+			break;
 	}
 
 	return strError;
@@ -1827,6 +1943,10 @@ BOOL CUSBCopyDlg::DestroyWindow()
 
 	UpdatePortFrame(FALSE);
 
+	WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
+	delete m_ThreadListen;
+	m_ThreadListen = NULL;
+
 	POSITION pos = m_TargetPorts.GetHeadPosition();
 
 	while(pos)
@@ -1859,6 +1979,11 @@ BOOL CUSBCopyDlg::DestroyWindow()
 	CString strAlias;
 	GetDlgItemText(IDC_TEXT_ALIAS,strAlias);
 	m_Config.WriteString(_T("MachineInfo"),_T("Alias"),strAlias);
+
+	for (UINT i = 0; i < m_nPortNum;i++)
+	{
+		m_PortFrames[i].DestroyWindow();
+	}
 
 	delete []m_PortFrames;
 
@@ -1924,6 +2049,7 @@ afx_msg LRESULT CUSBCopyDlg::OnComReceive(WPARAM wParam, LPARAM lParam)
 			}		
 		}
 	}
+	delete []pBuffer;
 
 	return 0;
 }
@@ -1939,7 +2065,9 @@ afx_msg LRESULT CUSBCopyDlg::OnResetMachienPort(WPARAM wParam, LPARAM lParam)
 	// 复位
 	m_Command.ResetLight();
 
-	AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this);
+	m_ThreadListen = AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this,0,CREATE_SUSPENDED);
+	m_ThreadListen->m_bAutoDelete = FALSE;
+	m_ThreadListen->ResumeThread();
 
 	return 0;
 }
@@ -1996,7 +2124,7 @@ void CUSBCopyDlg::MatchDevice()
 	int nConnectIndex = -1;
 	int nCount = 0;
 	CString strModel,strSN;
-	while (pos)
+	while (pos && !m_bRunning)
 	{
 		PUSBDEVICEINFO pUsbDeviceInfo = NULL;
 		PDEVICELIST pStorageList = NULL;
@@ -2158,5 +2286,64 @@ void CUSBCopyDlg::MatchDevice()
 afx_msg LRESULT CUSBCopyDlg::OnUpdateSoftware(WPARAM wParam, LPARAM lParam)
 {
 	m_bUpdate = TRUE;
+	return 0;
+}
+
+void CUSBCopyDlg::BackupLogfile( HANDLE hFile ,DWORD dwFileSize)
+{
+	CString strBackipFile = m_strAppPath + LOG_FILE_BAK;
+
+	HANDLE hBackup = CreateFile(strBackipFile,
+								GENERIC_WRITE | GENERIC_READ,
+								FILE_SHARE_WRITE | FILE_SHARE_READ,
+								NULL,
+								OPEN_ALWAYS,
+								FILE_ATTRIBUTE_NORMAL,
+								NULL);
+
+	if (hBackup == INVALID_HANDLE_VALUE)
+	{
+		MessageBox(_T("Create Backup file failed !"));
+		return;
+	}
+
+	LARGE_INTEGER liFile = {0};
+	if (SetFilePointerEx(hBackup,liFile,0,FILE_END))
+	{
+		BYTE *pByte = new BYTE[dwFileSize];
+		ZeroMemory(pByte,dwFileSize);
+
+		DWORD dwRead = 0,dwWrite = 0;
+		if (ReadFile(hFile,pByte,dwFileSize,&dwRead,NULL))
+		{
+			WriteFile(hBackup,pByte,dwRead,&dwWrite,NULL);
+		}
+
+		delete []pByte;
+	}
+	else
+	{
+		MessageBox(_T("SetFilePointerEx failed !"));
+	}
+	
+	CloseHandle(hBackup);
+	
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnResetPower(WPARAM wParam, LPARAM lParam)
+{
+	//初始化上电
+	m_Command.ResetPower();
+
+	// 全部上电
+	for (UINT i = 0; i < m_nPortNum;i++)
+	{
+		m_Command.Power(i,TRUE);
+		Sleep(100);
+	}
+
+	// 使能闪烁命令
+	m_Command.EnableFlashLight();
 	return 0;
 }

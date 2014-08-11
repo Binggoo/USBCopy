@@ -1,4 +1,3 @@
-adjustBorder
 // FileCopySetting.cpp : 实现文件
 //
 
@@ -7,6 +6,7 @@ adjustBorder
 #include "FileCopySetting.h"
 #include "Utils.h"
 #include "afxdialogex.h"
+#include "XFolderDialog/XFolderDialog.h"
 
 
 // CFileCopySetting 对话框
@@ -93,7 +93,7 @@ void CFileCopySetting::InitialListCtrl()
 	m_ListCtrl.InsertColumn(nItem++,_T("Size"),LVCFMT_LEFT,100,0);
 	m_ListCtrl.InsertColumn(nItem++,_T("State"),LVCFMT_LEFT,60,0);
 
-	m_ListCtrl.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_CHECKBOXES);
+	m_ListCtrl.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 }
 
 void CFileCopySetting::UpdateListCtrl()
@@ -221,6 +221,7 @@ void CFileCopySetting::OnBnClickedBtnAddFolder()
 
 	int nCount = m_ListCtrl.GetItemCount();
 
+	/* WinPE 下用不了
 	BROWSEINFO broInfo = {0};
 	TCHAR      szDisName[MAX_PATH] = {0};
 
@@ -268,6 +269,34 @@ void CFileCopySetting::OnBnClickedBtnAddFolder()
 			(void)pMalloc->Release();
 		}
 	}
+	*/
+    CXFolderDialog dlg(m_strMasterPath);
+
+	if (dlg.DoModal() == IDOK)
+	{
+		CString strFolder = dlg.GetPath();
+		if (strFolder.Find(m_strMasterPath) != 0)
+		{
+			MessageBox(_T("Please select folder in master M."));
+		}
+		else
+		{
+
+			CString strItem = strFolder.Right(strFolder.GetLength() - 3);
+
+			if (IsAdded(strItem))
+			{
+				return;
+			}
+
+			ULONGLONG ullSize = CUtils::GetFolderSize(strFolder);
+
+			m_ListCtrl.InsertItem(nCount,strItem);
+			m_ListCtrl.SetItemText(nCount,1,_T("Folder"));
+			m_ListCtrl.SetItemText(nCount,2,CUtils::AdjustFileSize(ullSize));
+			m_ListCtrl.SetItemText(nCount,3,_T("YES"));
+		}
+	}
 
 	GetDlgItem(IDC_BTN_ADD_FILE)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BTN_ADD_FOLDER)->EnableWindow(TRUE);
@@ -300,10 +329,17 @@ void CFileCopySetting::OnBnClickedBtnAddFile()
 				return;
 			}
 
+			CString strItem = filename.Right(filename.GetLength() - 3);
+
+			if (IsAdded(strItem))
+			{
+				continue;
+			}
+
 			CFileStatus status;
 			CFile::GetStatus(filename,status);
 
-			m_ListCtrl.InsertItem(nCount,filename.Right(filename.GetLength() - 3));
+			m_ListCtrl.InsertItem(nCount,strItem);
 			m_ListCtrl.SetItemText(nCount,1,_T("File"));
 			m_ListCtrl.SetItemText(nCount,2,CUtils::AdjustFileSize(status.m_size));
 			m_ListCtrl.SetItemText(nCount,3,_T("YES"));
@@ -318,16 +354,14 @@ void CFileCopySetting::OnBnClickedBtnAddFile()
 void CFileCopySetting::OnBnClickedBtnDel()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	int nCount = m_ListCtrl.GetItemCount();
-	for (int i = 0;i < nCount;i++)
+
+	POSITION pos = m_ListCtrl.GetFirstSelectedItemPosition();
+
+	while(pos)
 	{
-		BOOL bCheck = m_ListCtrl.GetCheck(i);
-		if (bCheck)
-		{
-			m_ListCtrl.DeleteItem(i);
-			i--;
-			nCount--;
-		}
+		int nItem = m_ListCtrl.GetNextSelectedItem(pos);
+		m_ListCtrl.DeleteItem(nItem);
+		pos = m_ListCtrl.GetFirstSelectedItemPosition();
 	}
 }
 
@@ -364,11 +398,6 @@ void CFileCopySetting::OnBnClickedOk()
 	UpdateData(TRUE);
 
 	int nCount = m_ListCtrl.GetItemCount();
-
-	if (nCount == 0)
-	{
-		return;
-	}
 
 	m_pIni->WriteBool(_T("FileCopy"),_T("En_ComputeHash"),m_bCheckComputeHash);
 	m_pIni->WriteBool(_T("FileCopy"),_T("En_Compare"),m_bCheckCompare);
@@ -434,4 +463,23 @@ int CALLBACK CFileCopySetting::BrowseCallbackProc( HWND hwnd,UINT uMsg,LPARAM lP
 		::SendMessage(hwnd, BFFM_SETSELECTION,TRUE,lpData);
 	}
 	return 0;
+}
+
+BOOL CFileCopySetting::IsAdded( CString strItem )
+{
+	BOOL bRet = FALSE;
+	int nCount = m_ListCtrl.GetItemCount();
+
+	for (int i = 0; i < nCount;i++)
+	{
+		CString strPath = m_ListCtrl.GetItemText(i,0);
+
+		if (strPath.CompareNoCase(strItem) == 0)
+		{
+			bRet = TRUE;
+			break;
+		}
+	}
+
+	return bRet;
 }

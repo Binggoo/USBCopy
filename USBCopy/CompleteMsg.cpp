@@ -10,11 +10,12 @@
 
 IMPLEMENT_DYNAMIC(CCompleteMsg, CDialogEx)
 
-CCompleteMsg::CCompleteMsg(CString strMessage,BOOL bPass,CWnd* pParent /*=NULL*/)
+CCompleteMsg::CCompleteMsg(CPortCommand *pCommand,CString strMessage,BOOL bPass,CWnd* pParent /*=NULL*/)
 	: CDialogEx(CCompleteMsg::IDD, pParent)
 {
 	m_strMessage = strMessage;
 	m_bPass = bPass;
+	m_pCommand = pCommand;
 
 	m_strMessage.Trim();
 
@@ -22,6 +23,8 @@ CCompleteMsg::CCompleteMsg(CString strMessage,BOOL bPass,CWnd* pParent /*=NULL*/
 	{
 		m_strMessage = _T("Completed ! Completed ! Completed !");
 	}
+	m_bStop = FALSE;
+	m_ThreadBuzzer = NULL;
 }
 
 CCompleteMsg::~CCompleteMsg()
@@ -48,16 +51,21 @@ BOOL CCompleteMsg::OnInitDialog()
 	CDialogEx::OnInitDialog();
 
 	// TODO:  在此添加额外的初始化
+	ASSERT(m_pCommand);
 
 	SetWindowLong(this->GetSafeHwnd(),GWL_EXSTYLE,GetWindowLong(this->GetSafeHwnd(),GWL_EXSTYLE)|WS_EX_LAYERED);
 
 	SetLayeredWindowAttributes(RGB(255,255,255),200,LWA_ALPHA);
 
-	m_font.CreatePointFont(180,_T("Arial"));
+	m_font.CreatePointFont(160,_T("Arial"));
 
 	GetDlgItem(IDC_TEXT_MSG)->SetFont(&m_font);
 
 	SetDlgItemText(IDC_TEXT_MSG,m_strMessage);
+
+	m_ThreadBuzzer = AfxBeginThread((AFX_THREADPROC)BuzzerThreadProc,this,0,CREATE_SUSPENDED);
+	m_ThreadBuzzer->m_bAutoDelete = FALSE;
+	m_ThreadBuzzer->ResumeThread();
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -75,16 +83,18 @@ HBRUSH CCompleteMsg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 		if (m_bPass)
 		{
-			pDC->SetTextColor(RGB(0,139,0));
+			//pDC->SetTextColor(RGB(0,139,0));
+			hbr = CreateSolidBrush(RGB(0,255,0));
 		}
 		else
 		{
-			pDC->SetTextColor(RGB(255,0,0));
+			//pDC->SetTextColor(RGB(255,0,0));
+			hbr = CreateSolidBrush(RGB(255,0,0));
 		}
 		break;
 	}
 
-	hbr = CreateSolidBrush(RGB(255,255,0));
+	
 
 	// TODO:  如果默认的不是所需画笔，则返回另一个画笔
 	return hbr;
@@ -121,4 +131,38 @@ BOOL CCompleteMsg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 	}
 
 	return CDialogEx::OnSetCursor(pWnd, nHitTest, message);
+}
+
+void CCompleteMsg::Buzzer()
+{
+	m_pCommand->Buzzer(TRUE);
+
+	int time = 5;
+	while (!m_bStop && time > 0)
+	{
+		Sleep(1000);
+		time--;
+	}
+
+	m_pCommand->Buzzer(FALSE);
+}
+
+DWORD WINAPI CCompleteMsg::BuzzerThreadProc( LPVOID lpParm )
+{
+	CCompleteMsg *pDlg = (CCompleteMsg *)lpParm;
+	pDlg->Buzzer();
+	return 1;
+}
+
+BOOL CCompleteMsg::DestroyWindow()
+{
+	// TODO: 在此添加专用代码和/或调用基类
+
+	m_bStop = TRUE;
+
+	WaitForSingleObject(m_ThreadBuzzer->m_hThread,INFINITE);
+	delete m_ThreadBuzzer;
+	m_ThreadBuzzer = NULL;
+
+	return CDialogEx::DestroyWindow();
 }

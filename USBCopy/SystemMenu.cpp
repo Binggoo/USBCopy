@@ -253,7 +253,18 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 
 			CString strSourceFile = m_strAppPath + _T("\\USBCopy.log");
 
-			if (CopyFile(strSourceFile,strDestFile,FALSE))
+			BOOL bSuc = CopyFile(strSourceFile,strDestFile,FALSE);
+
+			strSourceFile = m_strAppPath + _T("\\USBCopy.log.bak");
+
+			if (PathFileExists(strSourceFile))
+			{
+				strDestFile = strDrive + time.Format(_T("USBCopy_%Y%m%d%H%M%S.log.bak"));
+
+				bSuc &= CopyFile(strSourceFile,strDestFile,FALSE);
+			}
+
+			if (bSuc)
 			{
 				MessageBox(_T("Export log success"),_T("Export Log"));
 				break;

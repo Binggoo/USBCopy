@@ -63,6 +63,11 @@ BOOL CScanningDlg::OnInitDialog()
 
 	m_WorkMode = (WorkMode)m_pIni->GetUInt(_T("Option"),_T("FunctionMode"),1);
 
+	if (m_WorkMode == WorkMode_DiskFormat)
+	{
+		::PostMessage(GetParent()->GetSafeHwnd(),WM_RESET_POWER,0,0);
+	}
+
 	CString strText;
 	if (m_bBeginning)
 	{
@@ -187,7 +192,7 @@ void CScanningDlg::ScanningDevice()
 		{
 			port = m_pMasterPort;
 
-			if (m_WorkMode == WorkMode_DiskClean || m_WorkMode == WorkMode_ImageCopy)
+			if (m_WorkMode == WorkMode_DiskClean || m_WorkMode == WorkMode_ImageCopy || m_WorkMode == WorkMode_DiskFormat)
 			{
 				port->Initial();
 				nCount++;
@@ -258,6 +263,7 @@ void CScanningDlg::ScanningDevice()
 								break;
 
 							case WorkMode_FileCopy:
+							case WorkMode_DiskFormat:
 								// È¥µôÖ»¶Á£¬²¢ÇÒonline
 								if (port->GetPortNum() != 0)
 								{
@@ -350,6 +356,7 @@ BOOL CScanningDlg::IsAllConnected()
 	{
 	case WorkMode_ImageCopy:
 	case WorkMode_DiskClean:
+	case WorkMode_DiskFormat:
 		break;
 
 	case WorkMode_ImageMake:

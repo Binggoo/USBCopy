@@ -48,7 +48,8 @@ typedef enum _ENUM_CUSTOM_ERROR
 	CustomError_Speed_Too_Slow,
 	CustomError_Unrecognized_Partition,
 	CustomError_No_File_Select,
-	CustomError_Target_Small
+	CustomError_Target_Small,
+	CustomError_Format_Error
 
 }CustomError;
 
@@ -63,6 +64,7 @@ typedef enum _ENUM_WORK_MODE
 	WorkMode_DiskClean,
 	WorkMode_DiskCompare,
 	WorkMode_FileCopy,
+	WorkMode_DiskFormat
 }WorkMode;
 
 // 端口状态
@@ -72,6 +74,7 @@ typedef enum _ENUM_PORT_STATE
 	PortState_Online,    //有设备接入
 	PortState_Pending,
 	PortState_Active,    //正在工作中
+	PortState_Stop, // 中间值
 	PortState_Pass,
 	PortState_Fail
 }PortState;

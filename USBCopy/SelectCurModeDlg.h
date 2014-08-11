@@ -24,6 +24,8 @@ private:
 	WorkMode m_WorkMode;
 	CIni *m_pIni;
 
+	CFont m_font;
+
 public:
 	void SetConfig(CIni *pIni);
 	afx_msg void OnBnClickedButtonFullCopy();
@@ -36,4 +38,5 @@ public:
 	afx_msg void OnBnClickedBtnFileCopy();
 	afx_msg void OnBnClickedBtnDiskCompare();
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
+	afx_msg void OnBnClickedBtnDiskFormat();
 };

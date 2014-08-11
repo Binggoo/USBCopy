@@ -50,7 +50,8 @@ private:
 	BOOL m_bResult;
 
 	// OVERLAPPED
-	OVERLAPPED m_Overlapped;
+	OVERLAPPED m_ReadOverlapped;
+	OVERLAPPED m_WriteOverlapped;
 
 public:
 	void Initial();
@@ -154,7 +155,7 @@ public:
 	ErrorType GetErrorCode(PDWORD pdwErrorCode);
 
 	// OVERLAPPED
-	LPOVERLAPPED GetOverlapped();
+	LPOVERLAPPED GetOverlapped(BOOL bRead);
 
 };
 

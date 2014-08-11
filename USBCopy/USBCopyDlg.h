@@ -10,9 +10,10 @@
 #include "SerialPort.h"
 #include "PortCommand.h"
 
-#define CONFIG_NAME     _T("\\USBCopy.INI")
-#define MACHINE_INFO    _T("\\MachineInfo.INI")
-#define LOG_FILE     _T("\\USBCopy.LOG")
+#define CONFIG_NAME     _T("\\USBCopy.ini")
+#define MACHINE_INFO    _T("\\MachineInfo.ini")
+#define LOG_FILE     _T("\\USBCopy.log")
+#define LOG_FILE_BAK     _T("\\USBCopy.log.bak")
 #define MASTER_PATH  _T("M:\\")
 
 #define TIMER_UPDATE_STATISTIC 1
@@ -73,6 +74,8 @@ private:
 	BOOL          m_bRunning;
 	BOOL          m_bUpdate;
 
+	CWinThread    *m_ThreadListen;
+
 	enum
 	{
 		COLUMNS = 6,
@@ -109,6 +112,8 @@ private:
 	void EnumDevice();
 	void MatchDevice();
 
+	void BackupLogfile(HANDLE hFile,DWORD dwFileSize);
+
 	static DWORD StartThreadProc(LPVOID lpParm);
 	static DWORD InitialMachineThreadProc(LPVOID lpParm);
 	static DWORD EnumDeviceThreadProc(LPVOID lpParm);
@@ -136,4 +141,5 @@ protected:
 	afx_msg LRESULT OnResetMachienPort(WPARAM wParam, LPARAM lParam);
 	afx_msg BOOL OnDeviceChange(UINT nEventType, DWORD_PTR dwData);
 	afx_msg LRESULT OnUpdateSoftware(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnResetPower(WPARAM wParam, LPARAM lParam);
 };
