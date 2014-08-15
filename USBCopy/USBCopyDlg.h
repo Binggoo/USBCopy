@@ -48,6 +48,7 @@ private:
 	CRect         m_Rect;
 	CString       m_strAppPath;
 	HANDLE        m_hLogFile;
+	HANDLE        m_hEvent;
 	BOOL          m_bLock;
 	BOOL          m_bCancel;
 	CString       m_strPassWord;
@@ -76,6 +77,8 @@ private:
 
 	CWinThread    *m_ThreadListen;
 
+	BOOL          m_bBurnInTest;
+
 	enum
 	{
 		COLUMNS = 6,
@@ -99,6 +102,8 @@ private:
 	void InitialStatisticInfo();
 	void UpdateStatisticInfo();
 
+	void InitialBurnInTest();
+
 	void EnableControls(BOOL bEnable);
 
 	BOOL IsReady();
@@ -106,6 +111,7 @@ private:
 	BOOL IsExistMaster();
 
 	CString GetCustomErrorMsg(CustomError customError);
+	CString GetWorkModeString(WorkMode mode);
 
 	void OnStart();
 
@@ -114,9 +120,12 @@ private:
 
 	void BackupLogfile(HANDLE hFile,DWORD dwFileSize);
 
-	static DWORD StartThreadProc(LPVOID lpParm);
-	static DWORD InitialMachineThreadProc(LPVOID lpParm);
-	static DWORD EnumDeviceThreadProc(LPVOID lpParm);
+	static DWORD WINAPI StartThreadProc(LPVOID lpParm);
+	static DWORD WINAPI InitialMachineThreadProc(LPVOID lpParm);
+	static DWORD WINAPI EnumDeviceThreadProc(LPVOID lpParm);
+	static DWORD WINAPI BurnInTestThreadProc(LPVOID lpParm);
+
+	void BurnInTest();
 
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -133,7 +142,7 @@ protected:
 public:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 protected:
-	afx_msg LRESULT OnSendFunctionText(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnSendVerifyStart(WPARAM wParam, LPARAM lParam);
 public:
 	virtual BOOL DestroyWindow();
 protected:
@@ -142,4 +151,7 @@ protected:
 	afx_msg BOOL OnDeviceChange(UINT nEventType, DWORD_PTR dwData);
 	afx_msg LRESULT OnUpdateSoftware(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnResetPower(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnBurnInTest(WPARAM wParam, LPARAM lParam);
+public:
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 };

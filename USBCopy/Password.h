@@ -1,8 +1,6 @@
 #pragma once
 
-
 // CPassword ¶Ô»°¿ò
-#define DEFAULT_PASSWORD  _T("123456")
 
 class CPassword : public CDialogEx
 {
@@ -24,10 +22,25 @@ private:
 	BOOL m_bSet;
 	CString m_strPassword;
 
+	void AppendPassword(CString strText);
+
 public:
 	virtual BOOL OnInitDialog();
 
 	void SetPassword(CString strPassword);
 	CString GetPassword();
 	afx_msg void OnBnClickedOk();
+	afx_msg void OnBnClickedButton1();
+	afx_msg void OnBnClickedButton2();
+	afx_msg void OnBnClickedButton3();
+	afx_msg void OnBnClickedButton4();
+	afx_msg void OnBnClickedButton5();
+	afx_msg void OnBnClickedButton6();
+	afx_msg void OnBnClickedButton7();
+	afx_msg void OnBnClickedButton8();
+	afx_msg void OnBnClickedButton9();
+	afx_msg void OnBnClickedButton10();
+	afx_msg void OnBnClickedBtnClear();
+	afx_msg void OnBnClickedBtnBackspace();
+	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
 };

@@ -87,11 +87,21 @@ void CFileCopySetting::InitialListCtrl()
 
 	int nWidth = rect.Width() - 220;
 
+	CString strResText;
+
 	int nItem = 0;
-	m_ListCtrl.InsertColumn(nItem++,_T("Path"),LVCFMT_LEFT,nWidth,0);
-	m_ListCtrl.InsertColumn(nItem++,_T("Type"),LVCFMT_LEFT,60,0);
-	m_ListCtrl.InsertColumn(nItem++,_T("Size"),LVCFMT_LEFT,100,0);
-	m_ListCtrl.InsertColumn(nItem++,_T("State"),LVCFMT_LEFT,60,0);
+
+	strResText.LoadString(IDS_ITEM_PATH);
+	m_ListCtrl.InsertColumn(nItem++,strResText,LVCFMT_LEFT,nWidth,0);
+
+	strResText.LoadString(IDS_ITEM_TYPE);
+	m_ListCtrl.InsertColumn(nItem++,strResText,LVCFMT_LEFT,60,0);
+
+	strResText.LoadString(IDS_ITEM_SIZE);
+	m_ListCtrl.InsertColumn(nItem++,strResText,LVCFMT_LEFT,100,0);
+
+	strResText.LoadString(IDS_ITEM_STATE);
+	m_ListCtrl.InsertColumn(nItem++,strResText,LVCFMT_LEFT,60,0);
 
 	m_ListCtrl.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 }
@@ -277,11 +287,12 @@ void CFileCopySetting::OnBnClickedBtnAddFolder()
 		CString strFolder = dlg.GetPath();
 		if (strFolder.Find(m_strMasterPath) != 0)
 		{
-			MessageBox(_T("Please select folder in master M."));
+			CString strResText;
+			strResText.LoadString(IDS_MSG_SELECT_FOLDER_IN_MASTER);
+			MessageBox(strResText);
 		}
 		else
 		{
-
 			CString strItem = strFolder.Right(strFolder.GetLength() - 3);
 
 			if (IsAdded(strItem))
@@ -324,7 +335,9 @@ void CFileCopySetting::OnBnClickedBtnAddFile()
 
 			if (filename.Find(m_strMasterPath) != 0)
 			{
-				MessageBox(_T("Please select file in master M."));
+				CString strResText;
+				strResText.LoadString(IDS_MSG_SELECT_FILE_IN_MASTER);
+				MessageBox(strResText);
 
 				return;
 			}

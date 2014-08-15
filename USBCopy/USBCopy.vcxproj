@@ -120,6 +120,7 @@
     <ClInclude Include="..\..\..\Binggoo\common\Ini.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Utils.h" />
     <ClInclude Include="..\..\..\Binggoo\common\zlib.h" />
+    <ClInclude Include="BurnIn.h" />
     <ClInclude Include="Checksum32.h" />
     <ClInclude Include="CompleteMsg.h" />
     <ClInclude Include="CRC32.h" />
@@ -131,7 +132,9 @@
     <ClInclude Include="DiskFormatSetting.h" />
     <ClInclude Include="EnumStorage.h" />
     <ClInclude Include="EnumUSB.h" />
+    <ClInclude Include="Fat32.h" />
     <ClInclude Include="FileCopySetting.h" />
+    <ClInclude Include="Fs.h" />
     <ClInclude Include="FullCopySettingDlg.h" />
     <ClInclude Include="GlobalDef.h" />
     <ClInclude Include="GlobalSetting.h" />
@@ -166,6 +169,7 @@
     <ClCompile Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Ini.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Utils.cpp" />
+    <ClCompile Include="BurnIn.cpp" />
     <ClCompile Include="Checksum32.cpp" />
     <ClCompile Include="CompleteMsg.cpp" />
     <ClCompile Include="CRC32.cpp" />
@@ -177,7 +181,9 @@
     <ClCompile Include="DiskFormatSetting.cpp" />
     <ClCompile Include="EnumStorage.cpp" />
     <ClCompile Include="EnumUSB.cpp" />
+    <ClCompile Include="Fat32.cpp" />
     <ClCompile Include="FileCopySetting.cpp" />
+    <ClCompile Include="Fs.cpp" />
     <ClCompile Include="FullCopySettingDlg.cpp" />
     <ClCompile Include="GlobalSetting.cpp" />
     <ClCompile Include="HashMethod.cpp" />

@@ -31,4 +31,5 @@ public:
 
 	void SetConfig(CIni *pIni);
 	afx_msg void OnBnClickedOk();
+	afx_msg void OnEnChangeEditLabel();
 };

@@ -10,18 +10,19 @@
 
 IMPLEMENT_DYNAMIC(CCompleteMsg, CDialogEx)
 
-CCompleteMsg::CCompleteMsg(CPortCommand *pCommand,CString strMessage,BOOL bPass,CWnd* pParent /*=NULL*/)
+CCompleteMsg::CCompleteMsg(CIni *pIni,CPortCommand *pCommand,CString strMessage,BOOL bPass,CWnd* pParent /*=NULL*/)
 	: CDialogEx(CCompleteMsg::IDD, pParent)
 {
 	m_strMessage = strMessage;
 	m_bPass = bPass;
 	m_pCommand = pCommand;
+	m_pIni = pIni;
 
 	m_strMessage.Trim();
 
 	if (m_strMessage.IsEmpty())
 	{
-		m_strMessage = _T("Completed ! Completed ! Completed !");
+		m_strMessage.LoadString(IDS_MSG_COMPLETE);
 	}
 	m_bStop = FALSE;
 	m_ThreadBuzzer = NULL;
@@ -63,9 +64,14 @@ BOOL CCompleteMsg::OnInitDialog()
 
 	SetDlgItemText(IDC_TEXT_MSG,m_strMessage);
 
-	m_ThreadBuzzer = AfxBeginThread((AFX_THREADPROC)BuzzerThreadProc,this,0,CREATE_SUSPENDED);
-	m_ThreadBuzzer->m_bAutoDelete = FALSE;
-	m_ThreadBuzzer->ResumeThread();
+	BOOL bBeep = m_pIni->GetBool(_T("Option"),_T("BeepWhenFinish"),TRUE);
+
+	if (bBeep)
+	{
+		m_ThreadBuzzer = AfxBeginThread((AFX_THREADPROC)BuzzerThreadProc,this,0,CREATE_SUSPENDED);
+		m_ThreadBuzzer->m_bAutoDelete = FALSE;
+		m_ThreadBuzzer->ResumeThread();
+	}
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -160,9 +166,12 @@ BOOL CCompleteMsg::DestroyWindow()
 
 	m_bStop = TRUE;
 
-	WaitForSingleObject(m_ThreadBuzzer->m_hThread,INFINITE);
-	delete m_ThreadBuzzer;
-	m_ThreadBuzzer = NULL;
-
+	if (m_ThreadBuzzer)
+	{
+		WaitForSingleObject(m_ThreadBuzzer->m_hThread,INFINITE);
+		delete m_ThreadBuzzer;
+		m_ThreadBuzzer = NULL;
+	}
+	
 	return CDialogEx::DestroyWindow();
 }

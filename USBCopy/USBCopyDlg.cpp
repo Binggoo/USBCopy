@@ -80,6 +80,7 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bVerify = FALSE;
 	m_bRunning = FALSE;
 	m_bUpdate = FALSE;
+	m_bBurnInTest = FALSE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -103,12 +104,13 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_STOP, &CUSBCopyDlg::OnBnClickedBtnStop)
 	ON_MESSAGE(WM_UPDATE_STATISTIC, &CUSBCopyDlg::OnUpdateStatistic)
 	ON_WM_CTLCOLOR()
-	ON_MESSAGE(WM_SEND_FUNCTION_TEXT, &CUSBCopyDlg::OnSendFunctionText)
+	ON_MESSAGE(WM_VERIFY_START, &CUSBCopyDlg::OnSendVerifyStart)
 	ON_MESSAGE(ON_COM_RECEIVE, &CUSBCopyDlg::OnComReceive)
 	ON_MESSAGE(WM_RESET_MACHIEN_PORT, &CUSBCopyDlg::OnResetMachienPort)
 	ON_WM_DEVICECHANGE()
 	ON_MESSAGE(WM_UPDATE_SOFTWARE, &CUSBCopyDlg::OnUpdateSoftware)
 	ON_MESSAGE(WM_RESET_POWER, &CUSBCopyDlg::OnResetPower)
+	ON_MESSAGE(WM_BURN_IN_TEST, &CUSBCopyDlg::OnBurnInTest)
 END_MESSAGE_MAP()
 
 
@@ -155,9 +157,18 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 	if (m_hLogFile == INVALID_HANDLE_VALUE)
 	{
-		MessageBox(_T("CreateFile Error"),_T("Error"),MB_ICONERROR);
+		MessageBox(_T("Create Log File Error"),_T("Error"),MB_ICONERROR);
 
-		SendMessage(WM_CLOSE);
+		SendMessage(WM_QUIT);
+	}
+
+	m_hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
+
+	if (m_hEvent == NULL)
+	{
+		MessageBox(_T("CreateEvent Error"),_T("Error"),MB_ICONERROR);
+
+		SendMessage(WM_QUIT);
 	}
 
 	// 如果log文件大小超过2M，备份一下
@@ -211,6 +222,9 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	CString strConfigPath = m_strAppPath + CONFIG_NAME;
 	m_Config.SetPathName(strConfigPath);
 
+	BOOL bShowCursor = m_Config.GetBool(_T("Option"),_T("ShowCursor"),TRUE);
+	ShowCursor(bShowCursor);
+
 	// 初始化
 	InitialPortPath();
 
@@ -236,6 +250,16 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 	GetDlgItem(IDC_BTN_START)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BTN_STOP)->EnableWindow(FALSE);
+
+	m_bLock = m_Config.GetBool(_T("Option"),_T("En_Lock"),FALSE);
+	m_strPassWord = m_Config.GetString(_T("Option"),_T("Password"),_T("123456"));
+
+	if (m_bLock)
+	{
+		EnableControls(FALSE);
+		SetDlgItemText(IDC_BTN_LOCK,_T("Unlock"));
+	}
+	
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -464,110 +488,121 @@ void CUSBCopyDlg::InitialSerialPort()
 void CUSBCopyDlg::InitialCurrentWorkMode()
 {
 	m_WorkMode = (WorkMode)m_Config.GetUInt(_T("Option"),_T("FunctionMode"),1);
-	BOOL bShowCursor = m_Config.GetBool(_T("Option"),_T("ShowCursor"),TRUE);
-	ShowCursor(bShowCursor);
 
 	CString strWorkMode,strWorkModeParm;
+	CString strResText1,strResText2;
 	switch (m_WorkMode)
 	{
 	case WorkMode_FullCopy:
 		{
-			strWorkMode = strWorkModeParm = _T("Full Copy");
+			strResText1.LoadString(IDS_WORK_MODE_FULL_COPY);
+
+			strWorkMode = strWorkModeParm = strResText1;
 
 			if (m_Config.GetBool(_T("FullCopy"),_T("En_Compare"),FALSE))
 			{
-				strWorkModeParm = _T("FullCopy + Compare");
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
 			}
 		}
 		break;
 
 	case WorkMode_QuickCopy:
 		{
-			strWorkMode = strWorkModeParm = _T("Quick Copy");
+			strResText1.LoadString(IDS_WORK_MODE_QUICK_COPY);
+			strWorkMode = strWorkModeParm = strResText1;
 
 			if (m_Config.GetBool(_T("QuickCopy"),_T("En_Compare"),FALSE))
 			{
-				strWorkModeParm = _T("QuickCopy + Compare");
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
 			}
 		}
 		break;
 
 	case WorkMode_ImageCopy:
 		{
-			strWorkMode = strWorkModeParm = _T("Image Copy");
+			strResText1.LoadString(IDS_WORK_MODE_IMAGE_COPY);
+			strWorkMode = strWorkModeParm = strResText1;
 
 			if (m_Config.GetBool(_T("ImageCopy"),_T("En_Compare"),FALSE))
 			{
-				strWorkModeParm = _T("ImageCopy + Compare");
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
 			}
 		}
 		break;
 
 	case WorkMode_ImageMake:
-		strWorkMode = strWorkModeParm =  _T("Image Make");
+		strResText1.LoadString(IDS_WORK_MODE_IMAGE_MAKE);
+		strWorkMode = strWorkModeParm = strResText1;
 		break;
 
 	case WorkMode_DiskClean:
 		{
-			strWorkMode = strWorkModeParm = _T("Disk Clean");
+			strResText1.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+			strWorkMode = strWorkModeParm = strResText1;
 
 			CleanMode cleanMode = (CleanMode)m_Config.GetInt(_T("DiskClean"),_T("CleanMode"),0);
 			switch (cleanMode)
 			{
 			case CleanMode_Full:
-				strWorkModeParm = _T("DiskClean - FullClean");
+				strResText2.LoadString(IDS_FULL_CLEAN);
 				break;
 
 			case CleanMode_Quick:
-				strWorkModeParm = _T("DiskClean - QuickClean");
+				strResText2.LoadString(IDS_QUICK_CLEAN);
 				break;
 
 			case CleanMode_Safe:
-				strWorkModeParm = _T("DiskClean - SafeClean");
+				strResText2.LoadString(IDS_SAFE_CLEAN);
 				break;
 			}
+
+			strWorkModeParm.Format(_T("%s - %s"),strResText1,strResText2);
 		}
 
 		break;
 
 	case WorkMode_DiskCompare:
 		{
-			strWorkMode = strWorkModeParm = _T("Disk Compare");
+			strResText1.LoadString(IDS_WORK_MODE_DISK_COMPARE);
+			strWorkMode = strWorkModeParm = strResText1;
 
 			CompareMode compareMode = (CompareMode)m_Config.GetInt(_T("DiskCompare"),_T("CompareMode"),0);
 
 			switch (compareMode)
 			{
 			case CompareMode_Full:
-				strWorkModeParm = _T("DiskCompare - FullCompare");
+				strResText2.LoadString(IDS_FULL_COMPARE);
 				break;
 
 			case CompareMode_Quick:
-				strWorkModeParm = _T("DiskCompare - QuickCompare");
+				strResText2.LoadString(IDS_QUICK_COMPARE);
 				break;
 			}
+
+			strWorkModeParm.Format(_T("%s - %s"),strResText1,strResText2);
 		}
 		break;
 
 	case WorkMode_FileCopy:
 		{
-			strWorkMode = strWorkModeParm = _T("File Copy");
+			strResText1.LoadString(IDS_WORK_MODE_FILE_COPY);
+			strWorkMode = strWorkModeParm = strResText1;
 
 			if (m_Config.GetBool(_T("FileCopy"),_T("En_Compare"),FALSE))
 			{
-				strWorkModeParm = _T("FileCopy + Compare");
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
 			}
 		}
 		break;
 
 	case WorkMode_DiskFormat:
 		{
-			strWorkMode = strWorkModeParm = _T("Disk Format");
-
-			if (m_Config.GetBool(_T("DiskFormat"),_T("En_Quick"),TRUE))
-			{
-				strWorkModeParm = _T("FileCopy + QuickFormat");
-			}
+			strResText1.LoadString(IDS_WORK_MODE_DISK_FORMAT);
+			strWorkMode = strWorkModeParm = strResText1;
 		}
 		break;
 	}
@@ -590,15 +625,15 @@ void CUSBCopyDlg::EnableControls( BOOL bEnable )
 {
 	if (m_bLock)
 	{
-		GetDlgItem(IDC_BTN_SYSTEM)->EnableWindow(bEnable);
-		GetDlgItem(IDC_BTN_WORK_SELECT)->EnableWindow(bEnable);
-		GetDlgItem(IDC_BTN_SETTING)->EnableWindow(bEnable);
-	}
-	else
-	{
 		GetDlgItem(IDC_BTN_SYSTEM)->EnableWindow(FALSE);
 		GetDlgItem(IDC_BTN_WORK_SELECT)->EnableWindow(FALSE);
 		GetDlgItem(IDC_BTN_SETTING)->EnableWindow(FALSE);
+	}
+	else
+	{
+		GetDlgItem(IDC_BTN_SYSTEM)->EnableWindow(bEnable);
+		GetDlgItem(IDC_BTN_WORK_SELECT)->EnableWindow(bEnable);
+		GetDlgItem(IDC_BTN_SETTING)->EnableWindow(bEnable);
 	}
 }
 
@@ -632,29 +667,36 @@ BOOL CUSBCopyDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 void CUSBCopyDlg::OnBnClickedBtnLock()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	CString strResText;
 	if (m_bLock)
-	{
-		CPassword password(TRUE);
-		if (IDOK == password.DoModal())
-		{
-			m_strPassWord = password.GetPassword();
-			m_bLock = FALSE;
-			SetDlgItemText(IDC_BTN_LOCK,_T("Unlock"));
-			EnableControls(FALSE);
-		}
-
-	}
-	else
 	{
 		CPassword password(FALSE);
 		password.SetPassword(m_strPassWord);
 		if (IDOK == password.DoModal())
 		{
-			m_bLock = TRUE;
-			SetDlgItemText(IDC_BTN_LOCK,_T("Lock"));
+			m_bLock = FALSE;
+			strResText.LoadString(IDS_LOCK);
+			SetDlgItemText(IDC_BTN_LOCK,strResText);
 			EnableControls(TRUE);
 		}
+		
 	}
+	else
+	{
+		CPassword password(TRUE);
+		password.SetPassword(m_strPassWord);
+		if (IDOK == password.DoModal())
+		{
+			m_strPassWord = password.GetPassword();
+			m_bLock = TRUE;
+			strResText.LoadString(IDS_UNLOCK);
+			SetDlgItemText(IDC_BTN_LOCK,strResText);
+			EnableControls(FALSE);
+		}
+	}
+
+	m_Config.WriteBool(_T("Option"),_T("En_Lock"),m_bLock);
+	m_Config.WriteString(_T("Option"),_T("Password"),m_strPassWord);
 }
 
 
@@ -736,6 +778,7 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 
 	case WorkMode_FileCopy:
 		{
+			CString strMsg;
 			if (m_MasterPort.IsConnected() && PathFileExists(MASTER_PATH))
 			{
 				CFileCopySetting dlg;
@@ -744,11 +787,13 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 			}
 			else if (!m_MasterPort.IsConnected())
 			{
-				MessageBox(_T("No Master"));
+				strMsg.LoadString(IDS_MSG_NO_MASTER);
+				MessageBox(strMsg);
 			}
 			else
 			{
-				MessageBox(_T("Master partition can't be recognized"));
+				strMsg.LoadString(IDS_MSG_MASTER_UNRECOGNIZED);
+				MessageBox(strMsg);
 			}
 			
 		}
@@ -775,11 +820,14 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 	{
 	case WorkMode_ImageMake:
 		{
-			CImageNameDlg dlg(TRUE);
-			dlg.SetConfig(&m_Config);
-			if (dlg.DoModal() == IDCANCEL)
+			if (!m_bBurnInTest)
 			{
-				return;
+				CImageNameDlg dlg(TRUE);
+				dlg.SetConfig(&m_Config);
+				if (dlg.DoModal() == IDCANCEL)
+				{
+					return;
+				}
 			}
 
 		}
@@ -787,15 +835,22 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 	case WorkMode_ImageCopy:
 		{
-			CImageNameDlg dlg(FALSE);
-			dlg.SetConfig(&m_Config);
-			if (dlg.DoModal() == IDCANCEL)
+			if (!m_bBurnInTest)
 			{
-				return;
-			}
+				CImageNameDlg dlg(FALSE);
+				dlg.SetConfig(&m_Config);
+				if (dlg.DoModal() == IDCANCEL)
+				{
+					return;
+				}
+			}	
 
 		}
 		break;
+
+// 	case WorkMode_DiskFormat:
+// 		PostMessage(WM_RESET_POWER);
+// 		break;
 	}
 
 	m_bCancel = FALSE;
@@ -803,17 +858,20 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 	m_bRunning = TRUE;
 	m_bVerify = FALSE;
 
-	WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
-	delete m_ThreadListen;
-	m_ThreadListen = NULL;
+	if (m_ThreadListen && m_ThreadListen->m_hThread)
+	{
+		WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
+		delete m_ThreadListen;
+		m_ThreadListen = NULL;
+	}
 
 	GetDlgItem(IDC_BTN_START)->EnableWindow(FALSE);
 	GetDlgItem(IDC_BTN_STOP)->EnableWindow(TRUE);
 
 	EnableControls(FALSE);
 
-	CString strWorkMode;
-	GetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
+	CString strWorkMode = GetWorkModeString(m_WorkMode);
+	//GetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
 	CUtils::WriteLogFile(m_hLogFile,FALSE,_T(""));
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("%s begain......"),strWorkMode);
 
@@ -821,7 +879,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 	CScanningDlg dlg;
 	dlg.SetLogFile(m_hLogFile);
-	dlg.SetConfig(&m_Config);
+	dlg.SetConfig(&m_Config,m_WorkMode);
 	dlg.SetDeviceInfoList(&m_MasterPort,&m_TargetPorts);
 	dlg.SetBegining(TRUE);
 	dlg.DoModal();
@@ -911,10 +969,24 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 
 	UpdatePortFrame(FALSE);
 
-	// 弹出结束对话框
-	CCompleteMsg completeMsg(&m_Command,m_strMsg,m_bResult);
-	completeMsg.DoModal();
-
+	// 如果在做BurnIn Test只有全部FAIL时弹出完成对话框
+	if (m_bBurnInTest)
+	{
+		if (!m_bResult)
+		{
+			// 弹出结束对话框
+			CCompleteMsg completeMsg(&m_Config,&m_Command,m_strMsg,m_bResult);
+			completeMsg.DoModal();
+		}
+		
+	}
+	else
+	{
+		// 弹出结束对话框
+		CCompleteMsg completeMsg(&m_Config,&m_Command,m_strMsg,m_bResult);
+		completeMsg.DoModal();
+	}
+	
 	//复位
 	PostMessage(WM_RESET_MACHIEN_PORT);
 
@@ -925,6 +997,8 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 	GetDlgItem(IDC_BTN_START)->SetFocus();
 
 	m_bRunning = FALSE;
+
+	SetEvent(m_hEvent);
 }
 
 
@@ -1077,7 +1151,8 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 BOOL CUSBCopyDlg::IsReady()
 {
 	CString strWorkMode,strMsg;
-	GetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
+	//GetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
+	strWorkMode = GetWorkModeString(m_WorkMode);
 
 	BOOL bRet = TRUE;
 
@@ -1167,13 +1242,15 @@ void CUSBCopyDlg::OnStart()
 	SetTimer(TIMER_UPDATE_STATISTIC,1000,NULL);
 
 	CDisk disk;
-	disk.Init(m_hWnd,&m_bCancel,m_hLogFile);
+	disk.Init(m_hWnd,&m_bCancel,m_hLogFile,&m_Command);
 	disk.SetWorkMode(m_WorkMode);
 
 	HashMethod hashMethod = (HashMethod)m_Config.GetInt(_T("Option"),_T("HashMethod"),0);
 
-	CString strMsg;
+	CString strMsg,strWorkMode;
 	BOOL bResult = TRUE;
+
+	strWorkMode = GetWorkModeString(m_WorkMode);
 
 	switch(m_WorkMode)
 	{
@@ -1220,12 +1297,12 @@ void CUSBCopyDlg::OnStart()
 						strHashValue += strHash;
 					}
 					delete []pHash;
-					strMsg.Format(_T("FULL COPY Completed !\r\nHashMethod=%s, HashValue=%s")
-						,m_MasterPort.GetHashMethodString(),strHashValue);
+					strMsg.Format(_T("%s Completed !\r\nHashMethod=%s, HashValue=%s")
+						,strWorkMode,m_MasterPort.GetHashMethodString(),strHashValue);
 				}
 				else
 				{
-					strMsg.Format(_T("FULL COPY Completed !!!"));
+					strMsg.Format(_T("%s Completed !!!"),strWorkMode);
 				}
 			}
 			else
@@ -1236,11 +1313,13 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("FULL COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("FULL COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 				
 			}
@@ -1293,12 +1372,12 @@ void CUSBCopyDlg::OnStart()
 						strHashValue += strHash;
 					}
 					delete []pHash;
-					strMsg.Format(_T("QUICK COPY Completed !\r\nHashMethod=%s, HashValue=%s")
-						,m_MasterPort.GetHashMethodString(),strHashValue);
+					strMsg.Format(_T("%s Completed !\r\nHashMethod=%s, HashValue=%s")
+						,strWorkMode,m_MasterPort.GetHashMethodString(),strHashValue);
 				}
 				else
 				{
-					strMsg.Format(_T("QUICK COPY Completed !!!"));
+					strMsg.Format(_T("%s Completed !!!"),strWorkMode);
 				}
 			}
 			else
@@ -1309,11 +1388,13 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("QUICK COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("QUICK COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1349,7 +1430,7 @@ void CUSBCopyDlg::OnStart()
 
 			if (bResult)
 			{
-				strMsg.Format(_T("DISK CLEAN Completed !!!"));
+				strMsg.Format(_T("%s Completed !!!"),strWorkMode);
 			}
 			else
 			{
@@ -1370,11 +1451,13 @@ void CUSBCopyDlg::OnStart()
 				
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("DISK CLEAN Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("DISK CLEAN Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 			}
 
@@ -1424,8 +1507,8 @@ void CUSBCopyDlg::OnStart()
 					strHashValue += strHash;
 				}
 				delete []pHash;
-				strMsg.Format(_T("DISK COMPARE Completed !\r\nHashMethod=%s, HashValue=%s")
-					,m_MasterPort.GetHashMethodString(),strHashValue);
+				strMsg.Format(_T("%s Completed !\r\nHashMethod=%s, HashValue=%s")
+					,strWorkMode,m_MasterPort.GetHashMethodString(),strHashValue);
 
 			}
 			else
@@ -1436,11 +1519,13 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("DISK COMPARE Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("DISK COMPARE Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1502,8 +1587,8 @@ void CUSBCopyDlg::OnStart()
 					strHashValue += strHash;
 				}
 				delete []pHash;
-				strMsg.Format(_T("IMAGE MAKE Completed !\r\nHashMethod=%s, HashValue=%s")
-					,m_MasterPort.GetHashMethodString(),strHashValue);
+				strMsg.Format(_T("%s Completed !\r\nHashMethod=%s, HashValue=%s")
+					,strWorkMode,m_MasterPort.GetHashMethodString(),strHashValue);
 				
 			}
 			else
@@ -1516,11 +1601,13 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("IMAGE MAKE Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("IMAGE MAKE Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1583,8 +1670,8 @@ void CUSBCopyDlg::OnStart()
 					strHashValue += strHash;
 				}
 				delete []pHash;
-				strMsg.Format(_T("IMAGE COPY Completed !\r\nHashMethod=%s, HashValue=%s")
-					,m_FilePort.GetHashMethodString(),strHashValue);
+				strMsg.Format(_T("%s Completed !\r\nHashMethod=%s, HashValue=%s")
+					,strWorkMode,m_FilePort.GetHashMethodString(),strHashValue);
 				
 			}
 			else
@@ -1595,11 +1682,13 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("IMAGE COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("IMAGE COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1706,12 +1795,12 @@ void CUSBCopyDlg::OnStart()
 						strHashValue += strHash;
 					}
 					delete []pHash;
-					strMsg.Format(_T("FILE COPY Completed !\r\nHashMethod=%s, HashValue=%s")
-						,m_MasterPort.GetHashMethodString(),strHashValue);
+					strMsg.Format(_T("%s Completed !\r\nHashMethod=%s, HashValue=%s")
+						,strWorkMode,m_MasterPort.GetHashMethodString(),strHashValue);
 				}
 				else
 				{
-					strMsg.Format(_T("FILE COPY Completed !!!"));
+					strMsg.Format(_T("%s Completed !!!"),strWorkMode);
 				}
 			}
 			else
@@ -1722,11 +1811,13 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("FILE COPY Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("FILE COPY Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 
 			}
@@ -1738,7 +1829,7 @@ void CUSBCopyDlg::OnStart()
 	case WorkMode_DiskFormat:
 		{
 			CString strVolumeLable = m_Config.GetString(_T("DiskFormat"),_T("VolumeLabel"));
-			CString strFileSystem = m_Config.GetString(_T("DiskFormat"),_T("FileSystem"),_T("NTFS"));
+			FileSystem fileSystem = (FileSystem)m_Config.GetUInt(_T("DiskFormat"),_T("FileSystem"),FileSystem_FAT32);
 			UINT nClusterSize = m_Config.GetUInt(_T("DiskFormat"),_T("ClusterSize"),0);
 			BOOL bQuickFormat = m_Config.GetBool(_T("DiskFormat"),_T("QuickFormat"),TRUE);
 
@@ -1757,13 +1848,13 @@ void CUSBCopyDlg::OnStart()
 			}
 
 			disk.SetTargetPorts(&m_TargetPorts);
-			disk.SetFormatParm(strVolumeLable,strFileSystem,nClusterSize,TRUE);
+			disk.SetFormatParm(strVolumeLable,fileSystem,nClusterSize,TRUE);
 
 			bResult = disk.Start();
 
 			if (bResult)
 			{
-				strMsg.Format(_T("DISK FORMAT Completed !!!"));
+				strMsg.Format(_T("%s Completed !!!"),strWorkMode);
 			}
 			else
 			{
@@ -1784,11 +1875,13 @@ void CUSBCopyDlg::OnStart()
 
 				if (errType == ErrorType_System)
 				{
-					strMsg.Format(_T("DISK FORMAT Failed !\r\nSystem errorCode=%d,%s"),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				}
 				else
 				{
-					strMsg.Format(_T("DISK FORMAT Failed !\r\nCustom errorCode=0x%X,%s"),dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
 				}
 			}
 
@@ -1909,12 +2002,9 @@ HBRUSH CUSBCopyDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 }
 
 
-afx_msg LRESULT CUSBCopyDlg::OnSendFunctionText(WPARAM wParam, LPARAM lParam)
+afx_msg LRESULT CUSBCopyDlg::OnSendVerifyStart(WPARAM wParam, LPARAM lParam)
 {
-	char *buf = (char *)wParam;
-	CString strMsg(buf);
-
-	SetDlgItemText(IDC_TEXT_FUNCTION2,strMsg);
+	SetDlgItemText(IDC_TEXT_FUNCTION2,_T("VERIFY"));
 
 	m_bVerify = TRUE;
 
@@ -1940,12 +2030,16 @@ BOOL CUSBCopyDlg::DestroyWindow()
 	// TODO: 在此添加专用代码和/或调用基类
 
 	m_bRunning = TRUE;
+	m_bCancel = TRUE;
 
 	UpdatePortFrame(FALSE);
 
-	WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
-	delete m_ThreadListen;
-	m_ThreadListen = NULL;
+	if (m_ThreadListen && m_ThreadListen->m_hThread)
+	{
+		WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
+		delete m_ThreadListen;
+		m_ThreadListen = NULL;
+	}
 
 	POSITION pos = m_TargetPorts.GetHeadPosition();
 
@@ -1973,6 +2067,12 @@ BOOL CUSBCopyDlg::DestroyWindow()
 	{
 		CloseHandle(m_hLogFile);
 		m_hLogFile = INVALID_HANDLE_VALUE;
+	}
+
+	if (m_hEvent != NULL)
+	{
+		CloseHandle(m_hEvent);
+		m_hEvent = NULL;
 	}
 
 	m_Config.SetPathName(m_strAppPath + MACHINE_INFO);
@@ -2187,6 +2287,10 @@ void CUSBCopyDlg::MatchDevice()
 								}
 								
 							}
+							else
+							{
+								CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
+							}
 
 							CloseHandle(hDevice);
 
@@ -2303,7 +2407,9 @@ void CUSBCopyDlg::BackupLogfile( HANDLE hFile ,DWORD dwFileSize)
 
 	if (hBackup == INVALID_HANDLE_VALUE)
 	{
-		MessageBox(_T("Create Backup file failed !"));
+		CString strMsg;
+		strMsg.LoadString(IDS_MSG_CREATE_BACKUP_FILE_FAILED);
+		MessageBox(strMsg);
 		return;
 	}
 
@@ -2323,7 +2429,9 @@ void CUSBCopyDlg::BackupLogfile( HANDLE hFile ,DWORD dwFileSize)
 	}
 	else
 	{
-		MessageBox(_T("SetFilePointerEx failed !"));
+		CString strMsg;
+		strMsg.LoadString(IDS_MSG_SETFILEPOINT_FAILED);
+		MessageBox(strMsg);
 	}
 	
 	CloseHandle(hBackup);
@@ -2346,4 +2454,243 @@ afx_msg LRESULT CUSBCopyDlg::OnResetPower(WPARAM wParam, LPARAM lParam)
 	// 使能闪烁命令
 	m_Command.EnableFlashLight();
 	return 0;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnBurnInTest(WPARAM wParam, LPARAM lParam)
+{
+	AfxBeginThread((AFX_THREADPROC)BurnInTestThreadProc,this);
+	
+	return 0;
+}
+
+CString CUSBCopyDlg::GetWorkModeString( WorkMode mode )
+{
+	CString strWorkMode;
+	switch (mode)
+	{
+	case WorkMode_FullCopy:
+		strWorkMode = _T("FULL COPY");
+		break;
+	case WorkMode_QuickCopy:
+		strWorkMode = _T("QUICK COPY");
+		break;
+	case WorkMode_FileCopy:
+		strWorkMode = _T("FILE COPY");
+		break;
+	case WorkMode_ImageCopy:
+		strWorkMode = _T("IMAGE COPY");
+		break;
+	case WorkMode_ImageMake:
+		strWorkMode = _T("IMAGE MAKE");
+		break;
+	case WorkMode_DiskClean:
+		strWorkMode = _T("DISK CLEAN");
+		break;
+
+	case WorkMode_DiskCompare:
+		strWorkMode = _T("DISK COMPARE");
+		break;
+
+	case WorkMode_DiskFormat:
+		strWorkMode = _T("DISK FORMAT");
+		break;
+	}
+
+	return strWorkMode;
+}
+
+void CUSBCopyDlg::InitialBurnInTest()
+{
+	CString strWorkMode,strWorkModeParm;
+	CString strResText1,strResText2;
+	switch (m_WorkMode)
+	{
+	case WorkMode_FullCopy:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_FULL_COPY);
+
+			strWorkMode = strWorkModeParm = strResText1;
+
+			if (m_Config.GetBool(_T("FullCopy"),_T("En_Compare"),FALSE))
+			{
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
+			}
+		}
+		break;
+
+	case WorkMode_QuickCopy:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_QUICK_COPY);
+			strWorkMode = strWorkModeParm = strResText1;
+
+			if (m_Config.GetBool(_T("QuickCopy"),_T("En_Compare"),FALSE))
+			{
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
+			}
+		}
+		break;
+
+	case WorkMode_ImageCopy:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_IMAGE_COPY);
+			strWorkMode = strWorkModeParm = strResText1;
+
+			if (m_Config.GetBool(_T("ImageCopy"),_T("En_Compare"),FALSE))
+			{
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
+			}
+		}
+		break;
+
+	case WorkMode_ImageMake:
+		strResText1.LoadString(IDS_WORK_MODE_IMAGE_MAKE);
+		strWorkMode = strWorkModeParm = strResText1;
+		break;
+
+	case WorkMode_DiskClean:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+			strWorkMode = strWorkModeParm = strResText1;
+
+			CleanMode cleanMode = (CleanMode)m_Config.GetInt(_T("DiskClean"),_T("CleanMode"),0);
+			switch (cleanMode)
+			{
+			case CleanMode_Full:
+				strResText2.LoadString(IDS_FULL_CLEAN);
+				break;
+
+			case CleanMode_Quick:
+				strResText2.LoadString(IDS_QUICK_CLEAN);
+				break;
+
+			case CleanMode_Safe:
+				strResText2.LoadString(IDS_SAFE_CLEAN);
+				break;
+			}
+
+			strWorkModeParm.Format(_T("%s - %s"),strResText1,strResText2);
+		}
+
+		break;
+
+	case WorkMode_DiskCompare:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_DISK_COMPARE);
+			strWorkMode = strWorkModeParm = strResText1;
+
+			CompareMode compareMode = (CompareMode)m_Config.GetInt(_T("DiskCompare"),_T("CompareMode"),0);
+
+			switch (compareMode)
+			{
+			case CompareMode_Full:
+				strResText2.LoadString(IDS_FULL_COMPARE);
+				break;
+
+			case CompareMode_Quick:
+				strResText2.LoadString(IDS_QUICK_COMPARE);
+				break;
+			}
+
+			strWorkModeParm.Format(_T("%s - %s"),strResText1,strResText2);
+		}
+		break;
+
+	case WorkMode_FileCopy:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_FILE_COPY);
+			strWorkMode = strWorkModeParm = strResText1;
+
+			if (m_Config.GetBool(_T("FileCopy"),_T("En_Compare"),FALSE))
+			{
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
+			}
+		}
+		break;
+
+	case WorkMode_DiskFormat:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_DISK_FORMAT);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+	}
+
+	SetDlgItemText(IDC_GROUP_WORK_MODE,strWorkModeParm);
+}
+
+void CUSBCopyDlg::BurnInTest()
+{
+	m_bBurnInTest = TRUE;
+	m_bResult = TRUE;
+	UINT nCycleCount = m_Config.GetUInt(_T("BurnIn"),_T("CycleCount"),1);
+	UINT nFunctionNum = m_Config.GetUInt(_T("BurnIn"),_T("FunctionNum"),0);
+
+	CString strResText;
+	strResText.LoadString(IDS_BURN_IN_TEST);
+	SetDlgItemText(IDC_BTN_WORK_SELECT,strResText);
+
+	for (UINT cycle = 0;cycle < nCycleCount && m_bResult;cycle++)
+	{
+		CString strKey;
+		for (UINT i = 0;i < nFunctionNum;i++)
+		{
+			WaitForSingleObject(m_hEvent,INFINITE);
+
+			if (!m_bResult)
+			{
+				SetEvent(m_hEvent);
+				break;
+			}
+
+			strKey.Format(_T("Function_%d"),i);
+			m_WorkMode = (WorkMode)m_Config.GetUInt(_T("BurnIn"),strKey,0);
+
+			CUtils::WriteLogFile(m_hLogFile,FALSE,_T(""));
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Burn In Test - cycle %d - %s"),cycle+1,GetWorkModeString(m_WorkMode));
+
+			InitialBurnInTest();
+
+			SendMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd);
+
+		}
+	}
+
+	WaitForSingleObject(m_hEvent,INFINITE);
+
+	strResText.LoadString(IDS_MSG_BURNIN_TEST_COMPLETED);
+	MessageBox(strResText);
+
+	SetEvent(m_hEvent);
+
+	m_bBurnInTest = FALSE;
+
+	InitialCurrentWorkMode();
+}
+
+DWORD WINAPI CUSBCopyDlg::BurnInTestThreadProc( LPVOID lpParm )
+{
+	CUSBCopyDlg *pDlg = (CUSBCopyDlg *)lpParm;
+	pDlg->BurnInTest();
+
+	return 1;
+}
+
+
+BOOL CUSBCopyDlg::PreTranslateMessage(MSG* pMsg)
+{
+	// TODO: 在此添加专用代码和/或调用基类
+	if (pMsg->message == WM_KEYDOWN)
+	{
+		if (pMsg->wParam == VK_ESCAPE)
+		{
+			return TRUE;
+		}
+	}
+
+	return CDialogEx::PreTranslateMessage(pMsg);
 }

@@ -1,8 +1,9 @@
 #pragma once
 #include "Port.h"
 #include "HashMethod.h"
+#include "PortCommand.h"
 
-#define WM_SEND_FUNCTION_TEXT (WM_USER + 101)
+#define WM_VERIFY_START (WM_USER + 101)
 
 typedef CMap<CString,LPCTSTR,ULONGLONG,ULONGLONG> CMapStringToULL;
 
@@ -29,7 +30,7 @@ public:
 	static BOOL SetDiskAtrribute(HANDLE hDisk,BOOL bReadOnly,BOOL bOffline,PDWORD pdwErrorCode);
 
 	// 公共方法
-	void Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile);
+	void Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile,CPortCommand *pCommand);
 	void SetMasterPort(CPort *port);
 	void SetTargetPorts(PortList *pList);
 	void SetHashMethod(BOOL bComputeHash,BOOL bHashVerify,HashMethod hashMethod);
@@ -37,7 +38,7 @@ public:
 	void SetCleanMode(CleanMode cleanMode,int nFillValue);
 	void SetCompareMode(CompareMode compareMode);
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
-	void SetFormatParm(CString strVolumeLabel,CString strFileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
+	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
 	BOOL Start();
 
 private:
@@ -80,9 +81,11 @@ private:
 	CMapStringToULL m_MapFiles;
 
 	BOOL m_bQuickFormat;
-	CString m_strFileSystem;
+	FileSystem m_FileSystem;
 	DWORD m_dwClusterSize;
 	CString m_strVolumnLabel;
+
+	CPortCommand *m_pCommand;
 
 	BOOL m_bCompressComplete; //压缩线程和解压线程是否结束
 

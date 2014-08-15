@@ -61,13 +61,6 @@ BOOL CScanningDlg::OnInitDialog()
 
 	GetDlgItem(IDC_TEXT_SCAN)->SetFont(&m_font);
 
-	m_WorkMode = (WorkMode)m_pIni->GetUInt(_T("Option"),_T("FunctionMode"),1);
-
-	if (m_WorkMode == WorkMode_DiskFormat)
-	{
-		::PostMessage(GetParent()->GetSafeHwnd(),WM_RESET_POWER,0,0);
-	}
-
 	CString strText;
 	if (m_bBeginning)
 	{
@@ -247,6 +240,7 @@ void CScanningDlg::ScanningDevice()
 							case WorkMode_QuickCopy:
 							case WorkMode_ImageCopy:
 							case WorkMode_DiskClean:
+							case WorkMode_DiskFormat:
 								// 去掉子盘readonly属性并且offline
 								if (port->GetPortNum() != 0)
 								{
@@ -263,7 +257,6 @@ void CScanningDlg::ScanningDevice()
 								break;
 
 							case WorkMode_FileCopy:
-							case WorkMode_DiskFormat:
 								// 去掉只读，并且online
 								if (port->GetPortNum() != 0)
 								{
@@ -351,8 +344,7 @@ void CScanningDlg::ScanningDevice()
 
 BOOL CScanningDlg::IsAllConnected()
 {
-	WorkMode workMode = (WorkMode)m_pIni->GetUInt(_T("Option"),_T("FunctionMode"),1);
-	switch (workMode)
+	switch (m_WorkMode)
 	{
 	case WorkMode_ImageCopy:
 	case WorkMode_DiskClean:
@@ -386,9 +378,10 @@ BOOL CScanningDlg::IsAllConnected()
 	return bConnect;
 }
 
-void CScanningDlg::SetConfig( CIni *pIni )
+void CScanningDlg::SetConfig( CIni *pIni,WorkMode workMode )
 {
 	m_pIni = pIni;
+	m_WorkMode = workMode;
 }
 
 void CScanningDlg::SetLogFile( HANDLE hFile )

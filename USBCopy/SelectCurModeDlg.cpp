@@ -103,41 +103,44 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	ASSERT(m_pIni);
 	m_WorkMode = (WorkMode)m_pIni->GetUInt(_T("Option"),_T("FunctionMode"),1);
 
-	CString strMode;
+	CString strMode,strResText;
 	switch (m_WorkMode)
 	{
 	case WorkMode_FullCopy:
-		strMode = _T(" - Full Copy");
+		strResText.LoadString(IDS_WORK_MODE_FULL_COPY);
+		
 		break;
 
 	case WorkMode_QuickCopy:
-		strMode = _T(" - Quick Copy");
+		strResText.LoadString(IDS_WORK_MODE_QUICK_COPY);
 		break;
 
 	case WorkMode_DiskClean:
-		strMode = _T(" - Disk Clean");
+		strResText.LoadString(IDS_WORK_MODE_DISK_CLEAN);
 		break;
 
 	case WorkMode_ImageMake:
-		strMode = _T(" - Image Make");
+		strResText.LoadString(IDS_WORK_MODE_IMAGE_MAKE);
 		break;
 
 	case WorkMode_ImageCopy:
-		strMode = _T(" - Image Copy");
+		strResText.LoadString(IDS_WORK_MODE_IMAGE_COPY);
 		break;
 
 	case WorkMode_FileCopy:
-		strMode = _T(" - File Copy");
+		strResText.LoadString(IDS_WORK_MODE_FILE_COPY);
 		break;
 
 	case WorkMode_DiskCompare:
-		strMode = _T(" - Disk Compare");
+		strResText.LoadString(IDS_WORK_MODE_DISK_COMPARE);
 		break;
 
 	case WorkMode_DiskFormat:
-		strMode = _T(" - Disk Format");
+		strResText.LoadString(IDS_WORK_MODE_DISK_FORMAT);
 		break;
 	}
+
+	strMode.Format(_T(" - %s"),strResText);
 
 	CString strTitle;
 	GetWindowText(strTitle);

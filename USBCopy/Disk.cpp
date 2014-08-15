@@ -7,6 +7,8 @@
 #include "MD5.h"
 #include "zlib.h"
 
+#include "Fat32.h"
+
 #ifdef _DEBUG
 #pragma comment(lib,"zlib128d.lib")
 #else
@@ -777,11 +779,12 @@ BOOL CDisk::WriteFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE
 	}
 }
 
-void CDisk::Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile )
+void CDisk::Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile ,CPortCommand *pCommand)
 {
 	m_hWnd = hWnd;
 	m_lpCancel = lpCancel;
 	m_hLogFile = hLogFile;
+	m_pCommand = pCommand;
 }
 
 void CDisk::SetMasterPort( CPort *port )
@@ -2210,8 +2213,7 @@ BOOL CDisk::OnCopyDisk()
 
 	if (bResult && m_bHashVerify)
 	{
-		char *buf = "Verify";
-		PostMessage(m_hWnd,WM_SEND_FUNCTION_TEXT,(WPARAM)buf,0);
+		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -2398,8 +2400,7 @@ BOOL CDisk::OnCopyImage()
 
 	if (bResult && m_bHashVerify)
 	{
-		char *buf = "Verify";
-		PostMessage(m_hWnd,WM_SEND_FUNCTION_TEXT,(WPARAM)buf,0);
+		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -2866,8 +2867,7 @@ BOOL CDisk::OnCopyFiles()
 
 	if (bResult && m_bHashVerify)
 	{
-		char *buf = "Verify";
-		PostMessage(m_hWnd,WM_SEND_FUNCTION_TEXT,(WPARAM)buf,0);
+		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -5112,6 +5112,8 @@ BOOL CDisk::FormatDisk(CPort *port)
 	port->SetStartTime(CTime::GetCurrentTime());
 	port->SetValidSize(port->GetTotalSize());
 
+	QuickClean(port,&dwErrorCode);
+
 	HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
 
 	if (hDisk == INVALID_HANDLE_VALUE)
@@ -5125,9 +5127,59 @@ BOOL CDisk::FormatDisk(CPort *port)
 
 		return FALSE;
 	}
+	 
+	CFat32 fat32;
+	USES_CONVERSION;
+	char *pBuffer = W2A(m_strVolumnLabel);
 
-	SetDiskAtrribute(hDisk,FALSE,FALSE,&dwErrorCode);
+	if (!fat32.Init(hDisk,m_dwClusterSize,pBuffer))
+	{
+		bResult = FALSE;
+		dwErrorCode = fat32.GetErrorCode();
 
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Format init error,system errorcode=%ld,%s")
+			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		goto FORMAT_END;
+	}
+	
+	if (!fat32.InitialDisk())
+	{
+		bResult = FALSE;
+
+		dwErrorCode = fat32.GetErrorCode();
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Format init disk error,system errorcode=%ld,%s")
+			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+		goto FORMAT_END;
+	}
+	
+	if (!fat32.PartitionDisk())
+	{
+		bResult = FALSE;
+
+		dwErrorCode = fat32.GetErrorCode();
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Format partition disk error,system errorcode=%ld,%s")
+			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+		goto FORMAT_END;
+	}
+	
+	if (!fat32.FormatPartition())
+	{
+		bResult = FALSE;
+
+		dwErrorCode = fat32.GetErrorCode();
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Format partition error,system errorcode=%ld,%s")
+			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+		goto FORMAT_END;
+	}
+	
+
+
+
+	/*
 	CString strFile,strComand,strBuffer;
 	strFile.Format(_T("format_%d.script"),port->GetPortNum());
 	strComand.Format(_T("diskpart.exe /s %s"),strFile);
@@ -5190,6 +5242,19 @@ BOOL CDisk::FormatDisk(CPort *port)
 	}
 
 	DeleteFile(strFile);
+	*/
+	
+FORMAT_END:
+	SetDiskAtrribute(hDisk,FALSE,FALSE,&dwErrorCode);
+	CloseHandle(hDisk);
+
+	if (bResult)
+	{
+		//重新上电
+		m_pCommand->Power(port->GetPortNum(),FALSE);
+		Sleep(500);
+		m_pCommand->Power(port->GetPortNum(),TRUE);
+	}
 	
 	port->SetCompleteSize(port->GetTotalSize());
 	port->SetEndTime(CTime::GetCurrentTime());
@@ -5456,11 +5521,16 @@ int CDisk::EnumFile( CString strSource )
 	return nCount;
 }
 
-void CDisk::SetFormatParm( CString strVolumeLabel,CString strFileSystem,DWORD dwClusterSize,BOOL bQuickFormat )
+void CDisk::SetFormatParm( CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat )
 {
 	m_strVolumnLabel = strVolumeLabel;
-	m_strFileSystem = strFileSystem;
+	m_FileSystem = fileSystem;
 	m_dwClusterSize = dwClusterSize;
 	m_bQuickFormat = bQuickFormat;
+
+	if (m_dwClusterSize == 0)
+	{
+		m_dwClusterSize = 8 * 512;
+	}
 }
 

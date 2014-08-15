@@ -1,5 +1,6 @@
 #pragma once
 #include "PortCommand.h"
+#include "Ini.h"
 
 // CCompleteMsg 对话框
 
@@ -8,7 +9,7 @@ class CCompleteMsg : public CDialogEx
 	DECLARE_DYNAMIC(CCompleteMsg)
 
 public:
-	CCompleteMsg(CPortCommand *pCommand,CString strMessage,BOOL bPass,CWnd* pParent = NULL);   // 标准构造函数
+	CCompleteMsg(CIni *pIni,CPortCommand *pCommand,CString strMessage,BOOL bPass,CWnd* pParent = NULL);   // 标准构造函数
 	virtual ~CCompleteMsg();
 
 // 对话框数据
@@ -25,6 +26,7 @@ private:
 	CString m_strMessage;
 	BOOL  m_bStop;
 	CWinThread *m_ThreadBuzzer;
+	CIni *m_pIni;
 
 	void Buzzer();
 

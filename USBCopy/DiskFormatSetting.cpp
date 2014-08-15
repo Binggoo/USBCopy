@@ -5,6 +5,7 @@
 #include "USBCopy.h"
 #include "DiskFormatSetting.h"
 #include "afxdialogex.h"
+#include "GlobalDef.h"
 
 
 typedef struct { 
@@ -49,11 +50,13 @@ void CDiskFormatSetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_COMBO_FILE_SYSTEM, m_ComboBoxFileSystem);
 	DDX_Control(pDX, IDC_COMBO_CLUSTER_SIZE, m_ComboBoxClusterSize);
 	DDX_Check(pDX, IDC_CHECK_QUICK_FORMAT, m_bCheckQuickFormat);
+	DDV_MaxChars(pDX, m_strEditLabel, 11);
 }
 
 
 BEGIN_MESSAGE_MAP(CDiskFormatSetting, CDialogEx)
 	ON_BN_CLICKED(IDOK, &CDiskFormatSetting::OnBnClickedOk)
+	ON_EN_CHANGE(IDC_EDIT_LABEL, &CDiskFormatSetting::OnEnChangeEditLabel)
 END_MESSAGE_MAP()
 
 
@@ -70,9 +73,9 @@ BOOL CDiskFormatSetting::OnInitDialog()
 	// 隐藏快速格式化
 	GetDlgItem(IDC_CHECK_QUICK_FORMAT)->ShowWindow(SW_HIDE);
 
-	m_ComboBoxFileSystem.AddString(_T("NTFS"));
-	m_ComboBoxFileSystem.AddString(_T("FAT32"));
-	m_ComboBoxFileSystem.AddString(_T("exFAT"));
+	int nItem = 0;
+	nItem = m_ComboBoxFileSystem.AddString(_T("FAT32"));
+	m_ComboBoxFileSystem.SetItemData(nItem,FileSystem_FAT32);
 
 	int len = sizeof(LegalSizes)/sizeof(SIZEDEFINITION);
 
@@ -83,20 +86,16 @@ BOOL CDiskFormatSetting::OnInitDialog()
 
 	m_strEditLabel = m_pIni->GetString(_T("DiskFormat"),_T("VolumeLabel"));
 
-	CString strFileSystem = m_pIni->GetString(_T("DiskFormat"),_T("FileSystem"),_T("NTFS"));
+	FileSystem fileSystem = (FileSystem)m_pIni->GetUInt(_T("DiskFormat"),_T("FileSystem"),FileSystem_FAT32);
 	UINT nClusterSize = m_pIni->GetUInt(_T("DiskFormat"),_T("ClusterSize"),0);
 
 	int nCount = m_ComboBoxFileSystem.GetCount();
 	int nSelectIndex = 0;
 	for (int i = 0; i < nCount;i++)
 	{
-		CString strItem;
-		m_ComboBoxFileSystem.GetLBText(i,strItem);
-
-		if (strItem.CompareNoCase(strFileSystem) == 0)
+		if (m_ComboBoxFileSystem.GetItemData(nItem) == fileSystem)
 		{
 			nSelectIndex = i;
-			break;
 		}
 	}
 
@@ -132,12 +131,11 @@ void CDiskFormatSetting::OnBnClickedOk()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 
+	int nSelectIndex = m_ComboBoxFileSystem.GetCurSel();
+
 	m_pIni->WriteString(_T("DiskFormat"),_T("VolumeLabel"),m_strEditLabel);
 
-	CString strFileSystem;
-	m_ComboBoxFileSystem.GetWindowText(strFileSystem);
-
-	m_pIni->WriteString(_T("DiskFormat"),_T("FileSystem"),strFileSystem);
+	m_pIni->WriteUInt(_T("DiskFormat"),_T("FileSystem"),m_ComboBoxFileSystem.GetItemData(nSelectIndex));
 
 	UINT nClusterSize = LegalSizes[m_ComboBoxClusterSize.GetCurSel()].ClusterSize;
 
@@ -146,4 +144,23 @@ void CDiskFormatSetting::OnBnClickedOk()
 	m_pIni->WriteBool(_T("DiskFormat"),_T("QuickFormat"),m_bCheckQuickFormat);
 
 	CDialogEx::OnOK();
+}
+
+
+void CDiskFormatSetting::OnEnChangeEditLabel()
+{
+	// TODO:  如果该控件是 RICHEDIT 控件，它将不
+	// 发送此通知，除非重写 CDialogEx::OnInitDialog()
+	// 函数并调用 CRichEditCtrl().SetEventMask()，
+	// 同时将 ENM_CHANGE 标志“或”运算到掩码中。
+
+	// TODO:  在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+
+	if (m_strEditLabel.GetLength() > 11)
+	{
+		m_strEditLabel = m_strEditLabel.Left(11);
+
+		UpdateData(FALSE);
+	}
 }

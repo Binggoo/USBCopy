@@ -18,6 +18,7 @@
 #define WM_PORT_RESET_POWER  (WM_USER + 3)
 #define WM_UPDATE_SOFTWARE   (WM_USER + 4)
 #define WM_RESET_POWER  (WM_USER + 5)
+#define WM_BURN_IN_TEST (WM_USER + 6)
 
 class CUSBCopyApp : public CWinApp
 {

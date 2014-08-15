@@ -63,10 +63,14 @@ void CImageNameDlg::OnBnClickedOk()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
+
+	CString strResText;
+
 	m_strEditImageName.Trim();
 	if (m_strEditImageName.IsEmpty())
 	{
-		MessageBox(_T("The image name can't be empty, please input the image name."),_T("Error"),MB_ICONERROR);
+		strResText.LoadString(IDS_MSG_EMPTY_IMAGE_NAME);
+		MessageBox(strResText);
 		return;
 	}
 
@@ -86,7 +90,8 @@ void CImageNameDlg::OnBnClickedOk()
 		// 文件是否存在，存在报错
 		if (bExist)
 		{
-			MessageBox(_T("The image file already exists."));
+			strResText.LoadString(IDS_MSG_IMAGE_FILE_EXISTS);
+			MessageBox(strResText);
 			return;
 		}
 	}
@@ -94,7 +99,8 @@ void CImageNameDlg::OnBnClickedOk()
 	{
 		if (!bExist)
 		{
-			MessageBox(_T("The image file doesn'texists."));
+			strResText.LoadString(IDS_MSG_IMAGE_FILE_NOT_EXISTS);
+			MessageBox(strResText);
 			return;
 		}
 	}

@@ -17,7 +17,7 @@ public:
 
 	void SetDeviceInfoList(CPort *pMaster,PortList *pTargetPortList);
 	void SetBegining(BOOL bBeginning = TRUE);
-	void SetConfig(CIni *pIni);
+	void SetConfig(CIni *pIni,WorkMode workMode);
 	void SetLogFile(HANDLE hFile);
 
 protected:

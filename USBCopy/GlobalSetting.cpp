@@ -130,7 +130,13 @@ void CGlobalSetting::OnBnClickedOk()
 
 	m_pIni->WriteBool(_T("Option"),_T("ShowCursor"),m_bCheckShowCursor);
 	m_pIni->WriteBool(_T("Option"),_T("BeepWhenFinish"),m_bCheckBeep);
+
+	// 显示光标执行一遍，不显示光标执行2遍
 	ShowCursor(m_bCheckShowCursor);
+	if (!m_bCheckShowCursor)
+	{
+		ShowCursor(m_bCheckShowCursor);
+	}
 
 	m_pIni->WriteBool(_T("Option"),_T("En_RelativeSpeed"),m_bCheckRelativeSpeed);
 	m_pIni->WriteUInt(_T("Option"),_T("RelativeSpeed"),m_nRelativeSpeed);

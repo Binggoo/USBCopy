@@ -8,6 +8,7 @@
 #include "GlobalSetting.h"
 #include "ImageManager.h"
 #include "Utils.h"
+#include "BurnIn.h"
 
 // CSystemMenu 对话框
 
@@ -77,11 +78,13 @@ void CSystemMenu::OnBnClickedButtonUpdate()
 	PROCESS_INFORMATION pi;
 	ZeroMemory(&si,sizeof(STARTUPINFO));
 	si.cb = sizeof(STARTUPINFO);
-	CString strCmd = _T("Update.exe");
+	CString strCmd = _T("Update.exe USBCopy.exe");
 	if (CreateProcess(NULL,strCmd.GetBuffer(),NULL,NULL,FALSE,0,NULL,m_strAppPath,&si,&pi))
 	{
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
+
+		::SendMessage(GetParent()->GetSafeHwnd(),WM_UPDATE_SOFTWARE,0,0);
 		
 		PostQuitMessage(WM_CLOSE);
 	}
@@ -91,7 +94,10 @@ void CSystemMenu::OnBnClickedButtonUpdate()
 void CSystemMenu::OnBnClickedButtonRestore()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	if (IDYES == MessageBox(_T("Do you want to restore all setting with factory default ?"),_T("Factory Restore")
+	CString strMsg,strTile;
+	strMsg.LoadString(IDS_MSG_FACTORY_RESTORE);
+	strTile.LoadString(IDS_FACTORY_RESTORE);
+	if (IDYES == MessageBox(strMsg,strTile
 		,MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING))
 	{
 		// 恢复出厂设置。
@@ -99,7 +105,7 @@ void CSystemMenu::OnBnClickedButtonRestore()
 		CFile file(strRestoreCmd,CFile::modeCreate | CFile::modeWrite);
 		file.Write("@echo off\r\n",strlen("@echo off\r\n"));
 		file.Write("ping -n 3 127.0.0.1 > nul\r\n",strlen("ping -n 3 127.0.0.1 > nul\r\n"));
-		file.Write("copy FactoryDefa.ini USBCopy.ini /y > nul\r\n",strlen("copy FactoryDefa.ini USBCopy.ini /y > nul\r\n"));
+		file.Write("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n",strlen("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n"));
 		file.Write("start \"\" \"USBCopy.exe\"\r\n",strlen("start \"\" \"USBCopy.exe\"\r\n"));
 		file.Write("del restore.cmd\r\n",strlen("del restore.cmd\r\n"));
 		file.Flush();
@@ -195,7 +201,9 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 		m_pCommand->Power(i,FALSE);
 	}
 
-	CString strDrive,strPath;
+	CString strDrive,strPath,strMsg,strTitle;
+
+	strTitle.LoadString(IDS_EXPORT_LOG);
 
 	while (1)
 	{
@@ -231,7 +239,8 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 
 		if (letterNum == 0)
 		{
-			if (IDCANCEL == MessageBox(_T("Please insert U disk and click OK!"),_T("Export Log")
+			strMsg.LoadString(IDS_MSG_EXPORT_LOG_INSERT_U_DISK);
+			if (IDCANCEL == MessageBox(strMsg,strTitle
 				,MB_OKCANCEL | MB_DEFBUTTON1 | MB_ICONINFORMATION))
 			{
 				break;
@@ -240,8 +249,9 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 		}
 		else if (letterNum > 1)
 		{
-			if (IDCANCEL == MessageBox(_T("There are more than one U disk, please remove and keep one U disk, than click OK!")
-				,_T("Export Log"),MB_OKCANCEL | MB_DEFBUTTON1 | MB_ICONINFORMATION))
+			strMsg.LoadString(IDS_MSG_EXPORT_LOG_MORE_U_DISK);
+			if (IDCANCEL == MessageBox(strMsg,strTitle
+				,MB_OKCANCEL | MB_DEFBUTTON1 | MB_ICONINFORMATION))
 			{
 				break;
 			}
@@ -266,13 +276,15 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 
 			if (bSuc)
 			{
-				MessageBox(_T("Export log success"),_T("Export Log"));
+				strMsg.LoadString(IDS_MSG_EXPORT_LOG_SUCCESS);
+				MessageBox(strMsg,strTitle);
 				break;
 			}
 			else
 			{
-				if (IDCANCEL == MessageBox(_T("Export log failed, please change an U disk to retry!")
-					,_T("Export Log"),MB_OKCANCEL | MB_DEFBUTTON1| MB_ICONERROR))
+				strMsg.LoadString(IDS_MSG_EXPORT_LOG_FAILED);
+				if (IDCANCEL == MessageBox(strMsg,strTitle
+					,MB_OKCANCEL | MB_DEFBUTTON1| MB_ICONERROR))
 				{
 					break;
 				}
@@ -294,6 +306,10 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 void CSystemMenu::OnBnClickedButtonBurnIn()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	CBurnIn burnIn;
+	burnIn.SetConfig(m_pIni);
+	burnIn.DoModal();
+	CDialogEx::OnOK();
 }
 
 

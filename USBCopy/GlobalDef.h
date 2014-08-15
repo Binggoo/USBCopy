@@ -59,11 +59,11 @@ typedef enum _ENUM_WORK_MODE
 	WorkMode_None = 0,
 	WorkMode_FullCopy = 1,
 	WorkMode_QuickCopy,
+	WorkMode_FileCopy,
 	WorkMode_ImageCopy,
 	WorkMode_ImageMake,
 	WorkMode_DiskClean,
 	WorkMode_DiskCompare,
-	WorkMode_FileCopy,
 	WorkMode_DiskFormat
 }WorkMode;
 
