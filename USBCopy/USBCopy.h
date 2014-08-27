@@ -19,6 +19,10 @@
 #define WM_UPDATE_SOFTWARE   (WM_USER + 4)
 #define WM_RESET_POWER  (WM_USER + 5)
 #define WM_BURN_IN_TEST (WM_USER + 6)
+#define WM_DISCONNECT_SOCKET (WM_USER + 7)
+#define WM_CONNECT_SOCKET (WM_USER + 8)
+#define WM_VERIFY_START (WM_USER + 9)
+#define WM_SOCKET_MSG   (WM_USER + 10)
 
 class CUSBCopyApp : public CWinApp
 {
@@ -35,3 +39,6 @@ public:
 };
 
 extern CUSBCopyApp theApp;
+
+BOOL Send(SOCKET socket,char *buf,DWORD &dwLen,LPWSAOVERLAPPED lpOverlapped,PDWORD pdwErrorCode,DWORD dwTimeout = 60000);
+BOOL Recv(SOCKET socket,char *buf,DWORD &dwLen,LPWSAOVERLAPPED lpOverlapped,PDWORD pdwErrorCode,DWORD dwTimeout = 60000);

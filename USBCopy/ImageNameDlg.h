@@ -20,12 +20,19 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
-	void SetConfig(CIni *pIni);
+	void SetConfig(CIni *pIni,SOCKET sClient);
 	void SetMakeImage(BOOL bImageMake = TRUE);
 	afx_msg void OnBnClickedOk();
+
+	BOOL QueryImage(CString strImageName,PDWORD pdwErrorCode);
+
+	BOOL GetServerFirst();
 
 private:
 	CIni *m_pIni;
 	CString m_strEditImageName;
 	BOOL  m_bImageMake;
+	SOCKET m_ClientSocket;
+
+	BOOL   m_bServerFirst; // 0 - ±¾µØ£¬1 - Ô¶¶Ë
 };

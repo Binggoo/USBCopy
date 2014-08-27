@@ -5,6 +5,8 @@
 #include "USBCopy.h"
 #include "ImageNameDlg.h"
 #include "afxdialogex.h"
+#include "GlobalDef.h"
+#include "Utils.h"
 
 
 // CImageNameDlg 对话框
@@ -17,6 +19,7 @@ CImageNameDlg::CImageNameDlg(BOOL bImageMake,CWnd* pParent /*=NULL*/)
 {
 	m_pIni = NULL;
 	m_bImageMake = bImageMake;
+	m_ClientSocket = INVALID_SOCKET;
 }
 
 CImageNameDlg::~CImageNameDlg()
@@ -43,9 +46,18 @@ BOOL CImageNameDlg::OnInitDialog()
 	CDialogEx::OnInitDialog();
 
 	// TODO:  在此添加额外的初始化
-	ASSERT(m_pIni);
+	ASSERT(m_pIni && m_ClientSocket != INVALID_SOCKET);
 
 	m_strEditImageName = m_pIni->GetString(_T("ImagePath"),_T("ImageName"));
+
+	if (m_bImageMake)
+	{
+		m_bServerFirst = m_pIni->GetBool(_T("ImageMake"),_T("SavePath"),FALSE);
+	}
+	else
+	{
+		m_bServerFirst = m_pIni->GetBool(_T("ImageCopy"),_T("PathType"),FALSE);
+	}
 
 	UpdateData(FALSE);
 	
@@ -53,9 +65,10 @@ BOOL CImageNameDlg::OnInitDialog()
 	// 异常: OCX 属性页应返回 FALSE
 }
 
-void CImageNameDlg::SetConfig( CIni *pIni )
+void CImageNameDlg::SetConfig( CIni *pIni ,SOCKET sClient)
 {
 	m_pIni = pIni;
+	m_ClientSocket = sClient;
 }
 
 
@@ -83,10 +96,29 @@ void CImageNameDlg::OnBnClickedOk()
 
 	CString strImageFile;
 	strImageFile.Format(_T("%s\\%s"),strImagePath,m_strEditImageName);
-	BOOL bExist = PathFileExists(strImageFile);
+	BOOL bExist = FALSE;
 
 	if (m_bImageMake)
 	{
+		// 制作到本地，还是服务器
+		if (m_bServerFirst)
+		{
+			DWORD dwErrorCode = 0;
+			bExist = QueryImage(m_strEditImageName,&dwErrorCode);
+
+			if (dwErrorCode != 0)
+			{
+				MessageBox(CUtils::GetErrorMsg(dwErrorCode));
+
+				return;
+			}
+
+		}
+		else
+		{
+			bExist = PathFileExists(strImageFile);
+		}
+
 		// 文件是否存在，存在报错
 		if (bExist)
 		{
@@ -97,6 +129,59 @@ void CImageNameDlg::OnBnClickedOk()
 	}
 	else
 	{
+		// 服务器优先，还是本地优先
+		if (m_bServerFirst)
+		{
+			DWORD dwErrorCode = 0;
+			bExist = QueryImage(m_strEditImageName,&dwErrorCode);
+
+			if (dwErrorCode != 0)
+			{
+				MessageBox(CUtils::GetErrorMsg(dwErrorCode));
+			}
+
+			if (!bExist)
+			{
+				bExist = PathFileExists(strImageFile);
+
+				if (bExist)
+				{
+					m_bServerFirst = FALSE;
+				}
+			}
+			else
+			{
+				m_bServerFirst = TRUE;
+			}
+		}
+		else
+		{
+			bExist = PathFileExists(strImageFile);
+
+			if (!bExist)
+			{
+				DWORD dwErrorCode = 0;
+				bExist = QueryImage(m_strEditImageName,&dwErrorCode);
+
+				if (dwErrorCode != 0)
+				{
+					MessageBox(CUtils::GetErrorMsg(dwErrorCode));
+
+					return;
+				}
+
+				if (bExist)
+				{
+					m_bServerFirst = TRUE;
+				}
+			}
+			else
+			{
+				m_bServerFirst = FALSE;
+			}
+		}
+
+		// 文件是否存在，不存在报错
 		if (!bExist)
 		{
 			strResText.LoadString(IDS_MSG_IMAGE_FILE_NOT_EXISTS);
@@ -112,4 +197,49 @@ void CImageNameDlg::OnBnClickedOk()
 void CImageNameDlg::SetMakeImage( BOOL bImageMake /*= TRUE*/ )
 {
 	m_bImageMake = bImageMake;
+}
+
+BOOL CImageNameDlg::QueryImage(CString strImageName,PDWORD pdwErrorCode)
+{
+	USES_CONVERSION;
+	char *fileName = W2A(strImageName);
+
+	DWORD dwLen = sizeof(CMD_IN) + strlen(fileName) + 1;
+
+	char *bufSend = new char[dwLen];
+	ZeroMemory(bufSend,dwLen);
+
+	CMD_IN queryImageIn = {0};
+	queryImageIn.dwCmdIn = CMD_QUERY_IMAGE_IN;
+	queryImageIn.dwSizeSend = dwLen;
+
+	memcpy(bufSend,&queryImageIn,sizeof(CMD_IN));
+	memcpy(bufSend + sizeof(CMD_IN),fileName,strlen(fileName));
+
+	if (!Send(m_ClientSocket,bufSend,dwLen,NULL,pdwErrorCode))
+	{
+		delete []bufSend;
+		return FALSE;
+	}
+
+	delete []bufSend;
+
+	QUERY_IMAGE_OUT queryImageOut = {0};
+	dwLen = sizeof(QUERY_IMAGE_OUT);
+	if (!Recv(m_ClientSocket,(char *)&queryImageOut,dwLen,NULL,pdwErrorCode))
+	{
+		return FALSE;
+	}
+
+	if (queryImageOut.dwCmdOut == CMD_QUERY_IMAGE_OUT && dwLen == sizeof(QUERY_IMAGE_OUT))
+	{
+		return (queryImageOut.dwErrorCode == 0);
+	}
+
+	return FALSE;
+}
+
+BOOL CImageNameDlg::GetServerFirst()
+{
+	return m_bServerFirst;
 }

@@ -26,6 +26,7 @@ CGlobalSetting::CGlobalSetting(CWnd* pParent /*=NULL*/)
 	, m_strEditServerIP(_T(""))
 {
 	m_pIni = NULL;
+	m_bSocketConnected = FALSE;
 }
 
 CGlobalSetting::~CGlobalSetting()
@@ -55,6 +56,7 @@ BEGIN_MESSAGE_MAP(CGlobalSetting, CDialogEx)
 	ON_BN_CLICKED(IDOK, &CGlobalSetting::OnBnClickedOk)
 	ON_CBN_EDITCHANGE(IDC_COMBO_SCAN_DISK_TIME, &CGlobalSetting::OnCbnEditchangeComboScanDiskTime)
 	ON_CBN_EDITCHANGE(IDC_COMBO_DELAY_OFF_TIME, &CGlobalSetting::OnCbnEditchangeComboDelayOffTime)
+	ON_BN_CLICKED(IDC_BTN_CONNECT, &CGlobalSetting::OnBnClickedBtnConnect)
 END_MESSAGE_MAP()
 
 
@@ -103,15 +105,28 @@ BOOL CGlobalSetting::OnInitDialog()
 
 	m_strEditAlias = m_pIni->GetString(_T("Option"),_T("MachineAlias"),_T("PHIYO"));
 
+	CString strResText;
+	if (m_bSocketConnected)
+	{
+		strResText.LoadString(IDS_DISCONNECT);
+	}
+	else
+	{
+		strResText.LoadString(IDS_CONNECT);
+	}
+
+	SetDlgItemText(IDC_BTN_CONNECT,strResText);
+
 	UpdateData(FALSE);
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
 }
 
-void CGlobalSetting::SetConfig( CIni *pIni )
+void CGlobalSetting::SetConfig( CIni *pIni ,BOOL bConnected)
 {
 	m_pIni = pIni;
+	m_bSocketConnected = bConnected;
 }
 
 
@@ -191,4 +206,46 @@ void CGlobalSetting::OnCbnEditchangeComboDelayOffTime()
 	{
 		m_ComboBoxDelayTime.SetWindowText(_T(""));
 	}
+}
+
+
+void CGlobalSetting::OnBnClickedBtnConnect()
+{
+	// TODO: 在此添加控件通知处理程序代码
+
+	UpdateData(TRUE);
+
+	m_pIni->WriteString(_T("RemoteServer"),_T("ServerIP"),m_strEditServerIP);
+	m_pIni->WriteUInt(_T("RemoteServer"),_T("ListenPort"),m_nListenPort);
+
+	CString strResText;
+	if (m_bSocketConnected)
+	{
+		::SendMessage(GetParent()->GetParent()->GetSafeHwnd(),WM_DISCONNECT_SOCKET,0,0);
+
+		m_bSocketConnected = FALSE;
+	}
+	else
+	{
+		m_bSocketConnected = ::SendMessage(GetParent()->GetParent()->GetSafeHwnd(),WM_CONNECT_SOCKET,0,0);
+
+		if (!m_bSocketConnected)
+		{
+			strResText.LoadString(IDS_MSG_CONNECT_FAIL);
+			MessageBox(strResText);
+
+			return;
+		}
+	}
+
+	if (m_bSocketConnected)
+	{
+		strResText.LoadString(IDS_DISCONNECT);
+	}
+	else
+	{
+		strResText.LoadString(IDS_CONNECT);
+	}
+
+	SetDlgItemText(IDC_BTN_CONNECT,strResText);
 }

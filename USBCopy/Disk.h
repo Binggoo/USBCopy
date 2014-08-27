@@ -3,8 +3,6 @@
 #include "HashMethod.h"
 #include "PortCommand.h"
 
-#define WM_VERIFY_START (WM_USER + 101)
-
 typedef CMap<CString,LPCTSTR,ULONGLONG,ULONGLONG> CMapStringToULL;
 
 class CDisk
@@ -40,6 +38,8 @@ public:
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
 	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
 	BOOL Start();
+
+	void SetSocket(SOCKET sClient,BOOL bServerFirst);
 
 private:
 	CPort    *m_MasterPort;
@@ -88,6 +88,9 @@ private:
 	CPortCommand *m_pCommand;
 
 	BOOL m_bCompressComplete; //压缩线程和解压线程是否结束
+
+	SOCKET m_ClientSocket;
+	BOOL   m_bServerFirst;
 
 	BOOL ReadSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode);
 	BOOL WriteSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode);
@@ -156,6 +159,12 @@ private:
 	BOOL VerifyFiles(CPort *port,CHashMethod *pHashMethod);
 
 	BOOL FormatDisk(CPort *port);
+
+	BOOL ReadLocalImage();
+	BOOL ReadRemoteImage();
+
+	BOOL WriteLocalImage(CPort *port,CDataQueue *pDataQueue);
+	BOOL WriteRemoteImage(CPort *port,CDataQueue *pDataQueue);
 
 };
 

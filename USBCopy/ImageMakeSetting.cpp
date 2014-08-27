@@ -48,7 +48,7 @@ BOOL CImageMakeSetting::OnInitDialog()
 	// TODO:  在此添加额外的初始化
 	ASSERT(m_pIni);
 
-	m_nRadioSelectIndex = m_pIni->GetUInt(_T("ImageMake"),_T("PathType"),0);
+	m_nRadioSelectIndex = m_pIni->GetUInt(_T("ImageMake"),_T("SavePath"),0);
 
 #ifndef SD_TF
 	m_bCheckSupportMutiMBR = m_pIni->GetBool(_T("ImageMake"),_T("En_MutiMBR"),FALSE);

@@ -504,6 +504,22 @@ void CPort::GetHash( PBYTE value,size_t length )
 	memcpy(value,m_Hash,length);
 }
 
+CString CPort::GetHashString()
+{
+	int len = GetHashLength();
+	CString strHashValue;
+	for (int i = 0; i < len;i++)
+	{
+		CString strByte;
+		strByte.Format(_T("%02X"),m_Hash[i]);
+
+		strHashValue += strByte;
+	}
+
+	return strHashValue;
+}
+
+
 void CPort::SetPortState( PortState state )
 {
 	m_PortState = state;
@@ -522,6 +538,11 @@ void CPort::SetResult( BOOL bResult )
 BOOL CPort::GetResult()
 {
 	return m_bResult;
+}
+
+CString CPort::GetResultString()
+{
+	return (m_bResult ? _T("PASS") : _T("FAIL"));
 }
 
 void CPort::SetErrorCode( ErrorType errType,DWORD dwErrorCode )
@@ -548,5 +569,4 @@ LPOVERLAPPED CPort::GetOverlapped(BOOL bRead)
 	}
 	
 }
-
 

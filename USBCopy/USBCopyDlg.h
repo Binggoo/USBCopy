@@ -15,8 +15,10 @@
 #define LOG_FILE     _T("\\USBCopy.log")
 #define LOG_FILE_BAK     _T("\\USBCopy.log.bak")
 #define MASTER_PATH  _T("M:\\")
+#define RECODE_FILE  _T("\\record.txt");
 
 #define TIMER_UPDATE_STATISTIC 1
+#define TIMER_SEND_BITMAP      2
 
 // CUSBCopyDlg dialog
 class CUSBCopyDlg : public CDialogEx
@@ -79,6 +81,11 @@ private:
 
 	BOOL          m_bBurnInTest;
 
+	// 网络部分
+	SOCKET m_ClientSocket;
+	BOOL   m_bSockeConnected;
+	BOOL   m_bServerFirst;  // 仅仅在Copy Image时有用
+
 	enum
 	{
 		COLUMNS = 6,
@@ -104,6 +111,10 @@ private:
 
 	void InitialBurnInTest();
 
+	// 网络部分
+	BOOL CreateSocketConnect();
+	BOOL SyncTime();
+
 	void EnableControls(BOOL bEnable);
 
 	BOOL IsReady();
@@ -126,6 +137,10 @@ private:
 	static DWORD WINAPI BurnInTestThreadProc(LPVOID lpParm);
 
 	void BurnInTest();
+	DWORD UploadLog(CString strLogName,CString strLog);
+	CString GetUploadLogString();
+	void WriteUploadLog(CString strLog);
+	void SetAllFailed();
 
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -154,4 +169,8 @@ protected:
 	afx_msg LRESULT OnBurnInTest(WPARAM wParam, LPARAM lParam);
 public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
+protected:
+	afx_msg LRESULT OnConnectSocket(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnDisconnectSocket(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnSocketMsg(WPARAM wParam, LPARAM lParam);
 };

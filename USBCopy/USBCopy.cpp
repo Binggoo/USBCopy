@@ -79,3 +79,127 @@ BOOL CUSBCopyApp::InitInstance()
 	//  application, rather than start the application's message pump.
 	return FALSE;
 }
+
+BOOL Send( SOCKET socket,char *buf,DWORD &dwLen,LPWSAOVERLAPPED lpOverlapped,PDWORD pdwErrorCode,DWORD dwTimeout/* = 60000*/ )
+{
+	WSAOVERLAPPED ol = {0};
+
+	if (lpOverlapped)
+	{
+		ol = *lpOverlapped;
+	}
+	else
+	{
+		ol.hEvent = WSACreateEvent();
+	}
+
+	WSABUF wsaBuf;
+	wsaBuf.buf = buf;
+	wsaBuf.len = dwLen;
+
+	DWORD dwRet = 0,dwFlags = 0;
+	BOOL bResult = TRUE;
+
+	dwRet = WSASend(socket,&wsaBuf,1,&dwLen,dwFlags,&ol,NULL);
+	if (dwRet == SOCKET_ERROR)
+	{
+		*pdwErrorCode = WSAGetLastError();
+
+		if (*pdwErrorCode != ERROR_IO_PENDING)
+		{
+			bResult = FALSE;
+			goto END;
+		}
+	}
+
+	dwRet = WSAWaitForMultipleEvents(1,&ol.hEvent,FALSE,dwTimeout,FALSE);
+
+	if (dwRet == WSA_WAIT_FAILED || dwRet == WSA_WAIT_TIMEOUT)
+	{
+		*pdwErrorCode = WSAGetLastError();
+		bResult = FALSE;
+		goto END;
+	}
+
+	WSAResetEvent(ol.hEvent);
+
+	if (!WSAGetOverlappedResult(socket,&ol,&dwLen,FALSE,&dwFlags))
+	{
+		*pdwErrorCode = WSAGetLastError();
+		bResult = FALSE;
+		goto END;
+	}
+
+	*pdwErrorCode = 0;
+	
+
+END:
+	if (lpOverlapped == NULL)
+	{
+		WSACloseEvent(ol.hEvent);
+	}
+
+	return bResult;
+}
+
+BOOL Recv( SOCKET socket,char *buf,DWORD &dwLen,LPWSAOVERLAPPED lpOverlapped,PDWORD pdwErrorCode, DWORD dwTimeout/* = 60000*/)
+{
+	WSAOVERLAPPED ol = {0};
+
+	if (lpOverlapped)
+	{
+		ol = *lpOverlapped;
+	}
+	else
+	{
+		ol.hEvent = WSACreateEvent();
+	}
+
+	WSABUF wsaBuf;
+	wsaBuf.buf = buf;
+	wsaBuf.len = dwLen;
+
+	DWORD dwRet = 0,dwFlags = 0;
+	BOOL bResult = TRUE;
+
+	dwRet = WSARecv(socket,&wsaBuf,1,&dwLen,&dwFlags,&ol,NULL);
+	if (dwRet == SOCKET_ERROR)
+	{
+		*pdwErrorCode = WSAGetLastError();
+
+		if (*pdwErrorCode != ERROR_IO_PENDING)
+		{
+			bResult = FALSE;
+			goto END;
+		}
+	}
+
+	dwRet = WSAWaitForMultipleEvents(1,&ol.hEvent,FALSE,dwTimeout,FALSE);
+
+	if (dwRet == WSA_WAIT_FAILED || dwRet == WSA_WAIT_TIMEOUT)
+	{
+		*pdwErrorCode = WSAGetLastError();
+		bResult = FALSE;
+		goto END;
+	}
+
+	WSAResetEvent(ol.hEvent);
+
+	if (!WSAGetOverlappedResult(socket,&ol,&dwLen,FALSE,&dwFlags))
+	{
+		*pdwErrorCode = WSAGetLastError();
+
+		bResult = FALSE;
+		goto END;
+	}
+
+	*pdwErrorCode = 0;
+
+END:
+	if (lpOverlapped == NULL)
+	{
+		WSACloseEvent(ol.hEvent);
+	}
+
+	return bResult;
+}

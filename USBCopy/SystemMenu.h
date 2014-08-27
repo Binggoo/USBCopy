@@ -20,13 +20,15 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
-	void SetConfig(CIni *pIni,CPortCommand *pCommand);
+	void SetConfig(CIni *pIni,CPortCommand *pCommand,BOOL bConnected);
 
 private:
 	CIni *m_pIni;
 	CPortCommand *m_pCommand;
 	CString m_strAppPath;
 	UINT m_nTargetNum;
+	BOOL m_bSocketConnected;
+
 public:
 	afx_msg void OnBnClickedButtonUpdate();
 	afx_msg void OnBnClickedButtonRestore();

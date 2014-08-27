@@ -18,6 +18,8 @@ CSystemMenu::CSystemMenu(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CSystemMenu::IDD, pParent)
 {
 	m_pIni = NULL;
+	m_bSocketConnected = FALSE;
+	m_pCommand = NULL;
 }
 
 CSystemMenu::~CSystemMenu()
@@ -63,10 +65,11 @@ BOOL CSystemMenu::OnInitDialog()
 	// 异常: OCX 属性页应返回 FALSE
 }
 
-void CSystemMenu::SetConfig( CIni *pIni ,CPortCommand *pCommand)
+void CSystemMenu::SetConfig( CIni *pIni ,CPortCommand *pCommand,BOOL bConnected)
 {
 	m_pIni = pIni;
 	m_pCommand = pCommand;
+	m_bSocketConnected = bConnected;
 }
 
 
@@ -134,7 +137,7 @@ void CSystemMenu::OnBnClickedButtonGlobal()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	CGlobalSetting globalSetting;
-	globalSetting.SetConfig(m_pIni);
+	globalSetting.SetConfig(m_pIni,m_bSocketConnected);
 	globalSetting.DoModal();
 
 	CDialogEx::OnOK();

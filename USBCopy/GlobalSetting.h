@@ -22,7 +22,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
-	void SetConfig(CIni *pIni);
+	void SetConfig(CIni *pIni,BOOL bConnected);
 
 private:
 	CComboBox m_ComboBoxScanTime;
@@ -35,6 +35,8 @@ private:
 	int m_iHashMethod;
 	CString m_strEditAlias;
 
+	BOOL m_bSocketConnected;
+
 	CIni *m_pIni;
 	UINT m_nListenPort;
 	BOOL m_bCheckShowCursor;
@@ -44,4 +46,5 @@ public:
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnCbnEditchangeComboScanDiskTime();
 	afx_msg void OnCbnEditchangeComboDelayOffTime();
+	afx_msg void OnBnClickedBtnConnect();
 };

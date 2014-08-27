@@ -111,6 +111,9 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_UPDATE_SOFTWARE, &CUSBCopyDlg::OnUpdateSoftware)
 	ON_MESSAGE(WM_RESET_POWER, &CUSBCopyDlg::OnResetPower)
 	ON_MESSAGE(WM_BURN_IN_TEST, &CUSBCopyDlg::OnBurnInTest)
+	ON_MESSAGE(WM_CONNECT_SOCKET, &CUSBCopyDlg::OnConnectSocket)
+	ON_MESSAGE(WM_DISCONNECT_SOCKET, &CUSBCopyDlg::OnDisconnectSocket)
+	ON_MESSAGE(WM_SOCKET_MSG, &CUSBCopyDlg::OnSocketMsg)
 END_MESSAGE_MAP()
 
 
@@ -204,8 +207,8 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	// 读机器信息
 	m_Config.SetPathName(m_strAppPath + MACHINE_INFO);
 	strVersion.Format(_T("Suzhou PHIYO Ver:%s  BLD:%s "),CUtils::GetAppVersion(strPath),status.m_mtime.Format(_T("%Y-%m-%d")));
-	strSN.Format(_T("SN : %s"),m_Config.GetString(_T("MachineInfo"),_T("SN")));
-	strModel.Format(_T("Model : %s"),m_Config.GetString(_T("MachineInfo"),_T("Model")));
+	strSN.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("SN")));
+	strModel.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("Model")));
 	strAlias.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("Alias"),_T("PHIYO")));
 
 	m_font.CreatePointFont(100,_T("Arial"));
@@ -224,6 +227,20 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 	BOOL bShowCursor = m_Config.GetBool(_T("Option"),_T("ShowCursor"),TRUE);
 	ShowCursor(bShowCursor);
+
+	WSADATA wsd;
+	if (WSAStartup(MAKEWORD(2,2),&wsd) != 0)
+	{
+		DWORD dwErrorCode  = WSAGetLastError();
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSAStartup() failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+	}
+	else
+	{
+		// 连接网络，同步时间
+		PostMessage(WM_CONNECT_SOCKET);
+
+	}
 
 	// 初始化
 	InitialPortPath();
@@ -704,7 +721,7 @@ void CUSBCopyDlg::OnBnClickedBtnSystem()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	CSystemMenu menu;
-	menu.SetConfig(&m_Config,&m_Command);
+	menu.SetConfig(&m_Config,&m_Command,m_bSockeConnected);
 	menu.DoModal();
 
 	CString strAlias = m_Config.GetString(_T("Option"),_T("MachineAlias"),_T("PHIYO"));
@@ -815,7 +832,6 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 void CUSBCopyDlg::OnBnClickedBtnStart()
 {
 	// TODO: 在此添加控件通知处理程序代码
-
 	switch(m_WorkMode)
 	{
 	case WorkMode_ImageMake:
@@ -823,7 +839,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 			if (!m_bBurnInTest)
 			{
 				CImageNameDlg dlg(TRUE);
-				dlg.SetConfig(&m_Config);
+				dlg.SetConfig(&m_Config,m_ClientSocket);
 				if (dlg.DoModal() == IDCANCEL)
 				{
 					return;
@@ -835,14 +851,17 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 	case WorkMode_ImageCopy:
 		{
+			m_bServerFirst = FALSE;
 			if (!m_bBurnInTest)
 			{
 				CImageNameDlg dlg(FALSE);
-				dlg.SetConfig(&m_Config);
+				dlg.SetConfig(&m_Config,m_ClientSocket);
 				if (dlg.DoModal() == IDCANCEL)
 				{
 					return;
 				}
+
+				m_bServerFirst = dlg.GetServerFirst();
 			}	
 
 		}
@@ -967,8 +986,60 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 		Sleep(100);
 	}
 
-	UpdatePortFrame(FALSE);
+	// 上传log
+	BOOL bUpload = m_Config.GetBool(_T("Option"),_T("En_UploadLogAuto"),FALSE);
 
+	if (bUpload)
+	{
+		if (!m_bSockeConnected)
+		{
+			m_bSockeConnected = CreateSocketConnect();
+		}
+
+		CString strLog = GetUploadLogString();
+		CString strFileName,strMachineSN;
+		GetDlgItemText(IDC_TEXT_SN,strMachineSN);
+		strFileName.Format(_T("record_%s_%s.txt"),strMachineSN,CTime::GetCurrentTime().Format(_T("%Y%m%d%H%M%S")));
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("upload log start..."));
+
+		DWORD dwUpload = UploadLog(strFileName,strLog);
+
+		while (dwUpload != 0)
+		{
+			CString strMsg,strFail;
+			strFail.LoadString(IDS_MSG_UPLOAD_FAILED);
+			strMsg.Format(_T("%s%s"),CUtils::GetErrorMsg(dwUpload),strFail);
+			CString strTitle;
+			strTitle.LoadString(IDS_MSG_TITLE_UPLOAD);
+			if (MessageBox(strMsg,strTitle,MB_YESNO | MB_DEFBUTTON1 | MB_ICONERROR) == IDNO)
+			{
+				break;
+			}
+
+			closesocket(m_ClientSocket);
+
+			m_bSockeConnected = CreateSocketConnect();
+
+			dwUpload = UploadLog(strFileName,strLog);
+		}
+
+		WriteUploadLog(strLog);
+
+		if (dwUpload != 0)
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("upload log faild."));
+			m_bResult = FALSE;
+			m_strMsg += _T("Upload log failed !");
+
+			// 把所有设置成fail
+			SetAllFailed();
+		}
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("upload log success."));
+	}
+
+	UpdatePortFrame(FALSE);
 	// 如果在做BurnIn Test只有全部FAIL时弹出完成对话框
 	if (m_bBurnInTest)
 	{
@@ -1539,6 +1610,7 @@ void CUSBCopyDlg::OnStart()
 		{
 			CString strImagePath = m_Config.GetString(_T("ImagePath"),_T("ImagePath"),_T("d:\\image"));
 			CString strImageName = m_Config.GetString(_T("ImagePath"),_T("ImageName"));
+			BOOL bServerFirst = m_Config.GetBool(_T("ImageMake"),_T("SavePath"),FALSE);
 
 			// 设置端口状态
 			m_MasterPort.SetHashMethod(hashMethod);
@@ -1567,6 +1639,7 @@ void CUSBCopyDlg::OnStart()
 			disk.SetMasterPort(&m_MasterPort);
 			disk.SetTargetPorts(&filePortList);
 			disk.SetHashMethod(TRUE,FALSE,hashMethod);
+			disk.SetSocket(m_ClientSocket,bServerFirst);
 
 			bResult = disk.Start();
 
@@ -1630,10 +1703,19 @@ void CUSBCopyDlg::OnStart()
 				strImageName += _T(".IMG");
 			}
 
-			CString strImageFile;
+			CString strImageFile,strTempFile;
+			strTempFile.Format(_T("%s\\%s.$$$"),strImagePath,strImageName.Left(strImageName.GetLength() - 4));
 			strImageFile.Format(_T("%s\\%s"),strImagePath,strImageName);
 
-			m_FilePort.SetPortType(PortType_MASTER_FILE);
+			if (m_bServerFirst)
+			{
+				m_FilePort.SetPortType(PortType_SERVER);
+			}
+			else
+			{
+				m_FilePort.SetPortType(PortType_MASTER_FILE);
+			}
+			
 			m_FilePort.SetFileName(strImageFile);
 			m_FilePort.SetConnected(TRUE);
 			m_FilePort.SetPortState(PortState_Online);
@@ -1652,12 +1734,16 @@ void CUSBCopyDlg::OnStart()
 			disk.SetMasterPort(&m_FilePort);
 			disk.SetTargetPorts(&m_TargetPorts);
 			disk.SetHashMethod(TRUE,bCompare,hashMethod);
+			disk.SetSocket(m_ClientSocket,m_bServerFirst);
 
 			bResult = disk.Start();
 
 			CString strHashValue;
 			if (bResult)
 			{
+
+				MoveFile(strTempFile,strImageFile);
+
 				int len = m_FilePort.GetHashLength();
 				BYTE *pHash = new BYTE[len];
 				ZeroMemory(pHash,len);
@@ -1676,6 +1762,8 @@ void CUSBCopyDlg::OnStart()
 			}
 			else
 			{
+				DeleteFile(strTempFile);
+
 				ErrorType errType = ErrorType_System;
 				DWORD dwErrorCode = 0;
 				errType = m_FilePort.GetErrorCode(&dwErrorCode);
@@ -2086,6 +2174,11 @@ BOOL CUSBCopyDlg::DestroyWindow()
 	}
 
 	delete []m_PortFrames;
+
+	if (m_bSockeConnected)
+	{
+		closesocket(m_ClientSocket);
+	}
 
 	return CDialogEx::DestroyWindow();
 }
@@ -2693,4 +2786,385 @@ BOOL CUSBCopyDlg::PreTranslateMessage(MSG* pMsg)
 	}
 
 	return CDialogEx::PreTranslateMessage(pMsg);
+}
+
+BOOL CUSBCopyDlg::CreateSocketConnect()
+{
+	CString strIpAddr = m_Config.GetString(_T("RemoteServer"),_T("ServerIP"));
+	UINT nPort = m_Config.GetUInt(_T("RemoteServer"),_T("ListenPort"),7788);
+
+	USES_CONVERSION;
+	char *pBuf = W2A(strIpAddr);
+
+	m_ClientSocket = WSASocket(AF_INET,SOCK_STREAM,IPPROTO_TCP,NULL,0,WSA_FLAG_OVERLAPPED);
+
+	if (m_ClientSocket == INVALID_SOCKET)
+	{
+		DWORD dwErrorCode = WSAGetLastError();
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSASocket failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return FALSE;
+	}
+
+	SOCKADDR_IN ServerAddr = {0};
+	ServerAddr.sin_family = AF_INET;
+	ServerAddr.sin_addr.s_addr = inet_addr(pBuf);
+	ServerAddr.sin_port = htons(nPort);
+
+	if (connect(m_ClientSocket,(PSOCKADDR)&ServerAddr,sizeof(ServerAddr)) == SOCKET_ERROR)
+	{
+		DWORD dwErrorCode = WSAGetLastError();
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) failed with system error code:%d,%s")
+			,strIpAddr,nPort,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		closesocket(m_ClientSocket);
+
+		return FALSE;
+	}
+
+	WSAAsyncSelect(m_ClientSocket,this->m_hWnd,WM_SOCKET_MSG,FD_CLOSE);
+
+	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) success."),strIpAddr,nPort);
+
+	return TRUE;
+}
+
+BOOL CUSBCopyDlg::SyncTime()
+{
+	SYNC_TIME_IN syncTimeIn = {0};
+	syncTimeIn.dwCmdIn = CMD_SYNC_TIME_IN;
+	syncTimeIn.dwSizeSend = sizeof(SYNC_TIME_IN);
+
+	DWORD dwLen = sizeof(SYNC_TIME_IN);
+	DWORD dwErrorCode = 0;
+
+	if (!Send(m_ClientSocket,(char*)&syncTimeIn,dwLen,NULL,&dwErrorCode))
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSASend() failed with system error code:%d,%s"),dwErrorCode,
+			CUtils::GetErrorMsg(dwErrorCode));
+
+		return FALSE;
+	}
+	
+
+	SYNC_TIME_OUT syncTimeOut = {0};
+	dwLen = sizeof(SYNC_TIME_OUT);
+	if (!Recv(m_ClientSocket,(char *)&syncTimeOut,dwLen,NULL,&dwErrorCode))
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSARecv() failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return FALSE;
+	}
+
+	if (syncTimeOut.dwCmdOut == CMD_SYNC_TIME_OUT && dwLen == sizeof(SYNC_TIME_OUT))
+	{
+		SYSTEMTIME SystemTime;
+		SystemTime.wYear = syncTimeOut.wYmdHMS[0];
+		SystemTime.wMonth = syncTimeOut.wYmdHMS[1];
+		SystemTime.wDay = syncTimeOut.wYmdHMS[2];
+		SystemTime.wHour = syncTimeOut.wYmdHMS[3];
+		SystemTime.wMinute = syncTimeOut.wYmdHMS[4];
+		SystemTime.wSecond = syncTimeOut.wYmdHMS[5];
+		SystemTime.wMilliseconds = 0; //设置时间时不需要
+		SystemTime.wDayOfWeek = -1;  //设置时间时不需要
+
+		SetSystemTime(&SystemTime);
+	}
+	else
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSARecv() data error"));
+
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnConnectSocket(WPARAM wParam, LPARAM lParam)
+{
+	m_bSockeConnected = CreateSocketConnect();
+
+	if (m_bSockeConnected)
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time with server..."));
+
+		if (SyncTime())
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time success."));
+		}
+		else
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time failed."));
+		}
+	}
+
+	return m_bSockeConnected;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnDisconnectSocket(WPARAM wParam, LPARAM lParam)
+{
+	if (m_bSockeConnected)
+	{
+		closesocket(m_ClientSocket);
+	}
+
+	return 0;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnSocketMsg(WPARAM wParam, LPARAM lParam)
+{
+	WORD event = WSAGETSELECTEVENT(lParam);
+
+	switch (event)
+	{
+	case FD_CLOSE:
+		m_bSockeConnected = FALSE;
+		closesocket(m_ClientSocket);
+		m_ClientSocket = INVALID_SOCKET;
+
+		break;
+	}
+	return 0;
+}
+
+DWORD CUSBCopyDlg::UploadLog(CString strLogName,CString strLog)
+{
+	USES_CONVERSION;
+	char *filename = W2A(strLogName);
+	char *log = W2A(strLog);
+
+	CMD_IN uploadLogIn = {0};
+
+	DWORD dwLen = sizeof(CMD_IN) + strlen(filename) + 1 + strlen(log) + 1;
+	
+	uploadLogIn.dwCmdIn = CMD_UPLOAD_LOG_IN;
+	uploadLogIn.dwSizeSend = dwLen;
+	
+	BYTE *pByte = new BYTE[dwLen];
+	ZeroMemory(pByte,dwLen);
+
+	memcpy(pByte,&uploadLogIn,sizeof(CMD_IN));
+	memcpy(pByte + sizeof(CMD_IN),filename,strlen(filename));
+	memcpy(pByte + sizeof(CMD_IN) + strlen(filename) + 1,log,strlen(log));
+	pByte[dwLen - 1] = END_FLAG;
+
+	DWORD dwErrorCode = 0;
+	if (!Send(m_ClientSocket,(char *)pByte,dwLen,NULL,&dwErrorCode))
+	{
+		delete []pByte;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSASend() failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return dwErrorCode;
+	}
+	delete []pByte;
+
+	UPLOAD_LOG_OUT uploadLogOut = {0};
+	dwLen = sizeof(UPLOAD_LOG_OUT);
+	if (!Recv(m_ClientSocket,(char *)&uploadLogOut,dwLen,NULL,&dwErrorCode))
+	{
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSARecv() failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return dwErrorCode;
+	}
+
+	if (uploadLogOut.dwErrorCode != 0)
+	{
+		dwErrorCode = uploadLogOut.dwErrorCode;
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv() failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return dwErrorCode;
+	}
+
+	return 0;
+	
+}
+
+CString CUSBCopyDlg::GetUploadLogString()
+{
+	CString strLog;
+
+	//PortNum,PortType,MachineSN,AliasName,SerialNumber,Model,DataSize,Capacity,Function,StartTime,EndTime,HashMethod,HashValue,Result,ErrorType,ErrorCode
+
+	CString strItem;
+
+	CString strAliasName,strMachineSN;
+	GetDlgItemText(IDC_TEXT_ALIAS,strAliasName);
+	GetDlgItemText(IDC_TEXT_SN,strMachineSN);
+
+	if (m_MasterPort.IsConnected())
+	{
+		strItem.Format(_T("%s;"),m_MasterPort.GetPortName());
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetPortTypeName());
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),strMachineSN);
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),strAliasName);
+		strLog += strItem;
+
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetSN());
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetModuleName());
+		strLog += strItem;
+
+		strItem.Format(_T("%I64d;"),m_MasterPort.GetValidSize());
+		strLog += strItem;
+
+		strItem.Format(_T("%I64d;"),m_MasterPort.GetTotalSize());
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),GetWorkModeString(m_WorkMode));
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetStartTime().Format(_T("%Y-%m-%d %H:%M:%S")));
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetEndTime().Format(_T("%Y-%m-%d %H:%M:%S")));
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetHashMethodString());
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetHashString());
+		strLog += strItem;
+
+		strItem.Format(_T("%s;"),m_MasterPort.GetResultString());
+		strLog += strItem;
+
+		DWORD dwErrorCode = 0;
+		ErrorType errType = m_MasterPort.GetErrorCode(&dwErrorCode);
+
+		strItem.Format(_T("%d;"),errType);
+		strLog += strItem;
+
+		strItem.Format(_T("%d\r\n"),dwErrorCode);
+		strLog += strItem;
+	}
+
+	POSITION pos = m_TargetPorts.GetHeadPosition();
+
+	while (pos)
+	{
+		CPort *port = m_TargetPorts.GetNext(pos);
+
+		if (port->IsConnected())
+		{
+			strItem.Format(_T("%s;"),port->GetPortName());
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetPortTypeName());
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),strMachineSN);
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),strAliasName);
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetSN());
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetModuleName());
+			strLog += strItem;
+
+			strItem.Format(_T("%I64d;"),port->GetValidSize());
+			strLog += strItem;
+
+			strItem.Format(_T("%I64d;"),port->GetTotalSize());
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),GetWorkModeString(m_WorkMode));
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetStartTime().Format(_T("%Y-%m-%d %H:%M:%S")));
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetEndTime().Format(_T("%Y-%m-%d %H:%M:%S")));
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetHashMethodString());
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetHashString());
+			strLog += strItem;
+
+			strItem.Format(_T("%s;"),port->GetResultString());
+			strLog += strItem;
+
+			DWORD dwErrorCode = 0;
+			ErrorType errType = port->GetErrorCode(&dwErrorCode);
+
+			strItem.Format(_T("%d;"),errType);
+			strLog += strItem;
+
+			strItem.Format(_T("%d\r\n"),dwErrorCode);
+			strLog += strItem;
+		}
+	}
+
+	return strLog;
+}
+
+void CUSBCopyDlg::WriteUploadLog( CString strLog )
+{
+	CString strRecordFile = m_strAppPath + RECODE_FILE;
+
+	HANDLE hFile = CreateFile(strRecordFile,
+							  GENERIC_READ | GENERIC_WRITE,
+							  FILE_SHARE_READ | FILE_SHARE_WRITE,
+							  NULL,
+							  OPEN_ALWAYS,
+							  0,
+							  NULL);
+
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		return;
+	}
+
+	SetFilePointer(hFile,0,NULL,FILE_END);
+
+	USES_CONVERSION;
+	char *buf = W2A(strLog);
+
+	DWORD dwSize = 0;
+	WriteFile(hFile,buf,strlen(buf),&dwSize,NULL);
+	CloseHandle(hFile);
+}
+
+void CUSBCopyDlg::SetAllFailed()
+{
+	if (m_MasterPort.IsConnected())
+	{
+		m_MasterPort.SetResult(FALSE);
+		m_MasterPort.SetPortState(PortState_Fail);
+	}
+
+	POSITION pos = m_TargetPorts.GetHeadPosition();
+
+	while (pos)
+	{
+		CPort *port = m_TargetPorts.GetNext(pos);
+
+		if (port->IsConnected())
+		{
+			port->SetResult(FALSE);
+			port->SetPortState(PortState_Fail);
+		}
+	}
 }

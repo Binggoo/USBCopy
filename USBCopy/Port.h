@@ -142,6 +142,7 @@ public:
 
 	void SetHash(const BYTE *value,size_t length);
 	void GetHash(PBYTE value,size_t length);
+	CString GetHashString();
 
 
 	// ½á¹û
@@ -150,6 +151,7 @@ public:
 
 	void SetResult(BOOL bResult);
 	BOOL GetResult();
+	CString GetResultString();
 
 	void SetErrorCode(ErrorType errType,DWORD dwErrorCode);
 	ErrorType GetErrorCode(PDWORD pdwErrorCode);

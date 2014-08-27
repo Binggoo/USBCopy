@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include "USBCopy.h"
 #include "Disk.h"
 #include <WinIoCtl.h>
 #include "Utils.h"
@@ -40,6 +41,10 @@ CDisk::CDisk(void)
 	m_dwClusterSize = 0;
 
 	m_bCompressComplete = TRUE;
+
+	m_bServerFirst = FALSE;
+
+	m_ClientSocket = INVALID_SOCKET;
 }
 
 
@@ -836,6 +841,28 @@ void CDisk::SetMasterPort( CPort *port )
 			}
 
 		}
+
+		break;
+
+	case PortType_SERVER:
+		// 本地创建IMAGE
+		CString strTempName,strImageFile;
+		strImageFile = m_MasterPort->GetFileName();
+
+		strTempName.Format(_T("%s.$$$"),strImageFile.Left(strImageFile.GetLength() - 4));
+
+		m_hMaster = GetHandleOnFile(strTempName,
+			CREATE_ALWAYS,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+		if (m_hMaster == INVALID_HANDLE_VALUE)
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Open image file error,filename=%s,system errorcode=%ld,%s")
+				,strTempName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+		}
+
+		m_MasterPort->SetPortState(PortState_Active);
+
+		break;
 	}
 }
 
@@ -2311,17 +2338,98 @@ BOOL CDisk::OnCopyImage()
 	IMAGE_HEADER imgHead = {0};
 	DWORD dwErrorCode = 0;
 	DWORD dwLen = SIZEOF_IMAGE_HEADER;
-	if (!ReadFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
+
+	if (m_bServerFirst)
 	{
-		m_MasterPort->SetEndTime(CTime::GetCurrentTime());
-		m_MasterPort->SetPortState(PortState_Fail);
-		m_MasterPort->SetResult(FALSE);
-		m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+		USES_CONVERSION;
+		CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
+		char *fileName = W2A(strImageName);
 
-		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read Image Head error,filename=%s,system errorcode=%ld,%s")
-			,m_MasterPort->GetFileName(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+		dwLen = sizeof(CMD_IN) + strlen(fileName) + 1;
 
-		return FALSE;
+		char *bufSend = new char[dwLen];
+		ZeroMemory(bufSend,dwLen);
+
+		CMD_IN queryImageIn = {0};
+		queryImageIn.dwCmdIn = CMD_QUERY_IMAGE_IN;
+		queryImageIn.dwSizeSend = dwLen;
+
+		memcpy(bufSend,&queryImageIn,sizeof(CMD_IN));
+		memcpy(bufSend + sizeof(CMD_IN),fileName,strlen(fileName));
+
+		if (!Send(m_ClientSocket,bufSend,dwLen,NULL,&dwErrorCode))
+		{
+			delete []bufSend;
+
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,system errorcode=%ld,%s")
+				,strImageName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+
+			return FALSE;
+		}
+
+		delete []bufSend;
+
+		QUERY_IMAGE_OUT queryImageOut = {0};
+		dwLen = sizeof(QUERY_IMAGE_OUT);
+		if (!Recv(m_ClientSocket,(char *)&queryImageOut,dwLen,NULL,&dwErrorCode))
+		{
+
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,system errorcode=%ld,%s")
+				,strImageName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			return FALSE;
+		}
+
+
+		if (queryImageOut.dwErrorCode != 0 || queryImageOut.dwCmdOut != CMD_QUERY_IMAGE_OUT || queryImageOut.dwSizeSend != dwLen)
+		{
+			
+			dwErrorCode = CustomError_Get_Data_From_Server_Error;
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_Custom,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,custom errorcode=0x%X,get data from server error")
+				,strImageName,dwErrorCode);
+
+			return FALSE;
+		}
+
+		memcpy(&imgHead,queryImageOut.byHead,SIZEOF_IMAGE_HEADER);
+
+		if (m_hMaster != INVALID_HANDLE_VALUE)
+		{
+			dwLen = SIZEOF_IMAGE_HEADER;
+			WriteFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(FALSE),&dwErrorCode);
+		}
+
+	}
+	else
+	{
+		if (!ReadFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
+		{
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read Image Head error,filename=%s,system errorcode=%ld,%s")
+				,m_MasterPort->GetFileName(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			return FALSE;
+		}
 	}
 
 	m_ullValidSize = imgHead.ullValidSize;
@@ -4210,6 +4318,18 @@ BOOL CDisk::Start()
 
 BOOL CDisk::ReadImage()
 {
+	if (m_bServerFirst)
+	{
+		return ReadRemoteImage();
+	}
+	else
+	{
+		return ReadLocalImage();
+	}
+}
+
+BOOL CDisk::ReadLocalImage()
+{
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
 	ErrorType errType = ErrorType_System;
@@ -4276,7 +4396,7 @@ BOOL CDisk::ReadImage()
 			break;
 		}
 
-		if (pByte[dwLen-1] != IMAGE_HEADER_END)
+		if (pByte[dwLen-1] != END_FLAG)
 		{
 			errType = ErrorType_Custom;
 			dwErrorCode = CustomError_Image_Format_Error;
@@ -4306,6 +4426,236 @@ BOOL CDisk::ReadImage()
 
 	}
 
+	if (*m_lpCancel)
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Cancel;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read image file error,filename=%s,Speed=%.2f,custom errorcode=0x%X,user cancelled.")
+			,m_MasterPort->GetFileName(),m_MasterPort->GetRealSpeed(),dwErrorCode);
+	}
+
+	// 先设置为停止状态
+	m_MasterPort->SetPortState(PortState_Stop);
+
+	// 所有数据都拷贝完
+	while (!m_bCompressComplete)
+	{
+		Sleep(100);
+	}
+
+	if (!m_MasterPort->GetResult())
+	{
+		bResult = FALSE;
+		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+	}
+
+	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+
+	m_MasterPort->SetResult(bResult);
+
+	if (bResult)
+	{
+		m_MasterPort->SetPortState(PortState_Pass);
+
+		if (m_bComputeHash)
+		{
+			m_MasterPort->SetHash(m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
+
+			for (int i = 0; i < m_pMasterHashMethod->getHashLength();i++)
+			{
+				CString strHash;
+				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
+				m_strMasterHash += strHash;
+			}
+
+			CString strHashMethod(m_pMasterHashMethod->getHashMetod());
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,HashValue=%s")
+				,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash);
+
+		}
+	}
+	else
+	{
+		m_MasterPort->SetPortState(PortState_Fail);
+		m_MasterPort->SetErrorCode(errType,dwErrorCode);
+	}
+
+	return bResult;
+}
+
+BOOL CDisk::ReadRemoteImage()
+{
+	BOOL bResult = TRUE;
+	DWORD dwErrorCode = 0;
+	ErrorType errType = ErrorType_System;
+
+	ULONGLONG ullReadSize = SIZEOF_IMAGE_HEADER;
+	DWORD dwLen = 0;
+
+	// 计算精确速度
+	LARGE_INTEGER freq,t0,t1,t2;
+	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	WSAOVERLAPPED ol = {0};
+	ol.hEvent = WSACreateEvent();
+
+	QueryPerformanceFrequency(&freq);
+
+	// 发送COPY IMAGE命令
+	CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
+
+	USES_CONVERSION;
+	char *fileName = W2A(strImageName);
+
+	dwLen = sizeof(CMD_IN) + strlen(fileName) + 1;
+	char *sendBuf = new char[dwLen];
+	ZeroMemory(sendBuf,dwLen);
+
+	CMD_IN copyImageIn = {0};
+	copyImageIn.dwCmdIn = CMD_COPY_IMAGE_IN;
+	copyImageIn.dwSizeSend = dwLen;
+
+	memcpy(sendBuf,&copyImageIn,sizeof(CMD_IN));
+	memcpy(sendBuf + sizeof(CMD_IN),fileName,strlen(fileName));
+
+	if (!Send(m_ClientSocket,sendBuf,dwLen,NULL,&dwErrorCode))
+	{
+		bResult = FALSE;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send copy image command error,system errorcode=%ld,%s")
+			,m_MasterPort->GetFileName(),m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+	}
+
+	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
+	{
+		QueryPerformanceCounter(&t0);
+		// 判断队列是否达到限制值
+		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
+			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
+		{
+			Sleep(10);
+		}
+
+		if (*m_lpCancel)
+		{
+			dwErrorCode = CustomError_Cancel;
+			errType = ErrorType_Custom;
+			bResult = FALSE;
+			break;
+		}
+
+		if (IsAllFailed(errType,&dwErrorCode))
+		{
+			bResult = FALSE;
+			break;
+		}
+
+		QueryPerformanceCounter(&t1);
+
+		CMD_OUT copyImageOut = {0};
+		dwLen = sizeof(CMD_OUT);
+		if (!Recv(m_ClientSocket,(char *)&copyImageOut,dwLen,&ol,&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv copy image error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strImageName,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			break;
+		}
+
+		dwLen = copyImageOut.dwSizeSend - sizeof(CMD_OUT);
+
+		BYTE *pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
+
+		DWORD dwRead = 0;
+
+		while(dwRead < dwLen)
+		{
+			DWORD dwByteRead = dwLen - dwRead;
+			if (!Recv(m_ClientSocket,(char *)(pByte+dwRead),dwByteRead,&ol,&dwErrorCode))
+			{
+				bResult = FALSE;
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv copy image error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+					,strImageName,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				break;
+			}
+
+			dwRead += dwByteRead;
+		}
+
+		if (copyImageOut.dwErrorCode != 0)
+		{
+			bResult = FALSE;
+			errType = copyImageOut.errType;
+			dwErrorCode = copyImageOut.dwErrorCode;
+
+			delete []pByte;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv copy image error,filename=%s,Speed=%.2f,system errorcode=%d,%s")
+				,strImageName,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			break;
+		}
+
+		if (copyImageOut.dwCmdOut != CMD_COPY_IMAGE_OUT || copyImageOut.dwSizeSend != dwLen + sizeof(CMD_OUT))
+		{
+			bResult = FALSE;
+			errType = ErrorType_Custom;
+			dwErrorCode = CustomError_Get_Data_From_Server_Error;
+
+			delete []pByte;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv copy image error,filename=%s,Speed=%.2f,custom errorcode=0x%X,get data from server error")
+				,strImageName,m_MasterPort->GetRealSpeed(),dwErrorCode);
+			break;
+		}
+
+		// 去除尾部标志
+		dwLen -= 1;
+
+		DATA_INFO dataInfo = {0};
+		dataInfo.dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
+		dataInfo.pData = new BYTE[dataInfo.dwDataSize];
+		memcpy(dataInfo.pData,&pByte[PKG_HEADER_SIZE],dataInfo.dwDataSize);
+
+		m_CompressQueue.AddTail(dataInfo);
+
+		// 写文件
+		WriteFileAsyn(m_hMaster,ullReadSize,dwLen,pByte,m_MasterPort->GetOverlapped(FALSE),&dwErrorCode);
+
+		dwErrorCode = 0;
+
+		delete []pByte;
+
+		ullReadSize += dwLen;
+
+		QueryPerformanceCounter(&t2);
+
+		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
+		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
+		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
+		m_MasterPort->AppendCompleteSize(dwLen);
+
+	}
+
+	WSACloseEvent(ol.hEvent);
+
+	if (!bResult)
+	{
+		// 发送停止命令
+		copyImageIn.byStop = TRUE;
+		memcpy(sendBuf,&copyImageIn,sizeof(CMD_IN));
+		memcpy(sendBuf + sizeof(CMD_IN),fileName,strlen(fileName));
+
+		Send(m_ClientSocket,sendBuf,dwLen,NULL,&dwErrorCode);
+
+	}
+	
+	
 	if (*m_lpCancel)
 	{
 		bResult = FALSE;
@@ -4615,6 +4965,18 @@ BOOL CDisk::Uncompress()
 
 BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 {
+	if (m_bServerFirst)
+	{
+		return WriteRemoteImage(port,pDataQueue);
+	}
+	else
+	{
+		return WriteLocalImage(port,pDataQueue);
+	}
+}
+
+BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
+{
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
 	ErrorType errType = ErrorType_System;
@@ -4767,7 +5129,7 @@ BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 		imgHead.dwHashLen = m_pMasterHashMethod->getHashLength();
 		imgHead.dwHashType = m_MasterPort->GetHashMethod();
 		memcpy(imgHead.byImageDigest,m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
-		imgHead.byEnd = IMAGE_HEADER_END;
+		imgHead.byEnd = END_FLAG;
 
 		dwLen = SIZEOF_IMAGE_HEADER;
 
@@ -4778,10 +5140,285 @@ BOOL CDisk::WriteImage( CPort *port,CDataQueue *pDataQueue )
 	}
 
 	CloseHandle(hFile);
-		
+
 	port->SetEndTime(CTime::GetCurrentTime());
 	port->SetResult(bResult);
-	
+
+	if (bResult)
+	{
+		port->SetPortState(PortState_Pass);
+	}
+	else
+	{
+		port->SetPortState(PortState_Fail);
+		port->SetErrorCode(errType,dwErrorCode);
+	}
+
+	return bResult;
+}
+
+BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
+{
+	BOOL bResult = TRUE;
+	DWORD dwErrorCode = 0;
+	ErrorType errType = ErrorType_System;
+	ULONGLONG ullPkgIndex = 0;
+	ULONGLONG ullOffset = SIZEOF_IMAGE_HEADER;
+	DWORD dwLen = 0;
+
+	port->SetStartTime(CTime::GetCurrentTime());
+
+	CString strImageName = CUtils::GetFileName(port->GetFileName());
+
+	USES_CONVERSION;
+	char *fileName = W2A(strImageName);
+
+	CMD_IN makeImageIn = {0};
+	makeImageIn.dwCmdIn = CMD_MAKE_IMAGE_IN;
+	makeImageIn.byStop = FALSE;
+
+	WSAOVERLAPPED olSend = {0};
+	olSend.hEvent = WSACreateEvent();
+
+	WSAOVERLAPPED olRecv = {0};
+	olRecv.hEvent = WSACreateEvent();
+
+	// 计算精确速度
+	LARGE_INTEGER freq,t0,t1,t2;
+	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	QueryPerformanceFrequency(&freq);
+
+	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult())
+	{
+		//dwTimeWait = timeGetTime();
+		QueryPerformanceCounter(&t0);
+		while(pDataQueue->GetCount() <=0 && !*m_lpCancel && m_MasterPort->GetResult() 
+			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
+			&& port->GetResult())
+		{
+			Sleep(10);
+		}
+
+		if (!m_MasterPort->GetResult())
+		{
+			errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+			bResult = FALSE;
+			break;
+		}
+
+		if (!port->GetResult())
+		{
+			errType = port->GetErrorCode(&dwErrorCode);
+			bResult = FALSE;
+			break;
+		}
+
+		if (*m_lpCancel)
+		{
+			dwErrorCode = CustomError_Cancel;
+			errType = ErrorType_Custom;
+			bResult = FALSE;
+			break;
+		}
+
+		if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active && m_bCompressComplete)
+		{
+			dwErrorCode = 0;
+			bResult = TRUE;
+			break;
+		}
+
+		DATA_INFO dataInfo = pDataQueue->GetHeadRemove();
+
+		if (dataInfo.pData == NULL)
+		{
+			continue;
+		}
+		*(PULONGLONG)dataInfo.pData = ullPkgIndex;
+		ullPkgIndex++;
+
+		QueryPerformanceCounter(&t1);
+
+		dwLen = sizeof(CMD_IN) + strlen(fileName) + 2 + dataInfo.dwDataSize;
+		
+		makeImageIn.dwSizeSend = dwLen;
+
+		BYTE *pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
+		memcpy(pByte,&makeImageIn,sizeof(CMD_IN));
+		memcpy(pByte+sizeof(CMD_IN),fileName,strlen(fileName));
+		memcpy(pByte+sizeof(CMD_IN)+strlen(fileName)+1,dataInfo.pData,dataInfo.dwDataSize);
+
+		if (!Send(m_ClientSocket,(char *)pByte,dwLen,&olSend,&dwErrorCode))
+		{
+			delete []pByte;
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			break;
+		}
+
+		delete []pByte;
+
+		// 读返回值
+		CMD_OUT makeImageOut = {0};
+		dwLen = sizeof(CMD_OUT);
+		if (!Recv(m_ClientSocket,(char *)&makeImageOut,dwLen,&olRecv,&dwErrorCode))
+		{
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			break;
+		}
+
+		if (makeImageOut.dwErrorCode != 0)
+		{
+			dwErrorCode = makeImageOut.dwErrorCode;
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			break;
+		}
+
+		if (makeImageOut.dwCmdOut != CMD_MAKE_IMAGE_OUT || makeImageOut.dwSizeSend != dwLen)
+		{
+			dwErrorCode = CustomError_Get_Data_From_Server_Error;
+			errType = ErrorType_Custom;
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,custom errorcode=0x%X,get data from server error")
+				,strImageName,port->GetRealSpeed(),dwErrorCode);
+
+			break;
+		}
+
+		//DWORD dwTime = timeGetTime();
+		QueryPerformanceCounter(&t2);
+
+		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
+
+		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart;
+
+		ullOffset += dataInfo.dwDataSize;
+
+		port->AppendCompleteSize(dataInfo.dwDataSize);
+		port->AppendUsedNoWaitTimeS(dbTimeNoWait);
+		port->AppendUsedWaitTimeS(dbTimeNoWait);
+
+		delete []dataInfo.pData;
+
+	}
+
+	if (*m_lpCancel)
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Cancel;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Write image file error,filename=%s,Speed=%.2f,custom errorcode=0x%X,user cancelled.")
+			,port->GetFileName(),port->GetRealSpeed(),dwErrorCode);
+	}
+
+	if (!m_MasterPort->GetResult())
+	{
+		bResult = FALSE;
+		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+	}
+
+	if (!port->GetResult())
+	{
+		errType = port->GetErrorCode(&dwErrorCode);
+		bResult = FALSE;
+	}
+
+	// 写IMAGE头
+	if (bResult)
+	{
+
+		IMAGE_HEADER imgHead;
+		ZeroMemory(&imgHead,sizeof(IMAGE_HEADER));
+		memcpy(imgHead.szImageFlag,IMAGE_FLAG,strlen(IMAGE_FLAG));
+		imgHead.ullImageSize = ullOffset;
+		memcpy(imgHead.szAppVersion,APP_VERSION,strlen(APP_VERSION));
+		imgHead.dwImageVersion = IMAGE_VERSION;
+		imgHead.dwMaxSizeOfPackage = MAX_COMPRESS_BUF;
+		imgHead.ullCapacitySize = m_MasterPort->GetTotalSize();
+		imgHead.dwBytesPerSector = m_MasterPort->GetBytesPerSector();
+		memcpy(imgHead.szZipVer,ZIP_VERSION,strlen(ZIP_VERSION));
+		imgHead.ullPkgCount = ullPkgIndex;
+		imgHead.ullValidSize = m_MasterPort->GetValidSize();
+		imgHead.dwHashLen = m_pMasterHashMethod->getHashLength();
+		imgHead.dwHashType = m_MasterPort->GetHashMethod();
+		memcpy(imgHead.byImageDigest,m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
+		imgHead.byEnd = END_FLAG;
+
+		dwLen = sizeof(CMD_IN) + strlen(fileName) + 2 + SIZEOF_IMAGE_HEADER;
+
+		makeImageIn.dwSizeSend = dwLen;
+
+		BYTE *pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
+		pByte[dwLen - 1] = END_FLAG;
+
+		memcpy(pByte,&makeImageIn,sizeof(CMD_IN));
+		memcpy(pByte+sizeof(CMD_IN),fileName,strlen(fileName));
+		memcpy(pByte+sizeof(CMD_IN)+strlen(fileName)+1,&imgHead,SIZEOF_IMAGE_HEADER);
+
+		if (!Send(m_ClientSocket,(char *)pByte,dwLen,&olSend,&dwErrorCode))
+		{
+			delete []pByte;
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			goto END;
+		}
+
+		delete []pByte;
+
+		// 读返回值
+		CMD_OUT makeImageOut = {0};
+		dwLen = sizeof(CMD_OUT);
+		if (!Recv(m_ClientSocket,(char *)&makeImageOut,dwLen,&olRecv,&dwErrorCode))
+		{
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			goto END;
+		}
+
+		if (makeImageOut.dwErrorCode != 0)
+		{
+			dwErrorCode = makeImageOut.dwErrorCode;
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			goto END;
+		}
+
+		if (makeImageOut.dwCmdOut != CMD_MAKE_IMAGE_OUT || makeImageOut.dwSizeSend != dwLen)
+		{
+			dwErrorCode = CustomError_Get_Data_From_Server_Error;
+			errType = ErrorType_Custom;
+			bResult = FALSE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,custom errorcode=0x%X,get data from server error")
+				,strImageName,port->GetRealSpeed(),dwErrorCode);
+
+			goto END;
+		}
+	}
+
+END:
+	WSACloseEvent(olSend.hEvent);
+	WSACloseEvent(olRecv.hEvent);
+
+	port->SetEndTime(CTime::GetCurrentTime());
+	port->SetResult(bResult);
+
 	if (bResult)
 	{
 		port->SetPortState(PortState_Pass);
@@ -5532,5 +6169,11 @@ void CDisk::SetFormatParm( CString strVolumeLabel,FileSystem fileSystem,DWORD dw
 	{
 		m_dwClusterSize = 8 * 512;
 	}
+}
+
+void CDisk::SetSocket( SOCKET sClient,BOOL bServerFirst )
+{
+	m_ClientSocket = sClient;
+	m_bServerFirst = bServerFirst;
 }
 
