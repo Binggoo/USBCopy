@@ -369,6 +369,7 @@ typedef struct _STRUCT_CMD_COPY_IMAGE_IN
 	DWORD dwSizeSend;
 	BYTE  byStopFlag;
 	char  *pszImageName;
+	BYTE  byFlag;
 
 }COPY_IMAGE_IN,*PCOPY_IMAGE_IN;
 
@@ -427,7 +428,7 @@ typedef struct _STRUCT_CMD_QUERY_IMAGE_IN
 	DWORD dwSizeSend;
 	BYTE  byStop;
 	char  *pszImageName;
-
+	BYTE  byFlag;
 }QUERY_IMAGE_IN,*PQUERY_IMAGE_IN;
 
 typedef struct _STRUCT_CMD_QUERY_IMAGE_OUT

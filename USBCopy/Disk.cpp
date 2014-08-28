@@ -2345,10 +2345,11 @@ BOOL CDisk::OnCopyImage()
 		CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
 		char *fileName = W2A(strImageName);
 
-		dwLen = sizeof(CMD_IN) + strlen(fileName) + 1;
+		dwLen = sizeof(CMD_IN) + strlen(fileName) + 2;
 
-		char *bufSend = new char[dwLen];
+		BYTE *bufSend = new BYTE[dwLen];
 		ZeroMemory(bufSend,dwLen);
+		bufSend[dwLen - 1] = END_FLAG;
 
 		CMD_IN queryImageIn = {0};
 		queryImageIn.dwCmdIn = CMD_QUERY_IMAGE_IN;
@@ -2357,7 +2358,7 @@ BOOL CDisk::OnCopyImage()
 		memcpy(bufSend,&queryImageIn,sizeof(CMD_IN));
 		memcpy(bufSend + sizeof(CMD_IN),fileName,strlen(fileName));
 
-		if (!Send(m_ClientSocket,bufSend,dwLen,NULL,&dwErrorCode))
+		if (!Send(m_ClientSocket,(char *)bufSend,dwLen,NULL,&dwErrorCode))
 		{
 			delete []bufSend;
 
@@ -4509,18 +4510,19 @@ BOOL CDisk::ReadRemoteImage()
 	USES_CONVERSION;
 	char *fileName = W2A(strImageName);
 
-	dwLen = sizeof(CMD_IN) + strlen(fileName) + 1;
-	char *sendBuf = new char[dwLen];
-	ZeroMemory(sendBuf,dwLen);
+	DWORD dwSendLen = sizeof(CMD_IN) + strlen(fileName) + 2;
+	BYTE *sendBuf = new BYTE[dwSendLen];
+	ZeroMemory(sendBuf,dwSendLen);
+	sendBuf[dwSendLen - 1] = END_FLAG;
 
 	CMD_IN copyImageIn = {0};
 	copyImageIn.dwCmdIn = CMD_COPY_IMAGE_IN;
-	copyImageIn.dwSizeSend = dwLen;
+	copyImageIn.dwSizeSend = dwSendLen;
 
 	memcpy(sendBuf,&copyImageIn,sizeof(CMD_IN));
 	memcpy(sendBuf + sizeof(CMD_IN),fileName,strlen(fileName));
 
-	if (!Send(m_ClientSocket,sendBuf,dwLen,NULL,&dwErrorCode))
+	if (!Send(m_ClientSocket,(char *)sendBuf,dwSendLen,NULL,&dwErrorCode))
 	{
 		bResult = FALSE;
 
@@ -4587,6 +4589,15 @@ BOOL CDisk::ReadRemoteImage()
 			dwRead += dwByteRead;
 		}
 
+		if (dwRead < dwLen)
+		{
+			bResult = FALSE;
+
+			delete []pByte;
+
+			break;
+		}
+
 		if (copyImageOut.dwErrorCode != 0)
 		{
 			bResult = FALSE;
@@ -4613,6 +4624,7 @@ BOOL CDisk::ReadRemoteImage()
 			break;
 		}
 
+
 		// 去除尾部标志
 		dwLen -= 1;
 
@@ -4624,7 +4636,11 @@ BOOL CDisk::ReadRemoteImage()
 		m_CompressQueue.AddTail(dataInfo);
 
 		// 写文件
-		WriteFileAsyn(m_hMaster,ullReadSize,dwLen,pByte,m_MasterPort->GetOverlapped(FALSE),&dwErrorCode);
+		if (m_hMaster != INVALID_HANDLE_VALUE)
+		{
+			WriteFileAsyn(m_hMaster,ullReadSize,dwLen,pByte,m_MasterPort->GetOverlapped(FALSE),&dwErrorCode);
+		}
+		
 
 		dwErrorCode = 0;
 
@@ -4644,6 +4660,12 @@ BOOL CDisk::ReadRemoteImage()
 
 	WSACloseEvent(ol.hEvent);
 
+	if (m_hMaster != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(m_hMaster);
+		m_hMaster = INVALID_HANDLE_VALUE;
+	}
+
 	if (!bResult)
 	{
 		// 发送停止命令
@@ -4651,10 +4673,12 @@ BOOL CDisk::ReadRemoteImage()
 		memcpy(sendBuf,&copyImageIn,sizeof(CMD_IN));
 		memcpy(sendBuf + sizeof(CMD_IN),fileName,strlen(fileName));
 
-		Send(m_ClientSocket,sendBuf,dwLen,NULL,&dwErrorCode);
+		DWORD dwError = 0;
 
+		Send(m_ClientSocket,(char *)sendBuf,dwSendLen,NULL,&dwError);
 	}
-	
+
+	delete []sendBuf;
 	
 	if (*m_lpCancel)
 	{
@@ -4668,6 +4692,7 @@ BOOL CDisk::ReadRemoteImage()
 
 	// 先设置为停止状态
 	m_MasterPort->SetPortState(PortState_Stop);
+	
 
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)

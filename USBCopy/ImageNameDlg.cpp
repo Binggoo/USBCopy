@@ -204,10 +204,11 @@ BOOL CImageNameDlg::QueryImage(CString strImageName,PDWORD pdwErrorCode)
 	USES_CONVERSION;
 	char *fileName = W2A(strImageName);
 
-	DWORD dwLen = sizeof(CMD_IN) + strlen(fileName) + 1;
+	DWORD dwLen = sizeof(CMD_IN) + strlen(fileName) + 2;
 
-	char *bufSend = new char[dwLen];
+	BYTE *bufSend = new BYTE[dwLen];
 	ZeroMemory(bufSend,dwLen);
+	bufSend[dwLen - 1] = END_FLAG;
 
 	CMD_IN queryImageIn = {0};
 	queryImageIn.dwCmdIn = CMD_QUERY_IMAGE_IN;
@@ -216,7 +217,7 @@ BOOL CImageNameDlg::QueryImage(CString strImageName,PDWORD pdwErrorCode)
 	memcpy(bufSend,&queryImageIn,sizeof(CMD_IN));
 	memcpy(bufSend + sizeof(CMD_IN),fileName,strlen(fileName));
 
-	if (!Send(m_ClientSocket,bufSend,dwLen,NULL,pdwErrorCode))
+	if (!Send(m_ClientSocket,(char *)bufSend,dwLen,NULL,pdwErrorCode))
 	{
 		delete []bufSend;
 		return FALSE;
