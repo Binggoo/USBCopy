@@ -45,6 +45,7 @@ DATA_INFO CDataQueue::GetHeadRemove()
 		dataInfo = m_DataQueue.GetHead();
 		temp.ullOffset = dataInfo.ullOffset;
 		temp.dwDataSize = dataInfo.dwDataSize;
+		temp.dwOldSize = dataInfo.dwOldSize;
 		temp.pData = new BYTE[dataInfo.dwDataSize];
 		memcpy(temp.pData,dataInfo.pData,dataInfo.dwDataSize);
 

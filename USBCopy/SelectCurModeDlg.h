@@ -1,6 +1,7 @@
 #pragma once
 #include "GlobalDef.h"
 #include "Ini.h"
+#include "BtnST.h"
 
 // CSelectCurModeDlg ¶Ô»°¿ò
 
@@ -25,6 +26,15 @@ private:
 	CIni *m_pIni;
 
 	CFont m_font;
+
+	CButtonST m_BtnFullCopy;
+	CButtonST m_BtnQuickCopy;
+	CButtonST m_BtnFileCopy;
+	CButtonST m_BtnImageCopy;
+	CButtonST m_BtnImageMake;
+	CButtonST m_BtnDiskCompare;
+	CButtonST m_BtnDiskFormat;
+	CButtonST m_BtnDiskClean;
 
 public:
 	void SetConfig(CIni *pIni);

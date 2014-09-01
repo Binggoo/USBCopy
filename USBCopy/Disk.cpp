@@ -2537,6 +2537,8 @@ BOOL CDisk::OnCopyImage()
 			{
 				CHashMethod *pHashMethod;
 
+				port->SetHashMethod(hashMethod);
+
 				switch (port->GetHashMethod())
 				{
 				case HashMethod_CHECKSUM32:
@@ -3241,7 +3243,17 @@ BOOL CDisk::ReadDisk()
 	}
 
 	// 先设置为停止状态
-	m_MasterPort->SetPortState(PortState_Stop);
+	// 先设置为停止状态
+	if (bResult)
+	{
+		m_MasterPort->SetPortState(PortState_Stop);
+	}
+	else
+	{
+		m_MasterPort->SetResult(FALSE);
+		m_MasterPort->SetPortState(PortState_Fail);
+		m_MasterPort->SetErrorCode(errType,dwErrorCode);
+	}
 
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
@@ -3866,7 +3878,17 @@ BOOL CDisk::ReadFiles()
 	}
 
 	// 先设置为停止状态
-	m_MasterPort->SetPortState(PortState_Stop);
+	// 先设置为停止状态
+	if (bResult)
+	{
+		m_MasterPort->SetPortState(PortState_Stop);
+	}
+	else
+	{
+		m_MasterPort->SetResult(FALSE);
+		m_MasterPort->SetPortState(PortState_Fail);
+		m_MasterPort->SetErrorCode(errType,dwErrorCode);
+	}
 
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
@@ -4423,7 +4445,9 @@ BOOL CDisk::ReadLocalImage()
 		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
-		m_MasterPort->AppendCompleteSize(dwLen);
+
+		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
 
 	}
 
@@ -4438,8 +4462,17 @@ BOOL CDisk::ReadLocalImage()
 	}
 
 	// 先设置为停止状态
-	m_MasterPort->SetPortState(PortState_Stop);
-
+	if (bResult)
+	{
+		m_MasterPort->SetPortState(PortState_Stop);
+	}
+	else
+	{
+		m_MasterPort->SetResult(FALSE);
+		m_MasterPort->SetPortState(PortState_Fail);
+		m_MasterPort->SetErrorCode(errType,dwErrorCode);
+	}
+	
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
@@ -4458,27 +4491,55 @@ BOOL CDisk::ReadLocalImage()
 
 	if (bResult)
 	{
-		m_MasterPort->SetPortState(PortState_Pass);
-
 		if (m_bComputeHash)
 		{
 			m_MasterPort->SetHash(m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
 
+			CString strImageHash;
 			for (int i = 0; i < m_pMasterHashMethod->getHashLength();i++)
 			{
 				CString strHash;
 				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
 				m_strMasterHash += strHash;
+
+				strHash.Format(_T("%02X"),m_ImageHash[i]);
+				strImageHash += strHash;
 			}
 
 			CString strHashMethod(m_pMasterHashMethod->getHashMetod());
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,HashValue=%s")
-				,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash);
 
+			// 此处加入判断IMAGE解压过程中是否出错
+			if (strImageHash.CompareNoCase(m_strMasterHash) != 0)
+			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,Image hash value was changed,Compute=%s,Record=%s")
+					,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash,strImageHash);
+
+				bResult = FALSE;
+				m_MasterPort->SetResult(FALSE);
+				m_MasterPort->SetPortState(PortState_Fail);
+				m_MasterPort->SetErrorCode(ErrorType_Custom,CustomError_Image_Hash_Value_Changed);
+			}
+			else
+			{
+				m_MasterPort->SetResult(TRUE);
+				m_MasterPort->SetPortState(PortState_Pass);
+				m_MasterPort->SetErrorCode(errType,dwErrorCode);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,HashValue=%s")
+					,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash);
+			}
+
+		}
+		else
+		{
+			m_MasterPort->SetResult(TRUE);
+			m_MasterPort->SetPortState(PortState_Pass);
+			m_MasterPort->SetErrorCode(errType,dwErrorCode);
 		}
 	}
 	else
 	{
+		m_MasterPort->SetResult(FALSE);
 		m_MasterPort->SetPortState(PortState_Fail);
 		m_MasterPort->SetErrorCode(errType,dwErrorCode);
 	}
@@ -4522,14 +4583,6 @@ BOOL CDisk::ReadRemoteImage()
 	memcpy(sendBuf,&copyImageIn,sizeof(CMD_IN));
 	memcpy(sendBuf + sizeof(CMD_IN),fileName,strlen(fileName));
 
-	if (!Send(m_ClientSocket,(char *)sendBuf,dwSendLen,NULL,&dwErrorCode))
-	{
-		bResult = FALSE;
-
-		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send copy image command error,system errorcode=%ld,%s")
-			,m_MasterPort->GetFileName(),m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-	}
-
 	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
@@ -4555,6 +4608,14 @@ BOOL CDisk::ReadRemoteImage()
 		}
 
 		QueryPerformanceCounter(&t1);
+
+		if (!Send(m_ClientSocket,(char *)sendBuf,dwSendLen,NULL,&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send copy image command error,system errorcode=%ld,%s")
+				,m_MasterPort->GetFileName(),m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+		}
 
 		CMD_OUT copyImageOut = {0};
 		dwLen = sizeof(CMD_OUT);
@@ -4654,7 +4715,9 @@ BOOL CDisk::ReadRemoteImage()
 		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
-		m_MasterPort->AppendCompleteSize(dwLen);
+		
+		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
 
 	}
 
@@ -4691,7 +4754,17 @@ BOOL CDisk::ReadRemoteImage()
 	}
 
 	// 先设置为停止状态
-	m_MasterPort->SetPortState(PortState_Stop);
+	// 先设置为停止状态
+	if (bResult)
+	{
+		m_MasterPort->SetPortState(PortState_Stop);
+	}
+	else
+	{
+		m_MasterPort->SetResult(FALSE);
+		m_MasterPort->SetPortState(PortState_Fail);
+		m_MasterPort->SetErrorCode(errType,dwErrorCode);
+	}
 	
 
 	// 所有数据都拷贝完
@@ -4708,31 +4781,58 @@ BOOL CDisk::ReadRemoteImage()
 
 	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 
-	m_MasterPort->SetResult(bResult);
 
 	if (bResult)
 	{
-		m_MasterPort->SetPortState(PortState_Pass);
-
 		if (m_bComputeHash)
 		{
 			m_MasterPort->SetHash(m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
 
+			CString strImageHash;
 			for (int i = 0; i < m_pMasterHashMethod->getHashLength();i++)
 			{
 				CString strHash;
 				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
 				m_strMasterHash += strHash;
+
+				strHash.Format(_T("%02X"),m_ImageHash[i]);
+				strImageHash += strHash;
 			}
 
 			CString strHashMethod(m_pMasterHashMethod->getHashMetod());
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,HashValue=%s")
-				,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash);
 
+			// 此处加入判断IMAGE解压过程中是否出错
+			if (strImageHash.CompareNoCase(m_strMasterHash) != 0)
+			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,Image hash value was changed,Compute=%s,Record=%s")
+					,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash,strImageHash);
+
+				bResult = FALSE;
+				m_MasterPort->SetResult(FALSE);
+				m_MasterPort->SetPortState(PortState_Fail);
+				m_MasterPort->SetErrorCode(ErrorType_Custom,CustomError_Image_Hash_Value_Changed);
+			}
+			else
+			{
+				m_MasterPort->SetResult(TRUE);
+				m_MasterPort->SetPortState(PortState_Pass);
+				m_MasterPort->SetErrorCode(errType,dwErrorCode);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image,%s - %s,HashValue=%s")
+					,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash);
+			}
+
+		}
+		else
+		{
+			m_MasterPort->SetResult(TRUE);
+			m_MasterPort->SetPortState(PortState_Pass);
+			m_MasterPort->SetErrorCode(errType,dwErrorCode);
 		}
 	}
 	else
 	{
+		m_MasterPort->SetResult(FALSE);
 		m_MasterPort->SetPortState(PortState_Fail);
 		m_MasterPort->SetErrorCode(errType,dwErrorCode);
 	}
@@ -4799,6 +4899,7 @@ BOOL CDisk::Compress()
 		{
 			DATA_INFO compressData = {0};
 			compressData.dwDataSize = dwDestLen + sizeof(ULONGLONG) + sizeof(DWORD) + 1;
+			compressData.dwOldSize = dataInfo.dwDataSize;
 			compressData.pData = new BYTE[compressData.dwDataSize];
 			ZeroMemory(compressData.pData,compressData.dwDataSize);
 
@@ -5102,9 +5203,11 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 
 		ullOffset += dwLen;
 
-		port->AppendCompleteSize(dwLen);
 		port->AppendUsedNoWaitTimeS(dbTimeNoWait);
 		port->AppendUsedWaitTimeS(dbTimeNoWait);
+
+		// 压缩的数据比实际数据短，不能取压缩后的长度，要不压缩之前的长度
+		port->AppendCompleteSize(dataInfo.dwOldSize);
 
 		delete []dataInfo.pData;
 
@@ -5329,9 +5432,11 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 
 		ullOffset += dataInfo.dwDataSize;
 
-		port->AppendCompleteSize(dataInfo.dwDataSize);
 		port->AppendUsedNoWaitTimeS(dbTimeNoWait);
 		port->AppendUsedWaitTimeS(dbTimeNoWait);
+
+		// 压缩的数据比实际数据短，不能取压缩后的长度，要不压缩之前的长度
+		port->AppendCompleteSize(dataInfo.dwOldSize);
 
 		delete []dataInfo.pData;
 
@@ -6100,6 +6205,7 @@ void CDisk::AddDataQueueList( DATA_INFO dataInfo )
 			}
 			
 			data.dwDataSize = dataInfo.dwDataSize;
+			data.dwOldSize = dataInfo.dwOldSize;
 			data.ullOffset = dataInfo.ullOffset;
 			data.pData = new BYTE[dataInfo.dwDataSize];
 			memcpy(data.pData,dataInfo.pData,dataInfo.dwDataSize);

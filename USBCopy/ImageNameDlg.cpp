@@ -46,7 +46,7 @@ BOOL CImageNameDlg::OnInitDialog()
 	CDialogEx::OnInitDialog();
 
 	// TODO:  在此添加额外的初始化
-	ASSERT(m_pIni && m_ClientSocket != INVALID_SOCKET);
+	ASSERT(m_pIni);
 
 	m_strEditImageName = m_pIni->GetString(_T("ImagePath"),_T("ImageName"));
 
@@ -135,11 +135,6 @@ void CImageNameDlg::OnBnClickedOk()
 			DWORD dwErrorCode = 0;
 			bExist = QueryImage(m_strEditImageName,&dwErrorCode);
 
-			if (dwErrorCode != 0)
-			{
-				MessageBox(CUtils::GetErrorMsg(dwErrorCode));
-			}
-
 			if (!bExist)
 			{
 				bExist = PathFileExists(strImageFile);
@@ -162,13 +157,6 @@ void CImageNameDlg::OnBnClickedOk()
 			{
 				DWORD dwErrorCode = 0;
 				bExist = QueryImage(m_strEditImageName,&dwErrorCode);
-
-				if (dwErrorCode != 0)
-				{
-					MessageBox(CUtils::GetErrorMsg(dwErrorCode));
-
-					return;
-				}
 
 				if (bExist)
 				{

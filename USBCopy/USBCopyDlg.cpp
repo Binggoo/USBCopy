@@ -81,6 +81,7 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bRunning = FALSE;
 	m_bUpdate = FALSE;
 	m_bBurnInTest = FALSE;
+	m_bStart = FALSE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -101,7 +102,6 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_SETTING, &CUSBCopyDlg::OnBnClickedBtnSetting)
 	ON_BN_CLICKED(IDC_BTN_START, &CUSBCopyDlg::OnBnClickedBtnStart)
 	ON_WM_TIMER()
-	ON_BN_CLICKED(IDC_BTN_STOP, &CUSBCopyDlg::OnBnClickedBtnStop)
 	ON_MESSAGE(WM_UPDATE_STATISTIC, &CUSBCopyDlg::OnUpdateStatistic)
 	ON_WM_CTLCOLOR()
 	ON_MESSAGE(WM_VERIFY_START, &CUSBCopyDlg::OnSendVerifyStart)
@@ -206,7 +206,7 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 	// 读机器信息
 	m_Config.SetPathName(m_strAppPath + MACHINE_INFO);
-	strVersion.Format(_T("Suzhou PHIYO Ver:%s  BLD:%s "),CUtils::GetAppVersion(strPath),status.m_mtime.Format(_T("%Y-%m-%d")));
+	strVersion.Format(_T("Ver:%s  BLD:%s "),CUtils::GetAppVersion(strPath),status.m_mtime.Format(_T("%Y-%m-%d")));
 	strSN.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("SN")));
 	strModel.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("Model")));
 	strAlias.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("Alias"),_T("PHIYO")));
@@ -216,11 +216,33 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	GetDlgItem(IDC_TEXT_MODEL)->SetFont(&m_font);
 	GetDlgItem(IDC_TEXT_ALIAS)->SetFont(&m_font);
 	GetDlgItem(IDC_TEXT_COPYRIGHT)->SetFont(&m_font);
+	GetDlgItem(IDC_TEXT_CONNECT)->SetFont(&m_font);
 
 	SetDlgItemText(IDC_TEXT_SN,strSN);
 	SetDlgItemText(IDC_TEXT_MODEL,strModel);
 	SetDlgItemText(IDC_TEXT_ALIAS,strAlias);
 	SetDlgItemText(IDC_TEXT_COPYRIGHT,strVersion);
+	SetDlgItemText(IDC_TEXT_CONNECT,_T(""));
+
+	m_LogoFont.CreateFont(60,
+						  0,
+						  0,
+						  0,
+						  FW_BOLD,
+						  FALSE,
+						  FALSE,
+						  0,
+						  ANSI_CHARSET,
+						  OUT_DEFAULT_PRECIS,
+						  CLIP_DEFAULT_PRECIS,
+						  DEFAULT_QUALITY, 
+						  DEFAULT_PITCH | FF_SWISS, 
+						  _T("Arial"));
+
+	GetDlgItem(IDC_TEXT_LOGO)->SetFont(&m_LogoFont);
+	SetDlgItemText(IDC_TEXT_LOGO,LOGO);
+
+	GetDlgItem(IDC_BTN_START)->SetFont(&m_LogoFont);
 
 	CString strConfigPath = m_strAppPath + CONFIG_NAME;
 	m_Config.SetPathName(strConfigPath);
@@ -241,6 +263,40 @@ BOOL CUSBCopyDlg::OnInitDialog()
 		PostMessage(WM_CONNECT_SOCKET);
 
 	}
+
+	m_bLock = m_Config.GetBool(_T("Option"),_T("En_Lock"),FALSE);
+	m_strPassWord = m_Config.GetString(_T("Option"),_T("Password"),_T("123456"));
+
+	// Button
+	m_BtnStart.SubclassDlgItem(IDC_BTN_START,this);
+	m_BtnStart.SetBitmaps(IDB_START,RGB(255,255,255));
+	m_BtnStart.DrawBorder(FALSE);
+	SetDlgItemText(IDC_BTN_START,_T(""));
+
+	m_BtnLock.SubclassDlgItem(IDC_BTN_LOCK,this);
+	m_BtnLock.SetBitmaps(IDB_LOCK,RGB(255,255,255));
+	m_BtnLock.SetFlat(FALSE);
+
+	if (m_bLock)
+	{
+		EnableControls(FALSE);
+
+		CString strLock;
+		strLock.LoadString(IDS_UNLOCK);
+		SetDlgItemText(IDC_BTN_LOCK,strLock);
+		m_BtnLock.SetBitmaps(IDB_UNLOCK,RGB(255,255,255));
+	}
+
+	m_BtnMenu.SubclassDlgItem(IDC_BTN_SYSTEM,this);
+	m_BtnMenu.SetBitmaps(IDB_MENU,RGB(255,255,255));
+	m_BtnMenu.SetFlat(FALSE);
+
+	m_BtnSetting.SubclassDlgItem(IDC_BTN_SETTING,this);
+	m_BtnSetting.SetBitmaps(IDB_SETTING,RGB(255,255,255));
+	m_BtnSetting.SetFlat(FALSE);
+
+	m_BtnWorkMode.SubclassDlgItem(IDC_BTN_WORK_SELECT,this);
+	m_BtnWorkMode.SetFlat(FALSE);
 
 	// 初始化
 	InitialPortPath();
@@ -265,18 +321,6 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	m_ThreadListen->m_bAutoDelete = FALSE;
 	m_ThreadListen->ResumeThread();
 
-	GetDlgItem(IDC_BTN_START)->EnableWindow(TRUE);
-	GetDlgItem(IDC_BTN_STOP)->EnableWindow(FALSE);
-
-	m_bLock = m_Config.GetBool(_T("Option"),_T("En_Lock"),FALSE);
-	m_strPassWord = m_Config.GetString(_T("Option"),_T("Password"),_T("123456"));
-
-	if (m_bLock)
-	{
-		EnableControls(FALSE);
-		SetDlgItemText(IDC_BTN_LOCK,_T("Unlock"));
-	}
-	
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -508,10 +552,12 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 	CString strWorkMode,strWorkModeParm;
 	CString strResText1,strResText2;
+	UINT nBitMap = IDB_QUICK_COPY;
 	switch (m_WorkMode)
 	{
 	case WorkMode_FullCopy:
 		{
+			nBitMap = IDB_FULL_COPY;
 			strResText1.LoadString(IDS_WORK_MODE_FULL_COPY);
 
 			strWorkMode = strWorkModeParm = strResText1;
@@ -526,6 +572,8 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 	case WorkMode_QuickCopy:
 		{
+			nBitMap = IDB_QUICK_COPY;
+
 			strResText1.LoadString(IDS_WORK_MODE_QUICK_COPY);
 			strWorkMode = strWorkModeParm = strResText1;
 
@@ -539,6 +587,8 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 	case WorkMode_ImageCopy:
 		{
+			nBitMap = IDB_IMAGE_COPY;
+
 			strResText1.LoadString(IDS_WORK_MODE_IMAGE_COPY);
 			strWorkMode = strWorkModeParm = strResText1;
 
@@ -551,12 +601,14 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 		break;
 
 	case WorkMode_ImageMake:
+		nBitMap = IDB_MAKE_IMAGE;
 		strResText1.LoadString(IDS_WORK_MODE_IMAGE_MAKE);
 		strWorkMode = strWorkModeParm = strResText1;
 		break;
 
 	case WorkMode_DiskClean:
 		{
+			nBitMap = IDB_DISK_CLEAN;
 			strResText1.LoadString(IDS_WORK_MODE_DISK_CLEAN);
 			strWorkMode = strWorkModeParm = strResText1;
 
@@ -583,6 +635,7 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 	case WorkMode_DiskCompare:
 		{
+			nBitMap = IDB_DISK_COMPARE;
 			strResText1.LoadString(IDS_WORK_MODE_DISK_COMPARE);
 			strWorkMode = strWorkModeParm = strResText1;
 
@@ -605,6 +658,7 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 	case WorkMode_FileCopy:
 		{
+			nBitMap = IDB_FILE_COPY;
 			strResText1.LoadString(IDS_WORK_MODE_FILE_COPY);
 			strWorkMode = strWorkModeParm = strResText1;
 
@@ -618,6 +672,7 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 	case WorkMode_DiskFormat:
 		{
+			nBitMap = IDB_DISK_FORMAT;
 			strResText1.LoadString(IDS_WORK_MODE_DISK_FORMAT);
 			strWorkMode = strWorkModeParm = strResText1;
 		}
@@ -626,6 +681,8 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 	SetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
 	SetDlgItemText(IDC_GROUP_WORK_MODE,strWorkModeParm);
+
+	m_BtnWorkMode.SetBitmaps(nBitMap,RGB(255,255,255));
 }
 
 void CUSBCopyDlg::InitialStatisticInfo()
@@ -667,7 +724,6 @@ BOOL CUSBCopyDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		case IDC_BTN_WORK_SELECT:
 		case IDC_BTN_SETTING:
 		case IDC_BTN_START:
-		case IDC_BTN_STOP:
 			if (pWnd->IsWindowEnabled())
 			{
 				SetCursor(LoadCursor(NULL,MAKEINTRESOURCE(IDC_HAND)));
@@ -695,6 +751,8 @@ void CUSBCopyDlg::OnBnClickedBtnLock()
 			strResText.LoadString(IDS_LOCK);
 			SetDlgItemText(IDC_BTN_LOCK,strResText);
 			EnableControls(TRUE);
+
+			m_BtnLock.SetBitmaps(IDB_LOCK,RGB(255,255,255));
 		}
 		
 	}
@@ -709,6 +767,8 @@ void CUSBCopyDlg::OnBnClickedBtnLock()
 			strResText.LoadString(IDS_UNLOCK);
 			SetDlgItemText(IDC_BTN_LOCK,strResText);
 			EnableControls(FALSE);
+
+			m_BtnLock.SetBitmaps(IDB_UNLOCK,RGB(255,255,255));
 		}
 	}
 
@@ -832,154 +892,161 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 void CUSBCopyDlg::OnBnClickedBtnStart()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	switch(m_WorkMode)
+
+	CString strResText;
+
+	if (m_bStart)
 	{
-	case WorkMode_ImageMake:
+		OnStop();
+
+		m_bStart = FALSE;
+
+		m_BtnStart.SetBitmaps(IDB_START,RGB(255,255,255));
+
+		//strResText.LoadString(IDS_BTN_START);
+		//SetDlgItemText(IDC_BTN_START,strResText);
+	}
+	else
+	{
+		switch(m_WorkMode)
 		{
-			if (!m_bBurnInTest)
+		case WorkMode_ImageMake:
 			{
-				CImageNameDlg dlg(TRUE);
-				dlg.SetConfig(&m_Config,m_ClientSocket);
-				if (dlg.DoModal() == IDCANCEL)
+				if (!m_bBurnInTest)
 				{
-					return;
+					CImageNameDlg dlg(TRUE);
+					dlg.SetConfig(&m_Config,m_ClientSocket);
+					if (dlg.DoModal() == IDCANCEL)
+					{
+						return;
+					}
+				}
+
+			}
+			break;
+
+		case WorkMode_ImageCopy:
+			{
+				m_bServerFirst = FALSE;
+				if (!m_bBurnInTest)
+				{
+					CImageNameDlg dlg(FALSE);
+					dlg.SetConfig(&m_Config,m_ClientSocket);
+					if (dlg.DoModal() == IDCANCEL)
+					{
+						return;
+					}
+
+					m_bServerFirst = dlg.GetServerFirst();
+				}	
+
+			}
+			break;
+		}
+
+		m_bCancel = FALSE;
+		m_bResult = TRUE;
+		m_bRunning = TRUE;
+		m_bVerify = FALSE;
+		m_bStart = TRUE;
+
+		EnableControls(FALSE);
+
+		//strResText.LoadString(IDS_BTN_STOP);
+		//SetDlgItemText(IDC_BTN_START,strResText);
+		m_BtnStart.SetBitmaps(IDB_STOP,RGB(255,255,255));
+
+		if (m_ThreadListen && m_ThreadListen->m_hThread)
+		{
+			WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
+			delete m_ThreadListen;
+			m_ThreadListen = NULL;
+		}
+
+		CString strWorkMode = GetWorkModeString(m_WorkMode);
+		//GetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
+		CUtils::WriteLogFile(m_hLogFile,FALSE,_T(""));
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("%s begain......"),strWorkMode);
+
+		SetDlgItemText(IDC_TEXT_FUNCTION2,strWorkMode);
+
+		CScanningDlg dlg;
+		dlg.SetLogFile(m_hLogFile);
+		dlg.SetConfig(&m_Config,m_WorkMode);
+		dlg.SetDeviceInfoList(&m_MasterPort,&m_TargetPorts);
+		dlg.SetBegining(TRUE);
+		dlg.DoModal();
+
+		// 判读是否可以拷贝
+		if (!IsReady())
+		{
+			// 全部FAIL
+			m_Command.AllFail();
+
+			m_bRunning = FALSE;
+
+			PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd); 
+			return;
+		}
+
+		// 判断端口状态，哪些直接FAIL，哪些可以工作
+		POSITION pos = NULL;
+		switch (m_WorkMode)
+		{
+		case WorkMode_ImageMake:
+			m_Command.GreenLightFlash(0);
+			break;
+
+		case WorkMode_DiskClean:
+		case WorkMode_ImageCopy:
+		case WorkMode_DiskFormat:
+			pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					m_Command.GreenLightFlash(port->GetPortNum());
+				}
+				else
+				{
+					m_Command.RedLight(port->GetPortNum(),TRUE);
+				}
+			}
+			break;
+
+		default:
+			m_Command.GreenLightFlash(0);
+
+			pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					m_Command.GreenLightFlash(port->GetPortNum());
+				}
+				else
+				{
+					m_Command.RedLight(port->GetPortNum(),TRUE);
 				}
 			}
 
-		}
-		break;
-
-	case WorkMode_ImageCopy:
-		{
-			m_bServerFirst = FALSE;
-			if (!m_bBurnInTest)
-			{
-				CImageNameDlg dlg(FALSE);
-				dlg.SetConfig(&m_Config,m_ClientSocket);
-				if (dlg.DoModal() == IDCANCEL)
-				{
-					return;
-				}
-
-				m_bServerFirst = dlg.GetServerFirst();
-			}	
+			break;
 
 		}
-		break;
 
-// 	case WorkMode_DiskFormat:
-// 		PostMessage(WM_RESET_POWER);
-// 		break;
+		// 使能闪烁命令
+		m_Command.EnableFlashLight();
+
+		AfxBeginThread((AFX_THREADPROC)StartThreadProc,this);
 	}
 
-	m_bCancel = FALSE;
-	m_bResult = TRUE;
-	m_bRunning = TRUE;
-	m_bVerify = FALSE;
-
-	if (m_ThreadListen && m_ThreadListen->m_hThread)
-	{
-		WaitForSingleObject(m_ThreadListen->m_hThread,INFINITE);
-		delete m_ThreadListen;
-		m_ThreadListen = NULL;
-	}
-
-	GetDlgItem(IDC_BTN_START)->EnableWindow(FALSE);
-	GetDlgItem(IDC_BTN_STOP)->EnableWindow(TRUE);
-
-	EnableControls(FALSE);
-
-	CString strWorkMode = GetWorkModeString(m_WorkMode);
-	//GetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
-	CUtils::WriteLogFile(m_hLogFile,FALSE,_T(""));
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("%s begain......"),strWorkMode);
-
-	SetDlgItemText(IDC_TEXT_FUNCTION2,strWorkMode);
-
-	CScanningDlg dlg;
-	dlg.SetLogFile(m_hLogFile);
-	dlg.SetConfig(&m_Config,m_WorkMode);
-	dlg.SetDeviceInfoList(&m_MasterPort,&m_TargetPorts);
-	dlg.SetBegining(TRUE);
-	dlg.DoModal();
-
-	// 判读是否可以拷贝
-	if (!IsReady())
-	{
-		// 全部FAIL
-		m_Command.AllFail();
-
-		m_bRunning = FALSE;
-
-		PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_STOP, BN_CLICKED), (LPARAM)m_hWnd); 
-		return;
-	}
-
-	// 判断端口状态，哪些直接FAIL，哪些可以工作
-	POSITION pos = NULL;
-	switch (m_WorkMode)
-	{
-	case WorkMode_ImageMake:
-		m_Command.GreenLightFlash(0);
-		break;
-
-	case WorkMode_DiskClean:
-	case WorkMode_ImageCopy:
-	case WorkMode_DiskFormat:
-		pos = m_TargetPorts.GetHeadPosition();
-		while (pos)
-		{
-			CPort *port = m_TargetPorts.GetNext(pos);
-			if (port->IsConnected())
-			{
-				m_Command.GreenLightFlash(port->GetPortNum());
-			}
-			else
-			{
-				m_Command.RedLight(port->GetPortNum(),TRUE);
-			}
-		}
-		break;
-
-	default:
-		m_Command.GreenLightFlash(0);
-
-		pos = m_TargetPorts.GetHeadPosition();
-		while (pos)
-		{
-			CPort *port = m_TargetPorts.GetNext(pos);
-			if (port->IsConnected())
-			{
-				m_Command.GreenLightFlash(port->GetPortNum());
-			}
-			else
-			{
-				m_Command.RedLight(port->GetPortNum(),TRUE);
-			}
-		}
-
-		break;
-
-	}
-
-	// 使能闪烁命令
-	m_Command.EnableFlashLight();
-
-	AfxBeginThread((AFX_THREADPROC)StartThreadProc,this);
 }
 
-
-void CUSBCopyDlg::OnBnClickedBtnStop()
+void CUSBCopyDlg::OnStop()
 {
-	// TODO: 在此添加控件通知处理程序代码
 	m_bCancel = TRUE;
-
-// 	CScanningDlg dlg;
-// 	dlg.SetLogFile(m_hLogFile);
-// 	dlg.SetConfig(&m_Config);
-// 	dlg.SetDeviceInfoList(&m_MasterPort,&m_TargetPorts);
-// 	dlg.SetBegining(FALSE);
-// 	dlg.DoModal();
 
 	while (m_bRunning)
 	{
@@ -993,7 +1060,7 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 	{
 		if (!m_bSockeConnected)
 		{
-			m_bSockeConnected = CreateSocketConnect();
+			SendMessage(WM_CONNECT_SOCKET);
 		}
 
 		CString strLog = GetUploadLogString();
@@ -1017,9 +1084,13 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 				break;
 			}
 
-			closesocket(m_ClientSocket);
-
-			m_bSockeConnected = CreateSocketConnect();
+			if (m_ClientSocket != INVALID_SOCKET)
+			{
+				closesocket(m_ClientSocket);
+				m_ClientSocket = INVALID_SOCKET;
+			}
+			
+			SendMessage(WM_CONNECT_SOCKET);
 
 			dwUpload = UploadLog(strFileName,strLog);
 		}
@@ -1030,7 +1101,7 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 		{
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("upload log faild."));
 			m_bResult = FALSE;
-			m_strMsg += _T("Upload log failed !");
+			m_strMsg += _T(" Upload log failed !");
 
 			// 把所有设置成fail
 			SetAllFailed();
@@ -1049,7 +1120,7 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 			CCompleteMsg completeMsg(&m_Config,&m_Command,m_strMsg,m_bResult);
 			completeMsg.DoModal();
 		}
-		
+
 	}
 	else
 	{
@@ -1057,12 +1128,9 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 		CCompleteMsg completeMsg(&m_Config,&m_Command,m_strMsg,m_bResult);
 		completeMsg.DoModal();
 	}
-	
+
 	//复位
 	PostMessage(WM_RESET_MACHIEN_PORT);
-
-	GetDlgItem(IDC_BTN_START)->EnableWindow(TRUE);
-	GetDlgItem(IDC_BTN_STOP)->EnableWindow(FALSE);
 
 	EnableControls(TRUE);
 	GetDlgItem(IDC_BTN_START)->SetFocus();
@@ -1071,7 +1139,6 @@ void CUSBCopyDlg::OnBnClickedBtnStop()
 
 	SetEvent(m_hEvent);
 }
-
 
 void CUSBCopyDlg::OnTimer(UINT_PTR nIDEvent)
 {
@@ -1093,11 +1160,17 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 	ULONGLONG ullMaxValidSize = m_MasterPort.GetValidSize();
 
 	int nIndex = 0;
-	if (m_WorkMode == WorkMode_DiskClean || m_WorkMode == WorkMode_ImageCopy || m_WorkMode == WorkMode_DiskFormat)
+	if (m_WorkMode == WorkMode_DiskClean || m_WorkMode == WorkMode_DiskFormat)
 	{
 		iMinPercent = 100;
 		ullMinCompleteSize = -1;
 		ullMaxValidSize = 0;
+	}
+	else if (m_WorkMode == WorkMode_ImageCopy)
+	{
+		iMinPercent = m_FilePort.GetPercent();
+		ullMinCompleteSize = m_FilePort.GetCompleteSize();
+		ullMaxValidSize = m_FilePort.GetValidSize();
 	}
 	else
 	{
@@ -1167,7 +1240,23 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 			}
 		}
 
+	}
+	else
+	{
+		if (m_FilePort.GetPercent() < iMinPercent)
+		{
+			iMinPercent = m_FilePort.GetPercent();
+		}
 
+		if (m_FilePort.GetCompleteSize() < ullMinCompleteSize)
+		{
+			ullMinCompleteSize = m_FilePort.GetCompleteSize();
+		}
+
+		if (m_FilePort.GetValidSize() > ullMaxValidSize)
+		{
+			ullMaxValidSize = m_FilePort.GetValidSize();
+		}
 	}
 
 	if (nIndex > 0)
@@ -1646,7 +1735,7 @@ void CUSBCopyDlg::OnStart()
 			CString strHashValue;
 			if (bResult)
 			{
-				MoveFile(strTempFile,strImageFile);
+				MoveFileEx(strTempFile,strImageFile,MOVEFILE_REPLACE_EXISTING);
 
 				int len = m_MasterPort.GetHashLength();
 				BYTE *pHash = new BYTE[len];
@@ -1671,6 +1760,12 @@ void CUSBCopyDlg::OnStart()
 				ErrorType errType = ErrorType_System;
 				DWORD dwErrorCode = 0;
 				errType = m_MasterPort.GetErrorCode(&dwErrorCode);
+
+				if (dwErrorCode == 0)
+				{
+					// 任意取一个错误
+					errType = m_FilePort.GetErrorCode(&dwErrorCode);
+				}
 
 				if (errType == ErrorType_System)
 				{
@@ -1742,7 +1837,7 @@ void CUSBCopyDlg::OnStart()
 			if (bResult)
 			{
 
-				MoveFile(strTempFile,strImageFile);
+				MoveFileEx(strTempFile,strImageFile,MOVEFILE_REPLACE_EXISTING);
 
 				int len = m_FilePort.GetHashLength();
 				BYTE *pHash = new BYTE[len];
@@ -1767,6 +1862,22 @@ void CUSBCopyDlg::OnStart()
 				ErrorType errType = ErrorType_System;
 				DWORD dwErrorCode = 0;
 				errType = m_FilePort.GetErrorCode(&dwErrorCode);
+
+				if (dwErrorCode == 0)
+				{
+					// 任意取一个错误
+					pos = m_TargetPorts.GetHeadPosition();
+					while (pos)
+					{
+						CPort *port = m_TargetPorts.GetNext(pos);
+
+						if (port->IsConnected() && !port->GetResult())
+						{
+							errType = port->GetErrorCode(&dwErrorCode);
+							break;
+						}
+					}
+				}
 
 				if (errType == ErrorType_System)
 				{
@@ -1988,7 +2099,7 @@ void CUSBCopyDlg::OnStart()
 
 	if (!m_bCancel)
 	{
-		PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_STOP, BN_CLICKED), (LPARAM)m_hWnd); 
+		PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd); 
 	}
 	
 }
@@ -2061,6 +2172,14 @@ CString CUSBCopyDlg::GetCustomErrorMsg( CustomError customError )
 		case CustomError_Format_Error:
 			strError = _T("Disk format error.");
 			break;
+
+		case CustomError_Get_Data_From_Server_Error:
+			strError = _T("Get data from server error.");
+			break;
+
+		case CustomError_Image_Hash_Value_Changed:
+			strError = _T("Image hash value was changed.");
+			break;
 	}
 
 	return strError;
@@ -2081,6 +2200,11 @@ HBRUSH CUSBCopyDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 	case IDC_TEXT_USAGE:
 		pDC->SetBkMode(TRANSPARENT);
 		pDC->SetTextColor(RGB(30,144,255));
+		break;
+
+	case IDC_TEXT_LOGO:
+		pDC->SetBkMode(TRANSPARENT);
+		pDC->SetTextColor(RGB(58,95,205 ));
 		break;
 		
 	}
@@ -2235,10 +2359,10 @@ afx_msg LRESULT CUSBCopyDlg::OnComReceive(WPARAM wParam, LPARAM lParam)
 		}
 		else if (pBuffer[i] == 0x76)
 		{
-			if (GetDlgItem(IDC_BTN_STOP)->IsWindowEnabled() && ::GetActiveWindow() == m_hWnd)
+			if (GetDlgItem(IDC_BTN_START)->IsWindowEnabled() && ::GetActiveWindow() == m_hWnd)
 			{
 				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Stop event click."),(BYTE)pBuffer[i]);
-				PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_STOP, BN_CLICKED), (LPARAM)m_hWnd); 
+				PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd); 
 			}		
 		}
 	}
@@ -2727,6 +2851,8 @@ void CUSBCopyDlg::BurnInTest()
 	strResText.LoadString(IDS_BURN_IN_TEST);
 	SetDlgItemText(IDC_BTN_WORK_SELECT,strResText);
 
+	m_BtnWorkMode.SetBitmaps(IDB_BURN_IN,RGB(255,255,255));
+
 	for (UINT cycle = 0;cycle < nCycleCount && m_bResult;cycle++)
 	{
 		CString strKey;
@@ -2827,6 +2953,7 @@ BOOL CUSBCopyDlg::CreateSocketConnect()
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) success."),strIpAddr,nPort);
 
+
 	return TRUE;
 }
 
@@ -2889,6 +3016,7 @@ afx_msg LRESULT CUSBCopyDlg::OnConnectSocket(WPARAM wParam, LPARAM lParam)
 
 	if (m_bSockeConnected)
 	{
+		SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: YES"));
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time with server..."));
 
 		if (SyncTime())
@@ -2900,6 +3028,10 @@ afx_msg LRESULT CUSBCopyDlg::OnConnectSocket(WPARAM wParam, LPARAM lParam)
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time failed."));
 		}
 	}
+	else
+	{
+		SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
+	}
 
 	return m_bSockeConnected;
 }
@@ -2910,7 +3042,13 @@ afx_msg LRESULT CUSBCopyDlg::OnDisconnectSocket(WPARAM wParam, LPARAM lParam)
 	if (m_bSockeConnected)
 	{
 		closesocket(m_ClientSocket);
+
+		m_ClientSocket = INVALID_SOCKET;
 	}
+
+	m_bSockeConnected = FALSE;
+
+	SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
 
 	return 0;
 }
@@ -2926,6 +3064,8 @@ afx_msg LRESULT CUSBCopyDlg::OnSocketMsg(WPARAM wParam, LPARAM lParam)
 		m_bSockeConnected = FALSE;
 		closesocket(m_ClientSocket);
 		m_ClientSocket = INVALID_SOCKET;
+
+		SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
 
 		break;
 	}

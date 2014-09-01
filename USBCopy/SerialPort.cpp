@@ -277,7 +277,7 @@ DWORD CSerialPort::Write( char *szBuffer, DWORD dwBufferLength, char * szFormat,
 
 	va_list va;
 	va_start(va, szFormat);
-	_vsnprintf(szBuffer, dwBufferLength, szFormat, va);
+	_vsnprintf(szBuffer,dwBufferLength, szFormat, va);
 	va_end(va);
 
 	unsigned long uWriteLength = 0;

@@ -158,6 +158,38 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	GetDlgItem(IDC_BTN_DISK_CLEAN)->SetFont(&m_font);
 	GetDlgItem(IDC_BTN_DISK_FORMAT)->SetFont(&m_font);
 
+	m_BtnFullCopy.SubclassDlgItem(IDC_BTN_FULL_COPY,this);
+	m_BtnFullCopy.SetFlat(FALSE);
+	m_BtnFullCopy.SetBitmaps(IDB_FULL_COPY,RGB(255,255,255));
+
+	m_BtnQuickCopy.SubclassDlgItem(IDC_BTN_QUICK_COPY,this);
+	m_BtnQuickCopy.SetFlat(FALSE);
+	m_BtnQuickCopy.SetBitmaps(IDB_QUICK_COPY,RGB(255,255,255));
+
+	m_BtnFileCopy.SubclassDlgItem(IDC_BTN_FILE_COPY,this);
+	m_BtnFileCopy.SetFlat(FALSE);
+	m_BtnFileCopy.SetBitmaps(IDB_FILE_COPY,RGB(255,255,255));
+
+	m_BtnImageCopy.SubclassDlgItem(IDC_BTN_IMAGE_COPY,this);
+	m_BtnImageCopy.SetFlat(FALSE);
+	m_BtnImageCopy.SetBitmaps(IDB_IMAGE_COPY,RGB(255,255,255));
+
+	m_BtnImageMake.SubclassDlgItem(IDC_BTN_IMAGE_MAKE,this);
+	m_BtnImageMake.SetFlat(FALSE);
+	m_BtnImageMake.SetBitmaps(IDB_MAKE_IMAGE,RGB(255,255,255));
+
+	m_BtnDiskClean.SubclassDlgItem(IDC_BTN_DISK_CLEAN,this);
+	m_BtnDiskClean.SetFlat(FALSE);
+	m_BtnDiskClean.SetBitmaps(IDB_DISK_CLEAN,RGB(255,255,255));
+
+	m_BtnDiskCompare.SubclassDlgItem(IDC_BTN_DISK_COMPARE,this);
+	m_BtnDiskCompare.SetFlat(FALSE);
+	m_BtnDiskCompare.SetBitmaps(IDB_DISK_COMPARE,RGB(255,255,255));
+
+	m_BtnDiskFormat.SubclassDlgItem(IDC_BTN_DISK_FORMAT,this);
+	m_BtnDiskFormat.SetFlat(FALSE);
+	m_BtnDiskFormat.SetBitmaps(IDB_DISK_FORMAT,RGB(255,255,255));
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
 }

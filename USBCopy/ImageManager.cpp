@@ -121,14 +121,14 @@ void CImageManager::InitailListCtrl()
 	
 	CRect rect;
 	m_ListImages.GetClientRect(&rect);
-	int nWidth = rect.Width() - 120;
+	int nWidth = rect.Width() - 100;
 
 	CString strResText;
 	strResText.LoadString(IDS_ITEM_IMAGE_NAME);
 	m_ListImages.InsertColumn(0,strResText,LVCFMT_LEFT,nWidth/2);
 
 	strResText.LoadString(IDS_ITEM_SIZE);
-	m_ListImages.InsertColumn(1,strResText,LVCFMT_LEFT,120);
+	m_ListImages.InsertColumn(1,strResText,LVCFMT_LEFT,100);
 
 	strResText.LoadString(IDS_ITEM_MODIFY_TIME);
 	m_ListImages.InsertColumn(2,strResText,LVCFMT_LEFT,nWidth/2);

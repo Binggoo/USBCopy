@@ -1,6 +1,8 @@
 #pragma once
 #include "Ini.h"
 #include "PortCommand.h"
+#include "BtnST.h"
+
 // CSystemMenu ¶Ô»°¿ò
 
 class CSystemMenu : public CDialogEx
@@ -28,6 +30,17 @@ private:
 	CString m_strAppPath;
 	UINT m_nTargetNum;
 	BOOL m_bSocketConnected;
+
+	CButtonST m_BtnUpdate;
+	CButtonST m_BtnRestore;
+	CButtonST m_BtnSetting;
+	CButtonST m_BtnSyncImage;
+	CButtonST m_BtnImageManager;
+	CButtonST m_BtnViewLog;
+	CButtonST m_BtnExport;
+	CButtonST m_BtnBurnIn;
+	CButtonST m_BtnDebug;
+	CButtonST m_BtnReturn;
 
 public:
 	afx_msg void OnBnClickedButtonUpdate();

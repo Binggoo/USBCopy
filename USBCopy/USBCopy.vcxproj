@@ -106,17 +106,40 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
-    <None Include="res\logo.bmp" />
+    <None Include="res\burnin.bmp" />
+    <None Include="res\debug.bmp" />
+    <None Include="res\diskclean.bmp" />
+    <None Include="res\diskcompare.bmp" />
+    <None Include="res\diskformat.bmp" />
+    <None Include="res\export.bmp" />
+    <None Include="res\filecopy.bmp" />
+    <None Include="res\fullcopy.bmp" />
+    <None Include="res\imagecopy.bmp" />
+    <None Include="res\lock.bmp" />
+    <None Include="res\makeimage.bmp" />
+    <None Include="res\manager.bmp" />
+    <None Include="res\menu.bmp" />
+    <None Include="res\quickcopy.bmp" />
+    <None Include="res\restore.bmp" />
+    <None Include="res\return.bmp" />
     <None Include="res\SD_gray.bmp" />
     <None Include="res\SD_green.bmp" />
     <None Include="res\SD_normal.bmp" />
     <None Include="res\SD_red.bmp" />
     <None Include="res\SD_yellow.bmp" />
+    <None Include="res\setting.bmp" />
+    <None Include="res\start.bmp" />
+    <None Include="res\stop.bmp" />
+    <None Include="res\sync.bmp" />
+    <None Include="res\unlock.bmp" />
+    <None Include="res\update.bmp" />
     <None Include="res\USBCopy.ico" />
     <None Include="res\USBCopy.rc2" />
+    <None Include="res\viewlog.bmp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.h" />
+    <ClInclude Include="..\..\..\Binggoo\common\BtnST.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Ini.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Utils.h" />
     <ClInclude Include="..\..\..\Binggoo\common\zlib.h" />
@@ -167,6 +190,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.cpp" />
+    <ClCompile Include="..\..\..\Binggoo\common\BtnST.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Ini.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Utils.cpp" />
     <ClCompile Include="BurnIn.cpp" />

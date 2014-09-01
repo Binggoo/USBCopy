@@ -61,6 +61,46 @@ BOOL CSystemMenu::OnInitDialog()
 
 	m_nTargetNum = m_pIni->GetInt(_T("TargetDrives"),_T("NumOfTargetDrives"),0);
 
+	m_BtnUpdate.SubclassDlgItem(IDC_BTN_SOFTWARE_UPDATE,this);
+	m_BtnUpdate.SetFlat(FALSE);
+	m_BtnUpdate.SetBitmaps(IDB_UPDATE,RGB(255,255,255));
+
+	m_BtnRestore.SubclassDlgItem(IDC_BTN_FACTORY_RESTORE,this);
+	m_BtnRestore.SetFlat(FALSE);
+	m_BtnRestore.SetBitmaps(IDB_RESTORE,RGB(255,255,255));
+
+	m_BtnSetting.SubclassDlgItem(IDC_BTN_GLOBAL_SETTING,this);
+	m_BtnSetting.SetFlat(FALSE);
+	m_BtnSetting.SetBitmaps(IDB_SETTING,RGB(255,255,255));
+
+	m_BtnSyncImage.SubclassDlgItem(IDC_BTN_SYNCHRONIZE_IMAGE,this);
+	m_BtnSyncImage.SetFlat(FALSE);
+	m_BtnSyncImage.SetBitmaps(IDB_SYNC,RGB(255,255,255));
+
+	m_BtnImageManager.SubclassDlgItem(IDC_BTN_IMAGE_MANAGER,this);
+	m_BtnImageManager.SetFlat(FALSE);
+	m_BtnImageManager.SetBitmaps(IDB_MANAGER,RGB(255,255,255));
+
+	m_BtnViewLog.SubclassDlgItem(IDC_BTN_VIEW_LOG,this);
+	m_BtnViewLog.SetFlat(FALSE);
+	m_BtnViewLog.SetBitmaps(IDB_VIEW_LOG,RGB(255,255,255));
+
+	m_BtnExport.SubclassDlgItem(IDC_BTN_EXPORT_LOG,this);
+	m_BtnExport.SetFlat(FALSE);
+	m_BtnExport.SetBitmaps(IDB_EXPORT,RGB(255,255,255));
+
+	m_BtnDebug.SubclassDlgItem(IDC_BTN_DEBUG,this);
+	m_BtnDebug.SetFlat(FALSE);
+	m_BtnDebug.SetBitmaps(IDB_DEBUG,RGB(255,255,255));
+
+	m_BtnBurnIn.SubclassDlgItem(IDC_BTN_BURN_IN,this);
+	m_BtnBurnIn.SetFlat(FALSE);
+	m_BtnBurnIn.SetBitmaps(IDB_BURN_IN,RGB(255,255,255));
+
+	m_BtnReturn.SubclassDlgItem(IDOK,this);
+	m_BtnReturn.SetFlat(FALSE);
+	m_BtnReturn.SetBitmaps(IDB_RETURN,RGB(255,255,255));
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
 }

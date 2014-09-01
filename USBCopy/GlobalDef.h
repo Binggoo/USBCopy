@@ -50,7 +50,8 @@ typedef enum _ENUM_CUSTOM_ERROR
 	CustomError_No_File_Select,
 	CustomError_Target_Small,
 	CustomError_Format_Error,
-	CustomError_Get_Data_From_Server_Error
+	CustomError_Get_Data_From_Server_Error,
+	CustomError_Image_Hash_Value_Changed
 
 }CustomError;
 
@@ -331,7 +332,7 @@ typedef struct _STRUCT_IMAGE_HEADER
 #define DEF_COMMU_CMD const unsigned long
 #endif
 
-#define MAX_BUFFER 512*1024
+#define MAX_BUFFER 1024*1024
 
 #pragma pack(push, 1)
 typedef struct _STRUCT_CMD_IN

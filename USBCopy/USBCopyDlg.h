@@ -9,6 +9,7 @@
 #include "Port.h"
 #include "SerialPort.h"
 #include "PortCommand.h"
+#include "BtnST.h"
 
 #define CONFIG_NAME     _T("\\USBCopy.ini")
 #define MACHINE_INFO    _T("\\MachineInfo.ini")
@@ -16,6 +17,7 @@
 #define LOG_FILE_BAK     _T("\\USBCopy.log.bak")
 #define MASTER_PATH  _T("M:\\")
 #define RECODE_FILE  _T("\\record.txt");
+#define LOGO         _T("TF/SD DUPLICATOR")
 
 #define TIMER_UPDATE_STATISTIC 1
 #define TIMER_SEND_BITMAP      2
@@ -70,6 +72,7 @@ private:
 	CTime         m_StartTime;
 
 	CFont         m_font;
+	CFont         m_LogoFont;
 
 	CString       m_strMsg;
 	BOOL          m_bResult;
@@ -85,6 +88,8 @@ private:
 	SOCKET m_ClientSocket;
 	BOOL   m_bSockeConnected;
 	BOOL   m_bServerFirst;  // 仅仅在Copy Image时有用
+
+	BOOL  m_bStart; //用于标记当前是开始状态还是结束状态
 
 	enum
 	{
@@ -141,6 +146,7 @@ private:
 	CString GetUploadLogString();
 	void WriteUploadLog(CString strLog);
 	void SetAllFailed();
+	void OnStop();
 
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -151,7 +157,6 @@ public:
 	afx_msg void OnBnClickedBtnSetting();
 	afx_msg void OnBnClickedBtnStart();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
-	afx_msg void OnBnClickedBtnStop();
 protected:
 	afx_msg LRESULT OnUpdateStatistic(WPARAM wParam, LPARAM lParam);
 public:
@@ -173,4 +178,10 @@ protected:
 	afx_msg LRESULT OnConnectSocket(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnDisconnectSocket(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnSocketMsg(WPARAM wParam, LPARAM lParam);
+private:
+	CButtonST m_BtnStart;
+	CButtonST m_BtnLock;
+	CButtonST m_BtnMenu;
+	CButtonST m_BtnSetting;
+	CButtonST m_BtnWorkMode;
 };

@@ -5,6 +5,7 @@ typedef struct _STRUCT_DATA_INFO
 	LPTSTR szFileName;
 	ULONGLONG ullOffset;
 	DWORD     dwDataSize;
+	DWORD     dwOldSize;   // 用于记录压缩之前数据大小
 	LPBYTE    pData;
 }DATA_INFO,*PDATA_INFO;
 typedef CList<DATA_INFO,DATA_INFO&> DATA_QUEUE;
