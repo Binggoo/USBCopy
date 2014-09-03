@@ -141,6 +141,7 @@
     <ClInclude Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.h" />
     <ClInclude Include="..\..\..\Binggoo\common\BtnST.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Ini.h" />
+    <ClInclude Include="..\..\..\Binggoo\common\Lisence.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Utils.h" />
     <ClInclude Include="..\..\..\Binggoo\common\zlib.h" />
     <ClInclude Include="BurnIn.h" />
@@ -192,6 +193,7 @@
     <ClCompile Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\BtnST.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Ini.cpp" />
+    <ClCompile Include="..\..\..\Binggoo\common\Lisence.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Utils.cpp" />
     <ClCompile Include="BurnIn.cpp" />
     <ClCompile Include="Checksum32.cpp" />

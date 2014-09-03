@@ -22,6 +22,7 @@
 #include "CompleteMsg.h"
 #include "FileCopySetting.h"
 #include "DiskFormatSetting.h"
+#include "Lisence.h"
 
 #include <dbt.h>
 #include "EnumUSB.h"
@@ -82,6 +83,7 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bUpdate = FALSE;
 	m_bBurnInTest = FALSE;
 	m_bStart = FALSE;
+	m_bLisence = FALSE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -164,6 +166,8 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 		SendMessage(WM_QUIT);
 	}
+
+	SetTimer(TIMER_LISENCE,100,NULL);
 
 	m_hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
 
@@ -803,6 +807,7 @@ void CUSBCopyDlg::OnBnClickedBtnWorkSelect()
 void CUSBCopyDlg::OnBnClickedBtnSetting()
 {
 	// TODO: 在此添加控件通知处理程序代码
+
 	switch (m_WorkMode)
 	{
 	case WorkMode_FullCopy:
@@ -893,6 +898,11 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 {
 	// TODO: 在此添加控件通知处理程序代码
 
+	if (!m_bLisence)
+	{
+		return;
+	}
+
 	CString strResText;
 
 	if (m_bStart)
@@ -912,6 +922,12 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 		{
 		case WorkMode_ImageMake:
 			{
+
+				if (!m_bSockeConnected)
+				{
+					SendMessage(WM_CONNECT_SOCKET);
+				}
+
 				if (!m_bBurnInTest)
 				{
 					CImageNameDlg dlg(TRUE);
@@ -927,6 +943,12 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 		case WorkMode_ImageCopy:
 			{
+
+				if (!m_bSockeConnected)
+				{
+					SendMessage(WM_CONNECT_SOCKET);
+				}
+
 				m_bServerFirst = FALSE;
 				if (!m_bBurnInTest)
 				{
@@ -1053,6 +1075,8 @@ void CUSBCopyDlg::OnStop()
 		Sleep(100);
 	}
 
+	CString strLog = GetUploadLogString();
+	WriteUploadLog(strLog);
 	// 上传log
 	BOOL bUpload = m_Config.GetBool(_T("Option"),_T("En_UploadLogAuto"),FALSE);
 
@@ -1063,7 +1087,6 @@ void CUSBCopyDlg::OnStop()
 			SendMessage(WM_CONNECT_SOCKET);
 		}
 
-		CString strLog = GetUploadLogString();
 		CString strFileName,strMachineSN;
 		GetDlgItemText(IDC_TEXT_SN,strMachineSN);
 		strFileName.Format(_T("record_%s_%s.txt"),strMachineSN,CTime::GetCurrentTime().Format(_T("%Y%m%d%H%M%S")));
@@ -1094,8 +1117,6 @@ void CUSBCopyDlg::OnStop()
 
 			dwUpload = UploadLog(strFileName,strLog);
 		}
-
-		WriteUploadLog(strLog);
 
 		if (dwUpload != 0)
 		{
@@ -1147,6 +1168,26 @@ void CUSBCopyDlg::OnTimer(UINT_PTR nIDEvent)
 	{
 	case TIMER_UPDATE_STATISTIC:
 		UpdateStatisticInfo();
+		break;
+
+	case TIMER_LISENCE:
+		KillTimer(nIDEvent);
+		if (!IsLisence())
+		{
+			m_bLisence = FALSE;
+			CString strResText;
+			strResText.LoadString(IDS_MSG_LISENCE_FAILED);
+			MessageBox(strResText,_T("USBCopy"),MB_ICONERROR | MB_SETFOREGROUND);
+
+			GetDlgItem(IDC_BTN_START)->EnableWindow(FALSE);
+
+		}
+		else
+		{
+			m_bLisence = TRUE;
+		}
+		
+
 		break;
 	}
 
@@ -2676,7 +2717,10 @@ afx_msg LRESULT CUSBCopyDlg::OnResetPower(WPARAM wParam, LPARAM lParam)
 
 afx_msg LRESULT CUSBCopyDlg::OnBurnInTest(WPARAM wParam, LPARAM lParam)
 {
-	AfxBeginThread((AFX_THREADPROC)BurnInTestThreadProc,this);
+	if (m_bLisence && GetDlgItem(IDC_BTN_START)->IsWindowEnabled())
+	{
+		AfxBeginThread((AFX_THREADPROC)BurnInTestThreadProc,this);
+	}
 	
 	return 0;
 }
@@ -3307,4 +3351,57 @@ void CUSBCopyDlg::SetAllFailed()
 			port->SetPortState(PortState_Fail);
 		}
 	}
+}
+
+BOOL CUSBCopyDlg::IsLisence()
+{
+	CString strListenFile = m_strAppPath + _T("\\lisence.dat");
+
+	HANDLE hFile = CreateFile(strListenFile,
+							  GENERIC_READ,
+							  FILE_SHARE_READ,
+							  NULL,
+							  OPEN_EXISTING,
+							  0,
+							  NULL);
+
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("The lisence file doesn't exist."));
+		return FALSE;
+	}
+
+	BYTE byFileKey[64] = {NULL};
+
+	DWORD dwReadSize = 0;
+
+
+	if (!ReadFile(hFile,byFileKey,64,&dwReadSize,NULL))
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read lisence file failed."));
+		return FALSE;
+	}
+
+	if (dwReadSize != 8)
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Invalid lisence file."));
+		return FALSE;
+	}
+
+	CLisence lisence;
+	
+	lisence.GetLock();
+	BYTE *key = lisence.GetKey();
+
+	// 比较
+	for (int i = 0; i < 8; i++)
+	{
+		if (key[i] != byFileKey[i])
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Invalid lisence."));
+			return FALSE;
+		}
+	}
+
+	return TRUE;
 }

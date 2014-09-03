@@ -21,6 +21,7 @@
 
 #define TIMER_UPDATE_STATISTIC 1
 #define TIMER_SEND_BITMAP      2
+#define TIMER_LISENCE          3
 
 // CUSBCopyDlg dialog
 class CUSBCopyDlg : public CDialogEx
@@ -91,6 +92,8 @@ private:
 
 	BOOL  m_bStart; //用于标记当前是开始状态还是结束状态
 
+	BOOL  m_bLisence;
+
 	enum
 	{
 		COLUMNS = 6,
@@ -147,6 +150,8 @@ private:
 	void WriteUploadLog(CString strLog);
 	void SetAllFailed();
 	void OnStop();
+
+	BOOL IsLisence();
 
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
