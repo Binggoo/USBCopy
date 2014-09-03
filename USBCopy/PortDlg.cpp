@@ -21,6 +21,8 @@ CPortDlg::CPortDlg(CWnd* pParent /*=NULL*/)
 	m_bStopCommand = FALSE;
 
 	m_bEnableKickOff = FALSE;
+
+	m_bIsUSB = FALSE;
 }
 
 CPortDlg::~CPortDlg()
@@ -93,13 +95,14 @@ void CPortDlg::ChangeSize( CWnd *pWnd,int cx, int cy )
 	}
 }
 
-void CPortDlg::SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand, CPort *port,PortList *pPortList )
+void CPortDlg::SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand, CPort *port,PortList *pPortList,BOOL bIsUSB)
 {
 	m_pCommand = pCommand;
 	m_Port = port;
 	m_PortList = pPortList;
 	m_pIni = pIni;
 	m_hLogFile = hLogFile;
+	m_bIsUSB = bIsUSB;
 }
 
 void CPortDlg::Update( BOOL bStart /*= TRUE*/ )
@@ -132,7 +135,14 @@ void CPortDlg::Initial()
 		m_Bitmap.DeleteObject();
 	}
 
-	m_Bitmap.LoadBitmap(IDB_GRAY);
+	UINT nID = IDB_GRAY;
+
+	if (m_bIsUSB)
+	{
+		nID = IDB_USB_GRAY;
+	}
+
+	m_Bitmap.LoadBitmap(nID);
 	m_PictureCtrol.SetBitmap(m_Bitmap);
 
 	SetDlgItemText(IDC_TEXT_SPEED,_T(""));
@@ -242,15 +252,16 @@ void CPortDlg::UpdateState()
 {
 	CString strSpeed,strSize;
 	int iPercent = 0;
+	UINT nID  = IDB_GRAY;
 	switch (m_Port->GetPortState())
 	{
 	case PortState_Offline:
-		if (m_Bitmap.m_hObject != NULL)
-		{
-			m_Bitmap.DeleteObject();
-		}
-		m_Bitmap.LoadBitmap(IDB_GRAY);
+		nID = IDB_GRAY;
 
+		if (m_bIsUSB)
+		{
+			nID = IDB_USB_GRAY;
+		}
 		strSpeed = _T("");
 		strSize = _T("");
 		iPercent = 0;
@@ -264,11 +275,12 @@ void CPortDlg::UpdateState()
 		break;
 
 	case PortState_Online:
-		if (m_Bitmap.m_hObject != NULL)
+		nID = IDB_NORMAL;
+
+		if (m_bIsUSB)
 		{
-			m_Bitmap.DeleteObject();
+			nID = IDB_USB_NORMAL;
 		}
-		m_Bitmap.LoadBitmap(IDB_NORMAL);
 
 		strSpeed = _T("");
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
@@ -283,18 +295,23 @@ void CPortDlg::UpdateState()
 		break;
 
 	case PortState_Active:
-		if (m_Bitmap.m_hObject != NULL)
-		{
-			m_Bitmap.DeleteObject();
-		}
-
 		if (IsSlowest())
 		{
-			m_Bitmap.LoadBitmap(IDB_YELLOW);
+			nID = IDB_YELLOW;
+			if (m_bIsUSB)
+			{
+				nID = IDB_USB_YELLOW;
+			}
+
 		}
 		else
 		{
-			m_Bitmap.LoadBitmap(IDB_NORMAL);
+			nID = IDB_NORMAL;
+			if (m_bIsUSB)
+			{
+				nID = IDB_USB_NORMAL;
+			}
+			
 		}
 
 		strSpeed = m_Port->GetRealSpeedString();
@@ -304,11 +321,12 @@ void CPortDlg::UpdateState()
 		break;
 
 	case PortState_Pass:
-		if (m_Bitmap.m_hObject != NULL)
+		nID = IDB_GREEN;
+
+		if (m_bIsUSB)
 		{
-			m_Bitmap.DeleteObject();
+			nID = IDB_USB_GREEN;
 		}
-		m_Bitmap.LoadBitmap(IDB_GREEN);
 
 		strSpeed = m_Port->GetRealSpeedString();
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
@@ -323,11 +341,13 @@ void CPortDlg::UpdateState()
 		break;
 
 	case PortState_Fail:
-		if (m_Bitmap.m_hObject != NULL)
+
+		nID = IDB_RED;
+
+		if (m_bIsUSB)
 		{
-			m_Bitmap.DeleteObject();
+			nID = IDB_USB_RED;
 		}
-		m_Bitmap.LoadBitmap(IDB_RED);
 
 		strSpeed = m_Port->GetRealSpeedString();
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
@@ -342,6 +362,12 @@ void CPortDlg::UpdateState()
 		break;
 	}
 
+	if (m_Bitmap.m_hObject != NULL)
+	{
+		m_Bitmap.DeleteObject();
+	}
+
+	m_Bitmap.LoadBitmap(nID);
 	m_PictureCtrol.SetBitmap(m_Bitmap);
 	SetDlgItemText(IDC_TEXT_SIZE,strSize);
 	SetDlgItemText(IDC_TEXT_SPEED,strSpeed);

@@ -17,7 +17,8 @@
 #define LOG_FILE_BAK     _T("\\USBCopy.log.bak")
 #define MASTER_PATH  _T("M:\\")
 #define RECODE_FILE  _T("\\record.txt");
-#define LOGO         _T("TF/SD DUPLICATOR")
+#define LOGO_TS         _T("TF/SD DUPLICATOR")
+#define LOGO_USB         _T("USB DUPLICATOR")
 
 #define TIMER_UPDATE_STATISTIC 1
 #define TIMER_SEND_BITMAP      2
@@ -93,6 +94,8 @@ private:
 	BOOL  m_bStart; //用于标记当前是开始状态还是结束状态
 
 	BOOL  m_bLisence;
+
+	BOOL  m_bIsUSB;
 
 	enum
 	{

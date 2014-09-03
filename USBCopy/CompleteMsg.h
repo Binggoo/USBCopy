@@ -39,4 +39,5 @@ public:
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
 	virtual BOOL DestroyWindow();
+	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 };

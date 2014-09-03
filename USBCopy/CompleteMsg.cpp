@@ -41,6 +41,7 @@ void CCompleteMsg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CCompleteMsg, CDialogEx)
 	ON_WM_CTLCOLOR()
 	ON_WM_SETCURSOR()
+	ON_WM_SHOWWINDOW()
 END_MESSAGE_MAP()
 
 
@@ -174,4 +175,19 @@ BOOL CCompleteMsg::DestroyWindow()
 	}
 	
 	return CDialogEx::DestroyWindow();
+}
+
+
+void CCompleteMsg::OnShowWindow(BOOL bShow, UINT nStatus)
+{
+	CDialogEx::OnShowWindow(bShow, nStatus);
+
+	// TODO: 在此处添加消息处理程序代码
+
+	// 把窗口移动到父窗口的下方
+	CRect parentRect,rect;
+	GetParent()->GetWindowRect(&parentRect);
+	GetWindowRect(&rect);
+
+	MoveWindow(rect.left,parentRect.bottom - rect.Height()*5/2,rect.Width(),rect.Height());
 }

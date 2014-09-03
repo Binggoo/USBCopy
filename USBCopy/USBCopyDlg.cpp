@@ -215,6 +215,16 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	strModel.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("Model")));
 	strAlias.Format(_T("%s"),m_Config.GetString(_T("MachineInfo"),_T("Alias"),_T("PHIYO")));
 
+	// 判断是USB接口还是TF/SD接口
+	if (strModel.Find(_T("TS")) != -1)
+	{
+		m_bIsUSB = FALSE;
+	}
+	else
+	{
+		m_bIsUSB = TRUE;
+	}
+
 	m_font.CreatePointFont(100,_T("Arial"));
 	GetDlgItem(IDC_TEXT_SN)->SetFont(&m_font);
 	GetDlgItem(IDC_TEXT_MODEL)->SetFont(&m_font);
@@ -244,7 +254,16 @@ BOOL CUSBCopyDlg::OnInitDialog()
 						  _T("Arial"));
 
 	GetDlgItem(IDC_TEXT_LOGO)->SetFont(&m_LogoFont);
-	SetDlgItemText(IDC_TEXT_LOGO,LOGO);
+
+	if (m_bIsUSB)
+	{
+		SetDlgItemText(IDC_TEXT_LOGO,LOGO_USB);
+	}
+	else
+	{
+		SetDlgItemText(IDC_TEXT_LOGO,LOGO_TS);
+	}
+	
 
 	GetDlgItem(IDC_BTN_START)->SetFont(&m_LogoFont);
 
@@ -386,11 +405,18 @@ void CUSBCopyDlg::InitialPortFrame()
 	GetDlgItem(IDC_PIC_FRAME)->GetWindowRect(&rectFrame);
 	ScreenToClient(&rectFrame);
 
+	int rows = m_nPortNum / COLUMNS;
+
+	if (m_nPortNum % COLUMNS)
+	{
+		rows++;
+	}
+
 	int nWidth = (rectFrame.Width()-2) / COLUMNS;
-	int nHeight = (rectFrame.Height()-2) / ROWS;
+	int nHeight = (rectFrame.Height()-2) / rows;
 
 	// 母盘
-	m_PortFrames[0].SetPort(&m_Config,m_hLogFile,&m_Command,&m_MasterPort,&m_TargetPorts);
+	m_PortFrames[0].SetPort(&m_Config,m_hLogFile,&m_Command,&m_MasterPort,&m_TargetPorts,m_bIsUSB);
 
 	m_PortFrames[0].Create(IDD_DIALOG_PORT,this);
 
@@ -401,7 +427,6 @@ void CUSBCopyDlg::InitialPortFrame()
 
 	m_PortFrames[0].ShowWindow(SW_SHOW);
 
-
 	// 子盘
 	POSITION pos = m_TargetPorts.GetHeadPosition();
 	int nItem = 1;
@@ -409,7 +434,7 @@ void CUSBCopyDlg::InitialPortFrame()
 	{
 		CPort *port = m_TargetPorts.GetNext(pos);
 
-		m_PortFrames[nItem].SetPort(&m_Config,m_hLogFile,&m_Command,port,&m_TargetPorts);
+		m_PortFrames[nItem].SetPort(&m_Config,m_hLogFile,&m_Command,port,&m_TargetPorts,m_bIsUSB);
 
 		m_PortFrames[nItem].Create(IDD_DIALOG_PORT,this);
 

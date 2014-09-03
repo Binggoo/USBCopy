@@ -32,6 +32,8 @@ private:
 	PortList *m_PortList;
 	CPortCommand *m_pCommand;
 
+	BOOL m_bIsUSB;
+
 	BOOL m_bOnlineCommand;
 	BOOL m_bStopCommand;
 	CIni *m_pIni;
@@ -48,7 +50,7 @@ public:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 
-	void SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand,CPort *port,PortList *pPortList);
+	void SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand,CPort *port,PortList *pPortList,BOOL bIsUSB);
 	CPort *GetPort();
 	void Update(BOOL bStart = TRUE);
 	void EnableKickOff(BOOL bEnable);

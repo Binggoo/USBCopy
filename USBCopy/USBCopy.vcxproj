@@ -135,6 +135,11 @@
     <None Include="res\update.bmp" />
     <None Include="res\USBCopy.ico" />
     <None Include="res\USBCopy.rc2" />
+    <None Include="res\USB_gray.bmp" />
+    <None Include="res\USB_green.bmp" />
+    <None Include="res\USB_normal.bmp" />
+    <None Include="res\USB_red.bmp" />
+    <None Include="res\USB_yellow.bmp" />
     <None Include="res\viewlog.bmp" />
   </ItemGroup>
   <ItemGroup>
