@@ -20,6 +20,8 @@
 #define LOGO_TS         _T("TF/SD DUPLICATOR")
 #define LOGO_USB         _T("USB DUPLICATOR")
 
+#define MAX_RUN_TIMES  500
+
 #define TIMER_UPDATE_STATISTIC 1
 #define TIMER_SEND_BITMAP      2
 #define TIMER_LISENCE          3
@@ -105,7 +107,7 @@ private:
 
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 
-	void InitailMachine();
+	void InitialMachine();
 
 	void InitialPortFrame();
 	void ResetPortFrame();
@@ -146,6 +148,7 @@ private:
 	static DWORD WINAPI InitialMachineThreadProc(LPVOID lpParm);
 	static DWORD WINAPI EnumDeviceThreadProc(LPVOID lpParm);
 	static DWORD WINAPI BurnInTestThreadProc(LPVOID lpParm);
+	static DWORD WINAPI ConnectSocketThreadProc(LPVOID lpParm);
 
 	void BurnInTest();
 	DWORD UploadLog(CString strLogName,CString strLog);

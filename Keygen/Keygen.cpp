@@ -68,13 +68,13 @@ int main(int argc, char* argv[])
 
 	CLisence lisence;
 
-	BYTE byKey[8] = {0};
+	BYTE byKey[KEY_LEN] = {0};
 
 	if (g_bLockFile)
 	{
 		BYTE *pByte = lisence.GetKeyFromFile(g_szLockFile);
 
-		memcpy(byKey,pByte,8);
+		memcpy(byKey,pByte,KEY_LEN);
 	}
 	else if (g_bLockString)
 	{
@@ -86,7 +86,7 @@ int main(int argc, char* argv[])
 
 		BYTE *pByte = lisence.GetKey(pLock,len);
 
-		memcpy(byKey,pByte,8);
+		memcpy(byKey,pByte,KEY_LEN);
 
 		delete []pLock;
 	}
@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 
 		pByte = lisence.GetKey();
 
-		memcpy(byKey,pByte,8);
+		memcpy(byKey,pByte,KEY_LEN);
 
 	}
 
@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
 		fclose(fp);
 
 		printf("Generate Key:\n");
-		for (int i = 0; i < 8;i++)
+		for (int i = 0; i < KEY_LEN;i++)
 		{
 			printf("%02X",byKey[i]);
 		}

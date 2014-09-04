@@ -21,13 +21,13 @@ int _tmain(int argc, _TCHAR* argv[])
 	BYTE *pLock = lisence.GetLock();
 
 	printf("Machine Lock Code:\n");
-	for (int i = 0; i < 16;i++)
+	for (int i = 0; i < LOCK_LEN;i++)
 	{
 		printf("%02X",pLock[i]);
 	}
 	printf("\n\n");
 
-	fwrite(pLock,1,16,fp);
+	fwrite(pLock,1,LOCK_LEN,fp);
 	fclose(fp);
 
 	return 0;

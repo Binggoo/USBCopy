@@ -167,8 +167,6 @@ BOOL CUSBCopyDlg::OnInitDialog()
 		SendMessage(WM_QUIT);
 	}
 
-	SetTimer(TIMER_LISENCE,100,NULL);
-
 	m_hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
 
 	if (m_hEvent == NULL)
@@ -283,8 +281,8 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	else
 	{
 		// 连接网络，同步时间
-		PostMessage(WM_CONNECT_SOCKET);
-
+		//PostMessage(WM_CONNECT_SOCKET);
+		AfxBeginThread((AFX_THREADPROC)ConnectSocketThreadProc,this);
 	}
 
 	m_bLock = m_Config.GetBool(_T("Option"),_T("En_Lock"),FALSE);
@@ -344,6 +342,7 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	m_ThreadListen->m_bAutoDelete = FALSE;
 	m_ThreadListen->ResumeThread();
 
+	SetTimer(TIMER_LISENCE,100,NULL);
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -2373,7 +2372,7 @@ BOOL CUSBCopyDlg::DestroyWindow()
 	return CDialogEx::DestroyWindow();
 }
 
-void CUSBCopyDlg::InitailMachine()
+void CUSBCopyDlg::InitialMachine()
 {
 	//初始化上电
 	m_Command.ResetPower();
@@ -2395,7 +2394,7 @@ void CUSBCopyDlg::InitailMachine()
 DWORD CUSBCopyDlg::InitialMachineThreadProc( LPVOID lpParm )
 {
 	CUSBCopyDlg *pDlg = (CUSBCopyDlg *)lpParm;
-	pDlg->InitailMachine();
+	pDlg->InitialMachine();
 
 	return 1;
 }
@@ -3002,15 +3001,20 @@ BOOL CUSBCopyDlg::CreateSocketConnect()
 		return FALSE;
 	}
 
+	WSAAsyncSelect(m_ClientSocket,this->m_hWnd,WM_SOCKET_MSG,FD_CLOSE);
+
 	SOCKADDR_IN ServerAddr = {0};
 	ServerAddr.sin_family = AF_INET;
 	ServerAddr.sin_addr.s_addr = inet_addr(pBuf);
 	ServerAddr.sin_port = htons(nPort);
 
-	if (connect(m_ClientSocket,(PSOCKADDR)&ServerAddr,sizeof(ServerAddr)) == SOCKET_ERROR)
+	//先判读host是否存在
+	HOSTENT *host = gethostbyaddr((char *)&ServerAddr.sin_addr.s_addr,4,PF_INET);
+
+	if (host == NULL)
 	{
 		DWORD dwErrorCode = WSAGetLastError();
-		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) failed with system error code:%d,%s")
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("gethostbyaddr(%s:%d) failed with system error code:%d,%s")
 			,strIpAddr,nPort,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 
 		closesocket(m_ClientSocket);
@@ -3018,7 +3022,21 @@ BOOL CUSBCopyDlg::CreateSocketConnect()
 		return FALSE;
 	}
 
-	WSAAsyncSelect(m_ClientSocket,this->m_hWnd,WM_SOCKET_MSG,FD_CLOSE);
+	if (connect(m_ClientSocket,(PSOCKADDR)&ServerAddr,sizeof(ServerAddr)) == SOCKET_ERROR)
+	{
+		DWORD dwErrorCode = WSAGetLastError();
+
+		if (dwErrorCode != WSAEWOULDBLOCK)
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) failed with system error code:%d,%s")
+				,strIpAddr,nPort,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			closesocket(m_ClientSocket);
+
+			return FALSE;
+		}
+		
+	}
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) success."),strIpAddr,nPort);
 
@@ -3126,6 +3144,7 @@ afx_msg LRESULT CUSBCopyDlg::OnDisconnectSocket(WPARAM wParam, LPARAM lParam)
 afx_msg LRESULT CUSBCopyDlg::OnSocketMsg(WPARAM wParam, LPARAM lParam)
 {
 	WORD event = WSAGETSELECTEVENT(lParam);
+	WORD err = WSAGETSELECTERROR(lParam);
 
 	switch (event)
 	{
@@ -3135,6 +3154,10 @@ afx_msg LRESULT CUSBCopyDlg::OnSocketMsg(WPARAM wParam, LPARAM lParam)
 		m_ClientSocket = INVALID_SOCKET;
 
 		SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
+
+		break;
+
+	case FD_CONNECT:
 
 		break;
 	}
@@ -3396,18 +3419,18 @@ BOOL CUSBCopyDlg::IsLisence()
 		return FALSE;
 	}
 
-	BYTE byFileKey[64] = {NULL};
+	BYTE byFileKey[KEY_LEN] = {NULL};
 
 	DWORD dwReadSize = 0;
 
 
-	if (!ReadFile(hFile,byFileKey,64,&dwReadSize,NULL))
+	if (!ReadFile(hFile,byFileKey,KEY_LEN,&dwReadSize,NULL))
 	{
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read lisence file failed."));
 		return FALSE;
 	}
 
-	if (dwReadSize != 8)
+	if (dwReadSize != KEY_LEN)
 	{
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Invalid lisence file."));
 		return FALSE;
@@ -3419,7 +3442,7 @@ BOOL CUSBCopyDlg::IsLisence()
 	BYTE *key = lisence.GetKey();
 
 	// 比较
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i < KEY_LEN - 8; i++)
 	{
 		if (key[i] != byFileKey[i])
 		{
@@ -3429,4 +3452,13 @@ BOOL CUSBCopyDlg::IsLisence()
 	}
 
 	return TRUE;
+}
+
+DWORD WINAPI CUSBCopyDlg::ConnectSocketThreadProc( LPVOID lpParm )
+{
+	CUSBCopyDlg *pDlg = (CUSBCopyDlg *)lpParm;
+	
+	pDlg->OnConnectSocket(0,0);
+
+	return 0;
 }
