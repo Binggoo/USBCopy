@@ -37,6 +37,7 @@ public:
 	void SetCompareMode(CompareMode compareMode);
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
 	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
+	void SetMakeImageParm(int compressLevel);
 	BOOL Start();
 
 	void SetSocket(SOCKET sClient,BOOL bServerFirst);
@@ -91,6 +92,8 @@ private:
 
 	SOCKET m_ClientSocket;
 	BOOL   m_bServerFirst;
+
+	int m_iCompressLevel;
 
 	BOOL ReadSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode);
 	BOOL WriteSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode);

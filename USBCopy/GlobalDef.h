@@ -332,7 +332,7 @@ typedef struct _STRUCT_IMAGE_HEADER
 #define DEF_COMMU_CMD const unsigned long
 #endif
 
-#define MAX_BUFFER 1024*1024
+#define MAX_BUFFER (512 + 12)*1024
 
 #pragma pack(push, 1)
 typedef struct _STRUCT_CMD_IN

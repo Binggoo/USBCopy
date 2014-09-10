@@ -295,6 +295,7 @@ void CPortDlg::UpdateState()
 		break;
 
 	case PortState_Active:
+	case PortState_Stop:
 		if (IsSlowest())
 		{
 			nID = IDB_YELLOW;

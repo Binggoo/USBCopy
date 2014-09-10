@@ -411,6 +411,11 @@ void CUSBCopyDlg::InitialPortFrame()
 		rows++;
 	}
 
+	if (rows == 1)
+	{
+		rows = 2;
+	}
+
 	int nWidth = (rectFrame.Width()-2) / COLUMNS;
 	int nHeight = (rectFrame.Height()-2) / rows;
 
@@ -1028,6 +1033,8 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 		{
 			// 全部FAIL
 			m_Command.AllFail();
+
+			SetAllFailed();
 
 			m_bRunning = FALSE;
 
@@ -1765,6 +1772,7 @@ void CUSBCopyDlg::OnStart()
 			CString strImagePath = m_Config.GetString(_T("ImagePath"),_T("ImagePath"),_T("d:\\image"));
 			CString strImageName = m_Config.GetString(_T("ImagePath"),_T("ImageName"));
 			BOOL bServerFirst = m_Config.GetBool(_T("ImageMake"),_T("SavePath"),FALSE);
+			int compressLevel = m_Config.GetInt(_T("ImageMake"),_T("CompressLevel"),1);
 
 			// 设置端口状态
 			m_MasterPort.SetHashMethod(hashMethod);
@@ -1794,6 +1802,7 @@ void CUSBCopyDlg::OnStart()
 			disk.SetTargetPorts(&filePortList);
 			disk.SetHashMethod(TRUE,FALSE,hashMethod);
 			disk.SetSocket(m_ClientSocket,bServerFirst);
+			disk.SetMakeImageParm(compressLevel);
 
 			bResult = disk.Start();
 

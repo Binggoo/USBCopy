@@ -45,6 +45,8 @@ CDisk::CDisk(void)
 	m_bServerFirst = FALSE;
 
 	m_ClientSocket = INVALID_SOCKET;
+
+	m_iCompressLevel = Z_BEST_SPEED;
 }
 
 
@@ -4893,7 +4895,7 @@ BOOL CDisk::Compress()
 		BYTE *pDest = new BYTE[MAX_COMPRESS_BUF];
 		ZeroMemory(pDest,MAX_COMPRESS_BUF);
 
-		int ret = compress2(pDest,&dwDestLen,pBuffer,dwSourceLen,Z_DEFAULT_COMPRESSION);
+		int ret = compress2(pDest,&dwDestLen,pBuffer,dwSourceLen,m_iCompressLevel);
 
 		if (ret == Z_OK)
 		{
@@ -6306,5 +6308,10 @@ void CDisk::SetSocket( SOCKET sClient,BOOL bServerFirst )
 {
 	m_ClientSocket = sClient;
 	m_bServerFirst = bServerFirst;
+}
+
+void CDisk::SetMakeImageParm( int compressLevel /*= Z_BEST_SPEED*/ )
+{
+	m_iCompressLevel = compressLevel;
 }
 
