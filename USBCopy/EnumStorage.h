@@ -33,8 +33,8 @@ typedef struct
 /******************************************************************************
  * º¯ÊýÉêÃ÷
  ******************************************************************************/
-VOID EnumStorage();
-VOID EnumVolume();
+VOID EnumStorage(LPBOOL flag);
+VOID EnumVolume(LPBOOL flag);
 
 PSTORAGEDEVIEINFO 
 	MatchStorageDeivceID(PTSTR pszDeviceID);

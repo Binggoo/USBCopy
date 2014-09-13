@@ -215,6 +215,8 @@ void CGlobalSetting::OnBnClickedBtnConnect()
 
 	UpdateData(TRUE);
 
+	GetDlgItem(IDC_BTN_CONNECT)->EnableWindow(FALSE);
+
 	m_pIni->WriteString(_T("RemoteServer"),_T("ServerIP"),m_strEditServerIP);
 	m_pIni->WriteUInt(_T("RemoteServer"),_T("ListenPort"),m_nListenPort);
 
@@ -234,6 +236,7 @@ void CGlobalSetting::OnBnClickedBtnConnect()
 			strResText.LoadString(IDS_MSG_CONNECT_FAIL);
 			MessageBox(strResText);
 
+			GetDlgItem(IDC_BTN_CONNECT)->EnableWindow(TRUE);
 			return;
 		}
 	}
@@ -248,4 +251,6 @@ void CGlobalSetting::OnBnClickedBtnConnect()
 	}
 
 	SetDlgItemText(IDC_BTN_CONNECT,strResText);
+
+	GetDlgItem(IDC_BTN_CONNECT)->EnableWindow(TRUE);
 }

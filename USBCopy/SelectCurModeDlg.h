@@ -35,6 +35,7 @@ private:
 	CButtonST m_BtnDiskCompare;
 	CButtonST m_BtnDiskFormat;
 	CButtonST m_BtnDiskClean;
+	CButtonST m_BtnReturn;
 
 public:
 	void SetConfig(CIni *pIni);
@@ -49,4 +50,5 @@ public:
 	afx_msg void OnBnClickedBtnDiskCompare();
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
 	afx_msg void OnBnClickedBtnDiskFormat();
+	afx_msg void OnBnClickedBtnReturn();
 };

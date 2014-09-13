@@ -37,6 +37,7 @@ BEGIN_MESSAGE_MAP(CSelectCurModeDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_DISK_COMPARE, &CSelectCurModeDlg::OnBnClickedBtnDiskCompare)
 	ON_WM_SETCURSOR()
 	ON_BN_CLICKED(IDC_BTN_DISK_FORMAT, &CSelectCurModeDlg::OnBnClickedBtnDiskFormat)
+	ON_BN_CLICKED(IDC_BTN_RETURN, &CSelectCurModeDlg::OnBnClickedBtnReturn)
 END_MESSAGE_MAP()
 
 
@@ -190,6 +191,11 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	m_BtnDiskFormat.SetFlat(FALSE);
 	m_BtnDiskFormat.SetBitmaps(IDB_DISK_FORMAT,RGB(255,255,255));
 
+	m_BtnReturn.SubclassDlgItem(IDC_BTN_RETURN,this);
+	m_BtnReturn.SetBitmaps(IDB_RETURN,RGB(255,255,255));
+	m_BtnReturn.DrawBorder(FALSE);
+	SetDlgItemText(IDC_BTN_RETURN,_T(""));
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
 }
@@ -226,6 +232,7 @@ BOOL CSelectCurModeDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		case IDC_BTN_DISK_COMPARE:
 		case IDC_BTN_DISK_CLEAN:
 		case IDC_BTN_DISK_FORMAT:
+		case IDC_BTN_RETURN:
 		//case IDOK:
 			if (pWnd->IsWindowEnabled())
 			{
@@ -244,5 +251,12 @@ void CSelectCurModeDlg::OnBnClickedBtnDiskFormat()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_WorkMode = WorkMode_DiskFormat;
+	OnOK();
+}
+
+
+void CSelectCurModeDlg::OnBnClickedBtnReturn()
+{
+	// TODO: 在此添加控件通知处理程序代码
 	OnOK();
 }

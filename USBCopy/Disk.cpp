@@ -10,6 +10,9 @@
 
 #include "Fat32.h"
 
+#include <ntddscsi.h>
+#include "IoctlDef.h"
+
 #ifdef _DEBUG
 #pragma comment(lib,"zlib128d.lib")
 #else
@@ -582,6 +585,220 @@ BOOL CDisk::SetDiskAtrribute(HANDLE hDisk,BOOL bReadOnly,BOOL bOffline,PDWORD pd
 	}
 
 	return bSuc;
+}
+
+BOOL CDisk::GetTSModelNameAndSerialNumber( HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode )
+{
+	BYTE buffer[18];
+	BYTE cdb[16];
+	DWORD dwRet = 0;
+
+	memset(buffer,0,18);
+	memset(cdb,0,16);
+
+	cdb[0] = 0xD0;
+	cdb[1] = 0x11;
+	cdb[2] = 0x53;
+	cdb[3] = 0x44;
+	cdb[4] = 0x20;
+	cdb[5] = 0x43;
+	cdb[6] = 0x61;
+	cdb[7] = 0x72;
+	cdb[8] = 0x64;
+
+	dwRet = ScsiCommand(hDevice,cdb,16,buffer,18,SCSI_IOCTL_DATA_IN,NULL,0,2);
+
+	if (dwRet != 0)
+	{
+		*pdwErrorCode = dwRet; 
+		return FALSE;
+	}
+
+	memset(cdb,0,16);
+	cdb[0] = 0xD1;
+	cdb[1] = 0x12;
+	cdb[2] = 0x0A;
+	cdb[3] = buffer[7];
+	cdb[4] = buffer[6];
+	cdb[10] = 0x06;
+	cdb[11] = 0xFF;
+
+	dwRet = ScsiCommand(hDevice,cdb,16,NULL,0,SCSI_IOCTL_DATA_OUT,NULL,0,2);
+
+	if (dwRet != 0)
+	{
+		*pdwErrorCode = dwRet; 
+		return FALSE;
+	}
+
+	memset(buffer,0,18);
+	memset(cdb,0,16);
+
+	cdb[0] = 0xD4;
+	cdb[1] = 0x10;
+	cdb[8] = 0x11;
+	cdb[9] = 0xFF;
+
+	dwRet = ScsiCommand(hDevice,cdb,16,buffer,17,SCSI_IOCTL_DATA_IN,NULL,0,2);
+
+	if (dwRet != 0)
+	{
+		*pdwErrorCode = dwRet; 
+		return FALSE;
+	}
+	TCHAR szModelName[6] = {NULL};
+	TCHAR szSerialNumber[10] = {NULL};
+	_stprintf_s(szModelName,_T("%c%c%c%c%c"),buffer[4],buffer[5],buffer[6],buffer[7],buffer[8]);
+	_stprintf_s(szSerialNumber,_T("%02X%02X%02X%02X"),buffer[10],buffer[11],buffer[12],buffer[13]);
+
+	_tcscpy_s(lpszSerialNum,_tcslen(szSerialNumber) + 1, szSerialNumber);
+	_tcscpy_s(lpszModulName,_tcslen(szModelName) + 1, szModelName);
+
+	return TRUE;
+}
+
+BOOL CDisk::GetDiskModelNameAndSerialNumber( HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode )
+{
+	DWORD readed = 0;
+	GETVERSIONINPARAMS gvopVersionParams;
+	BOOL result = DeviceIoControl(
+		hDevice, 
+		SMART_GET_VERSION,
+		NULL, 
+		0, 
+		&gvopVersionParams,
+		sizeof(gvopVersionParams),
+		&readed, 
+		NULL);
+	if (!result)        //fail
+	{
+		*pdwErrorCode = GetLastError();
+		return FALSE;
+	}
+
+	if(0 == gvopVersionParams.bIDEDeviceMap)
+	{
+		return FALSE;
+	}
+
+	// IDE or ATAPI IDENTIFY cmd
+	BYTE btIDCmd;
+	SENDCMDINPARAMS inParams;
+	BYTE nDrive =0;
+	btIDCmd = (gvopVersionParams.bIDEDeviceMap >> nDrive & 0x10) ? IDE_ATAPI_IDENTIFY : IDE_ATA_IDENTIFY;
+
+	// output structure
+	BYTE outParams[sizeof(SENDCMDOUTPARAMS) + IDENTIFY_BUFFER_SIZE - 1];   // + 512 - 1
+
+	//fill in the input buffer
+	inParams.cBufferSize = 0;           //or IDENTIFY_BUFFER_SIZE ?
+	inParams.irDriveRegs.bFeaturesReg = READ_ATTRIBUTES;
+	inParams.irDriveRegs.bSectorCountReg = 1;
+	inParams.irDriveRegs.bSectorNumberReg = 1;
+	inParams.irDriveRegs.bCylLowReg = 0;
+	inParams.irDriveRegs.bCylHighReg = 0;
+
+	inParams.irDriveRegs.bDriveHeadReg = (nDrive & 1) ? 0xB0 : 0xA0;
+	inParams.irDriveRegs.bCommandReg = btIDCmd;
+	//inParams.bDriveNumber = nDrive;
+
+	//get the attributes
+	result = DeviceIoControl(
+		hDevice, 
+		SMART_RCV_DRIVE_DATA,
+		&inParams,
+		sizeof(SENDCMDINPARAMS) - 1,
+		outParams,
+		sizeof(SENDCMDOUTPARAMS) + IDENTIFY_BUFFER_SIZE - 1,
+		&readed,
+		NULL);
+	if (!result)        //fail
+	{
+		*pdwErrorCode = GetLastError();
+		return FALSE;
+	}
+
+	DWORD dwDiskData[IDENTIFY_BUFFER_SIZE / 2];
+	WORD *pIDSector; // 对应结构IDSECTOR，见头文件
+	pIDSector = (WORD *)(((SENDCMDOUTPARAMS*)outParams)->bBuffer);      //lint !e826
+	for(DWORD i = 0; i < IDENTIFY_BUFFER_SIZE / 2; i++)
+	{
+		dwDiskData[i] = pIDSector[i];       //lint !e662 !e661
+	}
+
+	// get serial number
+	TCHAR *pSN = ConvertSENDCMDOUTPARAMSBufferToString(dwDiskData, 10, 19);
+	int nLen = _tcslen(pSN) + 1;
+	_tcscpy_s(lpszSerialNum,nLen, pSN);
+
+	// get model number
+	TCHAR *pModel = ConvertSENDCMDOUTPARAMSBufferToString(dwDiskData, 27, 46);
+	nLen = _tcslen(pModel) + 1;
+	_tcscpy_s(lpszModulName,nLen,pModel);
+
+	return 0;
+}
+
+TCHAR * CDisk::ConvertSENDCMDOUTPARAMSBufferToString( const DWORD *dwDiskData, DWORD nFirstIndex, DWORD nLastIndex )
+{
+	static TCHAR szResBuf[IDENTIFY_BUFFER_SIZE];     //512
+	DWORD nIndex = 0;
+	DWORD nPosition = 0;
+
+	for (nIndex = nFirstIndex; nIndex <= nLastIndex; nIndex++)
+	{
+		// get high byte
+		szResBuf[nPosition] = (TCHAR)(dwDiskData[nIndex] >> 8);
+		nPosition++;
+
+		// get low byte
+		szResBuf[nPosition] = (TCHAR)(dwDiskData[nIndex] & 0xff);
+		nPosition++;
+	}
+
+	// End the string
+	szResBuf[nPosition] = _T('\0');
+
+	return szResBuf;
+}
+
+DWORD CDisk::ScsiCommand( HANDLE hDevice, void *pCdb, UCHAR ucCdbLength, void *pDataBuffer, ULONG ulDataLength, UCHAR ucDirection , void *pSenseBuffer, UCHAR ucSenseLength, ULONG ulTimeout )
+{
+	SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER sptdwb;
+	ZeroMemory(&sptdwb, sizeof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER));
+
+	sptdwb.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+	sptdwb.sptd.PathId = 0;
+	sptdwb.sptd.TargetId = 1;
+	sptdwb.sptd.Lun = 0;
+	sptdwb.sptd.CdbLength = ucCdbLength;
+	sptdwb.sptd.SenseInfoLength = sizeof(sptdwb.ucSenseBuf);
+	sptdwb.sptd.DataIn = ucDirection;
+	sptdwb.sptd.DataTransferLength = ulDataLength;
+	sptdwb.sptd.TimeOutValue = ulTimeout;
+	sptdwb.sptd.DataBuffer = pDataBuffer;
+	sptdwb.sptd.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER,ucSenseBuf);
+
+	memcpy(sptdwb.sptd.Cdb,pCdb,ucCdbLength);
+	DWORD dwLength = sizeof(SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER);
+	DWORD dwReturn = 0;
+	BOOL bOK = DeviceIoControl(hDevice,IOCTL_SCSI_PASS_THROUGH_DIRECT,&sptdwb,dwLength,&sptdwb,dwLength,&dwReturn,NULL);
+
+	if (!bOK)
+	{
+		DWORD dwError = GetLastError();
+		if (pSenseBuffer && ucSenseLength)
+		{
+			ZeroMemory(pSenseBuffer,ucSenseLength);
+		}
+		return dwError;
+	}
+	if (pSenseBuffer && ucSenseLength)
+	{
+		memcpy(pSenseBuffer,sptdwb.ucSenseBuf,(ucSenseLength < sizeof(sptdwb.ucSenseBuf)) ? ucSenseLength : sizeof(sptdwb.ucSenseBuf));
+	}
+
+	return 0;
 }
 
 BOOL CDisk::ReadSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode )
@@ -6314,4 +6531,3 @@ void CDisk::SetMakeImageParm( int compressLevel /*= Z_BEST_SPEED*/ )
 {
 	m_iCompressLevel = compressLevel;
 }
-

@@ -119,6 +119,7 @@
     <None Include="res\makeimage.bmp" />
     <None Include="res\manager.bmp" />
     <None Include="res\menu.bmp" />
+    <None Include="res\more.bmp" />
     <None Include="res\quickcopy.bmp" />
     <None Include="res\restore.bmp" />
     <None Include="res\return.bmp" />
@@ -172,7 +173,9 @@
     <ClInclude Include="ImageMakeSetting.h" />
     <ClInclude Include="ImageManager.h" />
     <ClInclude Include="ImageNameDlg.h" />
+    <ClInclude Include="IoctlDef.h" />
     <ClInclude Include="MD5.h" />
+    <ClInclude Include="MoreFunction.h" />
     <ClInclude Include="Password.h" />
     <ClInclude Include="Port.h" />
     <ClInclude Include="PortCommand.h" />
@@ -182,6 +185,7 @@
     <ClInclude Include="ScanningDlg.h" />
     <ClInclude Include="SelectCurModeDlg.h" />
     <ClInclude Include="SerialPort.h" />
+    <ClInclude Include="SoftwareRecovery.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="SystemMenu.h" />
     <ClInclude Include="targetver.h" />
@@ -223,6 +227,7 @@
     <ClCompile Include="ImageManager.cpp" />
     <ClCompile Include="ImageNameDlg.cpp" />
     <ClCompile Include="MD5.cpp" />
+    <ClCompile Include="MoreFunction.cpp" />
     <ClCompile Include="Password.cpp" />
     <ClCompile Include="Port.cpp" />
     <ClCompile Include="PortCommand.cpp" />
@@ -231,6 +236,7 @@
     <ClCompile Include="ScanningDlg.cpp" />
     <ClCompile Include="SelectCurModeDlg.cpp" />
     <ClCompile Include="SerialPort.cpp" />
+    <ClCompile Include="SoftwareRecovery.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

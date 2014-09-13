@@ -22,7 +22,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
-	void SetConfig(CIni *pIni,CPortCommand *pCommand,BOOL bConnected);
+	void SetConfig(CIni *pIni,CPortCommand *pCommand,BOOL bConnected,BOOL bLisence);
 
 private:
 	CIni *m_pIni;
@@ -30,17 +30,20 @@ private:
 	CString m_strAppPath;
 	UINT m_nTargetNum;
 	BOOL m_bSocketConnected;
+	BOOL m_bLisence;
 
 	CButtonST m_BtnUpdate;
-	CButtonST m_BtnRestore;
 	CButtonST m_BtnSetting;
 	CButtonST m_BtnSyncImage;
 	CButtonST m_BtnImageManager;
-	CButtonST m_BtnViewLog;
 	CButtonST m_BtnExport;
-	CButtonST m_BtnBurnIn;
-	CButtonST m_BtnDebug;
 	CButtonST m_BtnReturn;
+	CButtonST m_BtnMore;
+
+	CBitmap   m_BitmapSoftRec;
+	CBitmap   m_BitmapViewLog;
+	CBitmap   m_BitmapBurnIn;
+	CBitmap   m_BitmapDebug;
 
 public:
 	afx_msg void OnBnClickedButtonUpdate();
@@ -54,4 +57,5 @@ public:
 	afx_msg void OnBnClickedButtonDebug();
 	afx_msg void OnBnClickedButtonReturn();
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
+	afx_msg void OnBnClickedBtnMore();
 };

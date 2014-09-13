@@ -184,7 +184,7 @@ void Cleanup_VolumeInfo(PDEVICELIST pDevList)
 *  √∂æŸStorage…Ë±∏
 ******************************************************************************/
 #define INTERFACE_DETAIL_SIZE       1024
-VOID EnumStorage()
+VOID EnumStorage(LPBOOL flag)
 {
 	HDEVINFO                            hDevInfo;
 	SP_DEVINFO_DATA                     spDevInfoData;
@@ -245,7 +245,7 @@ VOID EnumStorage()
 	nIndex = 0;
 	nDevice = 0;
 
-	while (1)
+	while ( !*flag )
 	{
 		spDevInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 		spDevInfoData.cbSize = sizeof (SP_DEVINFO_DATA);
@@ -346,7 +346,7 @@ VOID EnumStorage()
 
 }
 
-VOID EnumVolume()
+VOID EnumVolume(LPBOOL flag)
 {
 
 	STORAGE_DEVICE_NUMBER   StorageDevNumber;
@@ -439,7 +439,7 @@ VOID EnumVolume()
 		{
 			break;
 		}
-	} while (bResult);
+	} while (bResult && !*flag );
 
 	FindVolumeClose(hFindVolume);
 }

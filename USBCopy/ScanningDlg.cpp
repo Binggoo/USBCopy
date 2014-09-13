@@ -106,8 +106,11 @@ void CScanningDlg::OnTimer(UINT_PTR nIDEvent)
 
 		m_dwOldTime = m_dwCurrentTime;
 
+		static BOOL bStop = FALSE;
+
 		if (m_nWaitTimeS < 0)
 		{
+			bStop = TRUE;
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning disk end."));
 			KillTimer(1);
 			EndDialog(0);
@@ -117,8 +120,8 @@ void CScanningDlg::OnTimer(UINT_PTR nIDEvent)
 		SetDlgItemText(IDC_TEXT_SCAN,strText);
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning disk......"));
 
-		EnumStorage();
-		EnumVolume();
+		EnumStorage(&bStop);
+		EnumVolume(&bStop);
 		ScanningDevice();
 		CleanupStorage();
 		CleanupVolume();
@@ -292,6 +295,63 @@ void CScanningDlg::ScanningDevice()
 									CleanupVolumeDeviceList(pVolumeList);
 								}
 
+								if (!m_bIsUSB)
+								{
+									TCHAR szModelName[256] = {NULL};
+									TCHAR szSerialNumber[256] = {NULL};
+
+									CDisk::GetTSModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode);
+
+									strModel = CString(szModelName);
+									strSN = CString(szSerialNumber);
+								}
+								else
+								{
+									PSTORAGE_DEVICE_DESCRIPTOR DeviceDescriptor;
+									DeviceDescriptor=(PSTORAGE_DEVICE_DESCRIPTOR)new BYTE[sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1];
+									DeviceDescriptor->Size = sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1;
+
+									BOOL bOK = GetDriveProperty(hDevice,DeviceDescriptor);
+
+									dwErrorCode = GetLastError();
+
+									if (bOK)
+									{
+										LPCSTR vendorId = "";
+										LPCSTR productId = "";
+
+										LPCSTR serialNumber = "";
+
+										if ((DeviceDescriptor->ProductIdOffset != 0) &&
+											(DeviceDescriptor->ProductIdOffset != -1)) 
+										{
+											productId        = (LPCSTR)(DeviceDescriptor);
+											productId       += (ULONG_PTR)DeviceDescriptor->ProductIdOffset;
+										}
+
+										if ((DeviceDescriptor->VendorIdOffset != 0) &&
+											(DeviceDescriptor->VendorIdOffset != -1)) 
+										{
+											vendorId         = (LPCSTR)(DeviceDescriptor);
+											vendorId        += (ULONG_PTR)DeviceDescriptor->VendorIdOffset;
+										}
+
+										if ((DeviceDescriptor->SerialNumberOffset != 0) &&
+											(DeviceDescriptor->SerialNumberOffset != -1)) 
+										{
+											serialNumber     = (LPCSTR)(DeviceDescriptor);
+											serialNumber    += (ULONG_PTR)DeviceDescriptor->SerialNumberOffset;
+										}
+
+										strSN = CString(serialNumber);
+										strModel = CString(vendorId) + CString(productId);
+
+									}
+
+									delete []DeviceDescriptor;
+
+								}
+
 								port->SetConnected(TRUE);
 								port->SetDiskNum(pStorageDevInfo->nDiskNum);
 								port->SetPortState(PortState_Online);
@@ -378,10 +438,11 @@ BOOL CScanningDlg::IsAllConnected()
 	return bConnect;
 }
 
-void CScanningDlg::SetConfig( CIni *pIni,WorkMode workMode )
+void CScanningDlg::SetConfig( CIni *pIni,WorkMode workMode ,BOOL bIsUSB)
 {
 	m_pIni = pIni;
 	m_WorkMode = workMode;
+	m_bIsUSB = bIsUSB;
 }
 
 void CScanningDlg::SetLogFile( HANDLE hFile )

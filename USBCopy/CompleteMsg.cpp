@@ -112,7 +112,7 @@ BOOL CCompleteMsg::PreTranslateMessage(MSG* pMsg)
 {
 	// TODO: 在此添加专用代码和/或调用基类
 
-	if (pMsg->message == WM_KEYDOWN || pMsg->message == WM_LBUTTONDOWN)
+	if ( (pMsg->message == WM_KEYDOWN || pMsg->message == WM_LBUTTONDOWN) && IsWindowVisible())
 	{
 		CDialogEx::OnOK();
 	}

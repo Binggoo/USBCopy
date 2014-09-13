@@ -84,6 +84,7 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bBurnInTest = FALSE;
 	m_bStart = FALSE;
 	m_bLisence = FALSE;
+	m_bSockeConnected = FALSE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -814,7 +815,7 @@ void CUSBCopyDlg::OnBnClickedBtnSystem()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	CSystemMenu menu;
-	menu.SetConfig(&m_Config,&m_Command,m_bSockeConnected);
+	menu.SetConfig(&m_Config,&m_Command,m_bSockeConnected,m_bLisence);
 	menu.DoModal();
 
 	CString strAlias = m_Config.GetString(_T("Option"),_T("MachineAlias"),_T("PHIYO"));
@@ -936,26 +937,22 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 	if (m_bStart)
 	{
-		OnStop();
-
 		m_bStart = FALSE;
 
 		m_BtnStart.SetBitmaps(IDB_START,RGB(255,255,255));
+
+		OnStop();
 
 		//strResText.LoadString(IDS_BTN_START);
 		//SetDlgItemText(IDC_BTN_START,strResText);
 	}
 	else
 	{
+
 		switch(m_WorkMode)
 		{
 		case WorkMode_ImageMake:
 			{
-
-				if (!m_bSockeConnected)
-				{
-					SendMessage(WM_CONNECT_SOCKET);
-				}
 
 				if (!m_bBurnInTest)
 				{
@@ -972,11 +969,6 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 		case WorkMode_ImageCopy:
 			{
-
-				if (!m_bSockeConnected)
-				{
-					SendMessage(WM_CONNECT_SOCKET);
-				}
 
 				m_bServerFirst = FALSE;
 				if (!m_bBurnInTest)
@@ -999,13 +991,13 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 		m_bResult = TRUE;
 		m_bRunning = TRUE;
 		m_bVerify = FALSE;
-		m_bStart = TRUE;
 
+		m_bStart = TRUE;
+		m_BtnStart.SetBitmaps(IDB_STOP,RGB(255,255,255));
 		EnableControls(FALSE);
 
 		//strResText.LoadString(IDS_BTN_STOP);
 		//SetDlgItemText(IDC_BTN_START,strResText);
-		m_BtnStart.SetBitmaps(IDB_STOP,RGB(255,255,255));
 
 		if (m_ThreadListen && m_ThreadListen->m_hThread)
 		{
@@ -1023,7 +1015,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 		CScanningDlg dlg;
 		dlg.SetLogFile(m_hLogFile);
-		dlg.SetConfig(&m_Config,m_WorkMode);
+		dlg.SetConfig(&m_Config,m_WorkMode,m_bIsUSB);
 		dlg.SetDeviceInfoList(&m_MasterPort,&m_TargetPorts);
 		dlg.SetBegining(TRUE);
 		dlg.DoModal();
@@ -1543,6 +1535,22 @@ void CUSBCopyDlg::OnStart()
 				DWORD dwErrorCode = 0;
 				errType = m_MasterPort.GetErrorCode(&dwErrorCode);
 
+				if (dwErrorCode == 0)
+				{
+					// 任意取一个错误
+					pos = m_TargetPorts.GetHeadPosition();
+					while (pos)
+					{
+						CPort *port = m_TargetPorts.GetNext(pos);
+
+						if (port->IsConnected() && !port->GetResult())
+						{
+							errType = port->GetErrorCode(&dwErrorCode);
+							break;
+						}
+					}
+				}
+
 				if (errType == ErrorType_System)
 				{
 					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
@@ -1617,6 +1625,22 @@ void CUSBCopyDlg::OnStart()
 				ErrorType errType = ErrorType_System;
 				DWORD dwErrorCode = 0;
 				errType = m_MasterPort.GetErrorCode(&dwErrorCode);
+
+				if (dwErrorCode == 0)
+				{
+					// 任意取一个错误
+					pos = m_TargetPorts.GetHeadPosition();
+					while (pos)
+					{
+						CPort *port = m_TargetPorts.GetNext(pos);
+
+						if (port->IsConnected() && !port->GetResult())
+						{
+							errType = port->GetErrorCode(&dwErrorCode);
+							break;
+						}
+					}
+				}
 
 				if (errType == ErrorType_System)
 				{
@@ -1748,6 +1772,22 @@ void CUSBCopyDlg::OnStart()
 				ErrorType errType = ErrorType_System;
 				DWORD dwErrorCode = 0;
 				errType = m_MasterPort.GetErrorCode(&dwErrorCode);
+
+				if (dwErrorCode == 0)
+				{
+					// 任意取一个错误
+					pos = m_TargetPorts.GetHeadPosition();
+					while (pos)
+					{
+						CPort *port = m_TargetPorts.GetNext(pos);
+
+						if (port->IsConnected() && !port->GetResult())
+						{
+							errType = port->GetErrorCode(&dwErrorCode);
+							break;
+						}
+					}
+				}
 
 				if (errType == ErrorType_System)
 				{
@@ -2081,6 +2121,22 @@ void CUSBCopyDlg::OnStart()
 				ErrorType errType = ErrorType_System;
 				DWORD dwErrorCode = 0;
 				errType = m_MasterPort.GetErrorCode(&dwErrorCode);
+
+				if (dwErrorCode == 0)
+				{
+					// 任意取一个错误
+					pos = m_TargetPorts.GetHeadPosition();
+					while (pos)
+					{
+						CPort *port = m_TargetPorts.GetNext(pos);
+
+						if (port->IsConnected() && !port->GetResult())
+						{
+							errType = port->GetErrorCode(&dwErrorCode);
+							break;
+						}
+					}
+				}
 
 				if (errType == ErrorType_System)
 				{
@@ -2427,9 +2483,13 @@ afx_msg LRESULT CUSBCopyDlg::OnComReceive(WPARAM wParam, LPARAM lParam)
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("[SerialPort] RD = %02X"),(BYTE)pBuffer[i]);
 		if (pBuffer[i] == 0x5A)
 		{
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Start event click."),(BYTE)pBuffer[i]);
-			keybd_event(VK_RETURN,0,0,0);
-			keybd_event(VK_RETURN,0,KEYEVENTF_KEYUP,0);
+			if (!m_bStart)
+			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Start event click."),(BYTE)pBuffer[i]);
+				keybd_event(VK_RETURN,0,0,0);
+				keybd_event(VK_RETURN,0,KEYEVENTF_KEYUP,0);
+			}
+			
 		}
 		else if (pBuffer[i] == 0x76)
 		{
@@ -2488,10 +2548,20 @@ void CUSBCopyDlg::EnumDevice()
 {
 	while (!m_bRunning)
 	{
-		EnumStorage();
-		EnumVolume();
-
-		MatchDevice();
+		if (!m_bRunning)
+		{
+			EnumStorage(&m_bRunning);
+		}
+		
+		if (!m_bRunning)
+		{
+			EnumVolume(&m_bRunning);
+		}
+		
+		if (!m_bRunning)
+		{
+			MatchDevice();
+		}
 
 		CleanupStorage();
 		CleanupVolume();
@@ -2551,7 +2621,7 @@ void CUSBCopyDlg::MatchDevice()
 			if (pStorageList)
 			{
 				PDEVICELIST pListNode = pStorageList->pNext;
-				while (pListNode)
+				while (pListNode && !m_bRunning)
 				{
 					PSTORAGEDEVIEINFO pStorageDevInfo = (PSTORAGEDEVIEINFO)pListNode->pDevInfo;
 					if (pStorageDevInfo)
@@ -2583,7 +2653,6 @@ void CUSBCopyDlg::MatchDevice()
 								CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
 							}
 
-							CloseHandle(hDevice);
 
 							if (ullSectorNums > 0)
 							{
@@ -2616,16 +2685,75 @@ void CUSBCopyDlg::MatchDevice()
 									CleanupVolumeDeviceList(pVolumeList);
 								}
 
+								if (!m_bIsUSB)
+								{
+									TCHAR szModelName[256] = {NULL};
+									TCHAR szSerialNumber[256] = {NULL};
+
+									CDisk::GetTSModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode);
+
+									strModel = CString(szModelName);
+									strSN = CString(szSerialNumber);
+								}
+								else
+								{
+									PSTORAGE_DEVICE_DESCRIPTOR DeviceDescriptor;
+									DeviceDescriptor=(PSTORAGE_DEVICE_DESCRIPTOR)new BYTE[sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1];
+									DeviceDescriptor->Size = sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1;
+
+									BOOL bOK = GetDriveProperty(hDevice,DeviceDescriptor);
+
+									dwErrorCode = GetLastError();
+
+									if (bOK)
+									{
+										LPCSTR vendorId = "";
+										LPCSTR productId = "";
+
+										LPCSTR serialNumber = "";
+
+										if ((DeviceDescriptor->ProductIdOffset != 0) &&
+											(DeviceDescriptor->ProductIdOffset != -1)) 
+										{
+											productId        = (LPCSTR)(DeviceDescriptor);
+											productId       += (ULONG_PTR)DeviceDescriptor->ProductIdOffset;
+										}
+
+										if ((DeviceDescriptor->VendorIdOffset != 0) &&
+											(DeviceDescriptor->VendorIdOffset != -1)) 
+										{
+											vendorId         = (LPCSTR)(DeviceDescriptor);
+											vendorId        += (ULONG_PTR)DeviceDescriptor->VendorIdOffset;
+										}
+
+										if ((DeviceDescriptor->SerialNumberOffset != 0) &&
+											(DeviceDescriptor->SerialNumberOffset != -1)) 
+										{
+											serialNumber     = (LPCSTR)(DeviceDescriptor);
+											serialNumber    += (ULONG_PTR)DeviceDescriptor->SerialNumberOffset;
+										}
+
+										strSN = CString(serialNumber);
+										strModel = CString(vendorId) + CString(productId);
+										
+									}
+
+									delete []DeviceDescriptor;
+								}
+
+								if (!port->IsConnected())
+								{
+									CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,ModelName=%s,SN=%s")
+										,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
+										,ullSectorNums * dwBytesPerSector,strModel,strSN);
+								}
+
 								port->SetConnected(TRUE);
 								port->SetDiskNum(pStorageDevInfo->nDiskNum);
 								port->SetPortState(PortState_Online);
 								port->SetBytesPerSector(dwBytesPerSector);
 								port->SetTotalSize(ullSectorNums * dwBytesPerSector);
 								port->SetVolumeArray(strVolumeArray);
-
-								CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,ModelName=%s,SN=%s")
-									,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
-									,ullSectorNums * dwBytesPerSector,strModel,strSN);
 
 								break;
 							}
@@ -2635,6 +2763,7 @@ void CUSBCopyDlg::MatchDevice()
 
 							}
 
+							CloseHandle(hDevice);
 
 						}
 						else
@@ -2658,7 +2787,7 @@ void CUSBCopyDlg::MatchDevice()
 
 				// 重新上电
 				m_Command.Power(port->GetPortNum(),FALSE);
-				Sleep(1000);
+				Sleep(500);
 				m_Command.Power(port->GetPortNum(),TRUE);
 			}
 
@@ -2671,7 +2800,7 @@ void CUSBCopyDlg::MatchDevice()
 
 			// 重新上电
 			m_Command.Power(port->GetPortNum(),FALSE);
-			Sleep(1000);
+			Sleep(500);
 			m_Command.Power(port->GetPortNum(),TRUE);
 		}
 	}
