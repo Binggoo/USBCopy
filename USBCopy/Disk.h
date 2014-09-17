@@ -99,11 +99,37 @@ private:
 
 	UINT m_nBlockSectors;
 
-	BOOL ReadSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode);
-	BOOL WriteSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode);
+	BOOL ReadSectors(HANDLE hDevice,
+		ULONGLONG ullStartSector,
+		DWORD dwSectors,
+		DWORD dwBytesPerSector, 
+		LPBYTE lpSectBuff, 
+		LPOVERLAPPED lpOverlap,
+		DWORD *pdwErrorCode,
+		DWORD dwTimeOut = 2000);
+	BOOL WriteSectors(HANDLE hDevice,
+		ULONGLONG ullStartSector,
+		DWORD dwSectors,
+		DWORD dwBytesPerSector, 
+		LPBYTE lpSectBuff,
+		LPOVERLAPPED lpOverlap, 
+		DWORD *pdwErrorCode,
+		DWORD dwTimeOut = 2000);
 
-	BOOL ReadFileAsyn(HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE lpBuffer,LPOVERLAPPED lpOverlap,PDWORD pdwErrorCode);
-	BOOL WriteFileAsyn(HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE lpBuffer,LPOVERLAPPED lpOverlap,PDWORD pdwErrorCode);
+	BOOL ReadFileAsyn(HANDLE hFile,
+		ULONGLONG ullOffset,
+		DWORD &dwSize,
+		LPBYTE lpBuffer,
+		LPOVERLAPPED lpOverlap,
+		PDWORD pdwErrorCode,
+		DWORD dwTimeOut = 2000);
+	BOOL WriteFileAsyn(HANDLE hFile,
+		ULONGLONG ullOffset,
+		DWORD &dwSize,
+		LPBYTE lpBuffer,
+		LPOVERLAPPED lpOverlap,
+		PDWORD pdwErrorCode,
+		DWORD dwTimeOut= 2000);
 
 
 	// 文件系统分析

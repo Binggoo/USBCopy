@@ -803,7 +803,8 @@ DWORD CDisk::ScsiCommand( HANDLE hDevice, void *pCdb, UCHAR ucCdbLength, void *p
 	return 0;
 }
 
-BOOL CDisk::ReadSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode )
+BOOL CDisk::ReadSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector,
+	LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode,DWORD dwTimeOut /*= 2000*/)
 {
 	ULONGLONG ullOffset = ullStartSector * dwBytesPerSector;
 	DWORD dwLen = dwSectors * dwBytesPerSector;
@@ -822,7 +823,7 @@ BOOL CDisk::ReadSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors
 
 		if(dwErrorCode == ERROR_IO_PENDING) // 结束异步I/O
 		{
-			if (WaitForSingleObject(lpOverlap->hEvent, INFINITE) != WAIT_FAILED)
+			if (WaitForSingleObject(lpOverlap->hEvent, dwTimeOut) != WAIT_FAILED)
 			{
 				if(!::GetOverlappedResult(hDevice, lpOverlap, &dwReadLen, FALSE))
 				{
@@ -853,7 +854,8 @@ BOOL CDisk::ReadSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors
 	}
 }
 
-BOOL CDisk::WriteSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode )
+BOOL CDisk::WriteSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, 
+	LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode ,DWORD dwTimeOut /*= 2000*/)
 {
 	ULONGLONG ullOffset = ullStartSector * dwBytesPerSector;
 	DWORD dwLen = dwSectors * dwBytesPerSector;
@@ -873,7 +875,7 @@ BOOL CDisk::WriteSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSector
 
 		if(dwErrorCode == ERROR_IO_PENDING) // 结束异步I/O
 		{
-			if (WaitForSingleObject(lpOverlap->hEvent, INFINITE) != WAIT_FAILED)
+			if (WaitForSingleObject(lpOverlap->hEvent, dwTimeOut) != WAIT_FAILED)
 			{
 				if(!::GetOverlappedResult(hDevice, lpOverlap, &dwWriteLen, FALSE))
 				{
@@ -904,7 +906,8 @@ BOOL CDisk::WriteSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSector
 	}
 }
 
-BOOL CDisk::ReadFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE lpBuffer,LPOVERLAPPED lpOverlap,PDWORD pdwErrorCode )
+BOOL CDisk::ReadFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE lpBuffer,
+	LPOVERLAPPED lpOverlap,PDWORD pdwErrorCode ,DWORD dwTimeOut /*= 2000*/)
 {
 	DWORD dwReadLen = 0;
 	DWORD dwErrorCode = 0;
@@ -921,7 +924,7 @@ BOOL CDisk::ReadFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE 
 
 		if(dwErrorCode == ERROR_IO_PENDING) // 结束异步I/O
 		{
-			if (WaitForSingleObject(lpOverlap->hEvent, INFINITE) != WAIT_FAILED)
+			if (WaitForSingleObject(lpOverlap->hEvent, dwTimeOut) != WAIT_FAILED)
 			{
 				if(!::GetOverlappedResult(hFile, lpOverlap, &dwReadLen, FALSE))
 				{
@@ -954,7 +957,8 @@ BOOL CDisk::ReadFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE 
 	}
 }
 
-BOOL CDisk::WriteFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE lpBuffer,LPOVERLAPPED lpOverlap,PDWORD pdwErrorCode )
+BOOL CDisk::WriteFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE lpBuffer,
+	LPOVERLAPPED lpOverlap,PDWORD pdwErrorCode ,DWORD dwTimeOut /*= 2000*/)
 {
 	DWORD dwWriteLen = 0;
 	DWORD dwErrorCode = 0;
@@ -972,7 +976,7 @@ BOOL CDisk::WriteFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE
 
 		if(dwErrorCode == ERROR_IO_PENDING) // 结束异步I/O
 		{
-			if (WaitForSingleObject(lpOverlap->hEvent, INFINITE) != WAIT_FAILED)
+			if (WaitForSingleObject(lpOverlap->hEvent, dwTimeOut) != WAIT_FAILED)
 			{
 				if(!::GetOverlappedResult(hFile, lpOverlap, &dwWriteLen, FALSE))
 				{
