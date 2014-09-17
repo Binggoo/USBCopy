@@ -30,7 +30,7 @@ public:
 	static BOOL GetDiskModelNameAndSerialNumber(HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode);
 
 	// 公共方法
-	void Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile,CPortCommand *pCommand);
+	void Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile,CPortCommand *pCommand,UINT nBlockSectors);
 	void SetMasterPort(CPort *port);
 	void SetTargetPorts(PortList *pList);
 	void SetHashMethod(BOOL bComputeHash,BOOL bHashVerify,HashMethod hashMethod);
@@ -96,6 +96,8 @@ private:
 	BOOL   m_bServerFirst;
 
 	int m_iCompressLevel;
+
+	UINT m_nBlockSectors;
 
 	BOOL ReadSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff, LPOVERLAPPED lpOverlap,DWORD *pdwErrorCode);
 	BOOL WriteSectors(HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector, LPBYTE lpSectBuff,LPOVERLAPPED lpOverlap, DWORD *pdwErrorCode);

@@ -37,7 +37,7 @@ void CGlobalSetting::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_COMBO_SCAN_DISK_TIME, m_ComboBoxScanTime);
-	DDX_Control(pDX, IDC_COMBO_DELAY_OFF_TIME, m_ComboBoxDelayTime);
+	DDX_Control(pDX, IDC_COMBO_BLOCK_SIZE, m_ComboBoxBlockSectors);
 	DDX_Check(pDX, IDC_CHECK_RELATIVE_SPEED, m_bCheckRelativeSpeed);
 	DDX_Text(pDX, IDC_EDIT_RELATIVE_SPEED, m_nRelativeSpeed);
 	DDX_Check(pDX, IDC_CHECK_ABSOLUTE_SPEED, m_bCheckAbsoluteSpeed);
@@ -76,18 +76,32 @@ BOOL CGlobalSetting::OnInitDialog()
 	m_ComboBoxScanTime.AddString(_T("60"));
 	m_ComboBoxScanTime.AddString(_T("90"));
 	m_ComboBoxScanTime.AddString(_T("120"));
-
-	m_ComboBoxDelayTime.AddString(_T("0"));
-	m_ComboBoxDelayTime.AddString(_T("5"));
-	m_ComboBoxDelayTime.AddString(_T("10"));
-	m_ComboBoxDelayTime.AddString(_T("20"));
-	m_ComboBoxDelayTime.AddString(_T("30"));
+	
+	m_ComboBoxBlockSectors.AddString(_T("1024"));//512KB
+	m_ComboBoxBlockSectors.AddString(_T("512")); //256KB
+	m_ComboBoxBlockSectors.AddString(_T("256")); //128KB
+	m_ComboBoxBlockSectors.AddString(_T("128")); //64KB
 
 	CString strScanTime = m_pIni->GetString(_T("Option"),_T("ScanDiskTimeS"),_T("30"));
-	CString strDelayTime = m_pIni->GetString(_T("Option"),_T("SpinDownTimeS"),_T("5"));
+	CString strBlockSectors = m_pIni->GetString(_T("Option"),_T("BlockSectors"),_T("1024"));
 	m_ComboBoxScanTime.SetWindowText(strScanTime);
-	m_ComboBoxDelayTime.SetWindowText(strDelayTime);
 
+	int nBlockSectorCount = m_ComboBoxBlockSectors.GetCount();
+	int nSelectIndex = 1;
+	for (int i = 0; i < nBlockSectorCount;i++)
+	{
+		CString strLBText;
+		m_ComboBoxBlockSectors.GetLBText(i,strLBText);
+
+		if (strLBText.CompareNoCase(strBlockSectors) == 0)
+		{
+			nSelectIndex = i;
+			break;
+		}
+	}
+
+	m_ComboBoxBlockSectors.SetCurSel(nSelectIndex);
+	
 	m_bCheckShowCursor = m_pIni->GetBool(_T("Option"),_T("ShowCursor"),TRUE);
 	m_bCheckBeep = m_pIni->GetBool(_T("Option"),_T("BeepWhenFinish"),TRUE);
 
@@ -135,12 +149,12 @@ void CGlobalSetting::OnBnClickedOk()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 
-	CString strScanTime,strDelayTime;
+	CString strScanTime,strBlockSize;
 	m_ComboBoxScanTime.GetWindowText(strScanTime);
-	m_ComboBoxDelayTime.GetWindowText(strDelayTime);
+	m_ComboBoxBlockSectors.GetWindowText(strBlockSize);
 
 	m_pIni->WriteString(_T("Option"),_T("ScanDiskTimeS"),strScanTime);
-	m_pIni->WriteString(_T("Option"),_T("SpinDownTimeS"),strDelayTime);
+	m_pIni->WriteString(_T("Option"),_T("BlockSectors"),strBlockSize);
 	
 
 	m_pIni->WriteBool(_T("Option"),_T("ShowCursor"),m_bCheckShowCursor);
@@ -194,7 +208,7 @@ void CGlobalSetting::OnCbnEditchangeComboDelayOffTime()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	CString strText;
-	m_ComboBoxDelayTime.GetWindowText(strText);
+	m_ComboBoxBlockSectors.GetWindowText(strText);
 
 	if (strText.IsEmpty())
 	{
@@ -204,7 +218,7 @@ void CGlobalSetting::OnCbnEditchangeComboDelayOffTime()
 	TCHAR ch = strText.GetAt(strText.GetLength()-1);
 	if (!_istdigit(ch))
 	{
-		m_ComboBoxDelayTime.SetWindowText(_T(""));
+		m_ComboBoxBlockSectors.SetWindowText(_T(""));
 	}
 }
 

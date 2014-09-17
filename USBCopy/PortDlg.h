@@ -57,6 +57,4 @@ public:
 	void Initial();
 	void SetBitmap(UINT nResource);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
-protected:
-	afx_msg LRESULT OnPortResetPower(WPARAM wParam, LPARAM lParam);
 };

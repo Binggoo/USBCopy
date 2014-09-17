@@ -1,6 +1,9 @@
 
 // USBCopyDlg.cpp : implementation file
 //
+//V1.0.0.1 2014-09-16 Binggoo 1. 修改剔除机制，以前采用断电的方法，现在改成程序控制。
+//                            2. 当程序用在USB拷贝机，侦测不到设备时不能断电.
+//V1.0.1.0 2014-09-16 Binggoo 1. 增加手动选择数据块扇区大小。正式发布。
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -1465,11 +1468,12 @@ void CUSBCopyDlg::OnStart()
 	// 开始线程
 	SetTimer(TIMER_UPDATE_STATISTIC,1000,NULL);
 
-	CDisk disk;
-	disk.Init(m_hWnd,&m_bCancel,m_hLogFile,&m_Command);
-	disk.SetWorkMode(m_WorkMode);
-
 	HashMethod hashMethod = (HashMethod)m_Config.GetInt(_T("Option"),_T("HashMethod"),0);
+	UINT nBlockSectors = m_Config.GetUInt(_T("Option"),_T("BlockSectors"),256); // 默认128KB
+
+	CDisk disk;
+	disk.Init(m_hWnd,&m_bCancel,m_hLogFile,&m_Command,nBlockSectors);
+	disk.SetWorkMode(m_WorkMode);
 
 	CString strMsg,strWorkMode;
 	BOOL bResult = TRUE;
@@ -2785,10 +2789,16 @@ void CUSBCopyDlg::MatchDevice()
 			{
 				port->Initial();
 
-				// 重新上电
-				m_Command.Power(port->GetPortNum(),FALSE);
-				Sleep(500);
-				m_Command.Power(port->GetPortNum(),TRUE);
+				// 如果是TF卡拷贝机则必须重新上电，如果是USB拷贝机则不需要
+
+				if (!m_bIsUSB)
+				{
+					// 重新上电
+					m_Command.Power(port->GetPortNum(),FALSE);
+					Sleep(500);
+					m_Command.Power(port->GetPortNum(),TRUE);
+				}
+
 			}
 
 			CleanupInfo(pUsbDeviceInfo);
@@ -2798,10 +2808,15 @@ void CUSBCopyDlg::MatchDevice()
 		{
 			port->Initial();
 
-			// 重新上电
-			m_Command.Power(port->GetPortNum(),FALSE);
-			Sleep(500);
-			m_Command.Power(port->GetPortNum(),TRUE);
+			// 如果是TF卡拷贝机则必须重新上电，如果是USB拷贝机则不需要
+
+			if (!m_bIsUSB)
+			{
+				// 重新上电
+				m_Command.Power(port->GetPortNum(),FALSE);
+				Sleep(500);
+				m_Command.Power(port->GetPortNum(),TRUE);
+			}
 		}
 	}
 }

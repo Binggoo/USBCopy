@@ -40,7 +40,6 @@ void CPortDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CPortDlg, CDialogEx)
 	ON_WM_SIZE()
 	ON_WM_TIMER()
-	ON_MESSAGE(WM_PORT_RESET_POWER, &CPortDlg::OnPortResetPower)
 END_MESSAGE_MAP()
 
 
@@ -215,13 +214,7 @@ BOOL CPortDlg::IsSlowest()
 			double dbAvgSpeed = dbTotolSpeed / (nCount + 1);
 			if (dbSpeed < dbAvgSpeed * nRelativeSpeed / 100)
 			{
-				PostMessage(WM_PORT_RESET_POWER);
-
-				m_Port->SetResult(FALSE);
-				m_Port->SetErrorCode(ErrorType_Custom,CustomError_Speed_Too_Slow);
-
-				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
-					,m_Port->GetPortName(),m_Port->GetDiskNum(),m_Port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+				m_Port->SetKickOff(TRUE);
 			}
 		}
 
@@ -229,13 +222,7 @@ BOOL CPortDlg::IsSlowest()
 		{
 			if (dbSpeed < nAbsolteSpeed)
 			{
-				PostMessage(WM_PORT_RESET_POWER);
-
-				m_Port->SetResult(FALSE);
-				m_Port->SetErrorCode(ErrorType_Custom,CustomError_Speed_Too_Slow);
-
-				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
-					,m_Port->GetPortName(),m_Port->GetDiskNum(),m_Port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+				m_Port->SetKickOff(TRUE);
 			}
 		}
 	}
@@ -373,17 +360,6 @@ void CPortDlg::UpdateState()
 	SetDlgItemText(IDC_TEXT_SIZE,strSize);
 	SetDlgItemText(IDC_TEXT_SPEED,strSpeed);
 	m_ProgressCtrl.SetPos(iPercent);
-}
-
-
-afx_msg LRESULT CPortDlg::OnPortResetPower(WPARAM wParam, LPARAM lParam)
-{
-	m_pCommand->Power(m_Port->GetPortNum(),FALSE);
-
-	Sleep(2000);
-
-	m_pCommand->Power(m_Port->GetPortNum(),TRUE);
-	return 0;
 }
 
 void CPortDlg::EnableKickOff(BOOL bEnable)

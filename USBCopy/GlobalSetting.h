@@ -26,7 +26,7 @@ public:
 
 private:
 	CComboBox m_ComboBoxScanTime;
-	CComboBox m_ComboBoxDelayTime;
+	CComboBox m_ComboBoxBlockSectors;
 	BOOL m_bCheckRelativeSpeed;
 	UINT m_nRelativeSpeed;
 	BOOL m_bCheckAbsoluteSpeed;

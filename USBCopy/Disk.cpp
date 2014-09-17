@@ -50,6 +50,8 @@ CDisk::CDisk(void)
 	m_ClientSocket = INVALID_SOCKET;
 
 	m_iCompressLevel = Z_BEST_SPEED;
+
+	m_nBlockSectors = BUF_SECTORS;
 }
 
 
@@ -1003,12 +1005,13 @@ BOOL CDisk::WriteFileAsyn( HANDLE hFile,ULONGLONG ullOffset,DWORD &dwSize,LPBYTE
 	}
 }
 
-void CDisk::Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile ,CPortCommand *pCommand)
+void CDisk::Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile ,CPortCommand *pCommand,UINT nBlockSectors)
 {
 	m_hWnd = hWnd;
 	m_lpCancel = lpCancel;
 	m_hLogFile = hLogFile;
 	m_pCommand = pCommand;
+	m_nBlockSectors = nBlockSectors;
 }
 
 void CDisk::SetMasterPort( CPort *port )
@@ -2364,13 +2367,7 @@ BOOL CDisk::OnCopyDisk()
 		{
 			EFF_DATA effData;
 			effData.ullStartSector = 0;
-			effData.ullSectors = BUF_SECTORS;
-			effData.wBytesPerSector = (WORD)m_dwBytesPerSector;
-
-			m_EffList.AddTail(effData);
-
-			effData.ullStartSector = BUF_SECTORS;
-			effData.ullSectors = m_ullSectorNums - BUF_SECTORS;
+			effData.ullSectors = m_ullSectorNums;
 			effData.wBytesPerSector = (WORD)m_dwBytesPerSector;
 
 			m_EffList.AddTail(effData);
@@ -2916,13 +2913,7 @@ BOOL CDisk::OnCompareDisk()
 		{
 			EFF_DATA effData;
 			effData.ullStartSector = 0;
-			effData.ullSectors = BUF_SECTORS;
-			effData.wBytesPerSector = (WORD)m_dwBytesPerSector;
-
-			m_EffList.AddTail(effData);
-
-			effData.ullStartSector = BUF_SECTORS;
-			effData.ullSectors = m_ullSectorNums - BUF_SECTORS;
+			effData.ullSectors = m_ullSectorNums;
 			effData.wBytesPerSector = (WORD)m_dwBytesPerSector;
 
 			m_EffList.AddTail(effData);
@@ -3338,8 +3329,8 @@ BOOL CDisk::ReadDisk()
 	ULONGLONG ullReadSectors = 0;
 	ULONGLONG ullRemainSectors = 0;
 	ULONGLONG ullStartSectors = 0;
-	DWORD dwSectors = BUF_SECTORS;
-	DWORD dwLen = BUF_SECTORS * m_dwBytesPerSector;
+	DWORD dwSectors = m_nBlockSectors;
+	DWORD dwLen = m_nBlockSectors * m_dwBytesPerSector;
 
 	// 计算精确速度
 	LARGE_INTEGER freq,t0,t1,t2;
@@ -3356,8 +3347,8 @@ BOOL CDisk::ReadDisk()
 		ullReadSectors = 0;
 		ullRemainSectors = 0;
 		ullStartSectors = effData.ullStartSector;
-		dwSectors = BUF_SECTORS;
-		dwLen = BUF_SECTORS * m_dwBytesPerSector;
+		dwSectors = m_nBlockSectors;
+		dwLen = m_nBlockSectors * m_dwBytesPerSector;
 
 		while (bResult && !*m_lpCancel && ullReadSectors < effData.ullSectors && ullStartSectors < m_ullSectorNums)
 		{
@@ -3365,7 +3356,7 @@ BOOL CDisk::ReadDisk()
 			// 判断队列是否达到限制值
 			while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE) && !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 			{
-				Sleep(10);
+				Sleep(5);
 			}
 
 			if (*m_lpCancel)
@@ -3389,7 +3380,7 @@ BOOL CDisk::ReadDisk()
 				ullRemainSectors = m_ullSectorNums - ullStartSectors;
 			}
 
-			if (ullRemainSectors < BUF_SECTORS)
+			if (ullRemainSectors < m_nBlockSectors)
 			{
 				dwSectors = (DWORD)ullRemainSectors;
 
@@ -3584,14 +3575,14 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 
 	QueryPerformanceFrequency(&freq);
 
-	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult)
+	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
 		QueryPerformanceCounter(&t0);
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
-			&& port->GetResult())
+			&& port->GetResult() && !port->IsKickOff())
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (!m_MasterPort->GetResult())
@@ -3605,6 +3596,14 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		{
 			errType = port->GetErrorCode(&dwErrorCode);
 			bResult = FALSE;
+			break;
+		}
+
+		if (port->IsKickOff())
+		{
+			bResult = FALSE;
+			dwErrorCode = CustomError_Speed_Too_Slow;
+			errType = ErrorType_Custom;
 			break;
 		}
 
@@ -3669,6 +3668,16 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port=%s,Disk %d,Speed=%.2f,custom errorcode=0x%X,user cancelled.")
 			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode);
+	}
+
+	if (port->IsKickOff())
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Speed_Too_Slow;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
 	}
 
 	if (!m_MasterPort->GetResult())
@@ -3772,8 +3781,8 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 	ULONGLONG ullReadSectors = 0;
 	ULONGLONG ullRemainSectors = 0;
 	ULONGLONG ullStartSectors = 0;
-	DWORD dwSectors = BUF_SECTORS;
-	DWORD dwLen = BUF_SECTORS * BYTES_PER_SECTOR;
+	DWORD dwSectors = m_nBlockSectors;
+	DWORD dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 
 	if (m_WorkMode == WorkMode_DiskCompare)
 	{
@@ -3805,17 +3814,18 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 
 	POSITION pos = m_EffList.GetHeadPosition();
 
-	while (pos && !*m_lpCancel && bResult && port->GetPortState() == PortState_Active)
+	while (pos && !*m_lpCancel && bResult && port->GetPortState() == PortState_Active && !port->IsKickOff())
 	{
 		EFF_DATA effData = m_EffList.GetNext(pos);
 
 		ullReadSectors = 0;
 		ullRemainSectors = 0;
 		ullStartSectors = effData.ullStartSector;
-		dwSectors = BUF_SECTORS;
-		dwLen = BUF_SECTORS * effData.wBytesPerSector;
+		dwSectors = m_nBlockSectors;
+		dwLen = m_nBlockSectors * effData.wBytesPerSector;
 
-		while (bResult && !*m_lpCancel && ullReadSectors < effData.ullSectors && ullStartSectors < m_ullSectorNums)
+		while (bResult && !*m_lpCancel && !port->IsKickOff() 
+			&& ullReadSectors < effData.ullSectors && ullStartSectors < m_ullSectorNums)
 		{
 			QueryPerformanceCounter(&t0);
 
@@ -3826,7 +3836,7 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 				ullRemainSectors = m_ullSectorNums - ullStartSectors;
 			}
 
-			if (ullRemainSectors < BUF_SECTORS)
+			if (ullRemainSectors < m_nBlockSectors)
 			{
 				dwSectors = (DWORD)ullRemainSectors;
 
@@ -3883,6 +3893,16 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode);
 	}
 
+	if (port->IsKickOff())
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Speed_Too_Slow;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+	}
+
 	if (bResult)
 	{
 		port->SetHash(pHashMethod->digest(),pHashMethod->getHashLength());
@@ -3892,7 +3912,7 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 		{
 			while (m_MasterPort->GetPortState() == PortState_Active)
 			{
-				Sleep(10);
+				Sleep(5);
 			}
 
 			// 比较HASH值
@@ -3966,7 +3986,7 @@ BOOL CDisk::ReadFiles()
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
 	ErrorType errType = ErrorType_System;
-	DWORD dwLen = BUF_SECTORS * BYTES_PER_SECTOR;
+	DWORD dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 	ULONGLONG ullCompleteSize = 0;
 
 	// 计算精确速度
@@ -3998,14 +4018,14 @@ BOOL CDisk::ReadFiles()
 		}
 
 		ullCompleteSize = 0;
-		dwLen = BUF_SECTORS * BYTES_PER_SECTOR;
+		dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 		while (bResult && !*m_lpCancel && ullCompleteSize < ullFileSize && m_MasterPort->GetPortState() == PortState_Active)
 		{
 			QueryPerformanceCounter(&t0);
 			// 判断队列是否达到限制值
 			while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE) && !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 			{
-				Sleep(10);
+				Sleep(5);
 			}
 
 			if (*m_lpCancel)
@@ -4188,13 +4208,13 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 
 	CString strVolume = volumeArray.GetAt(0);
 
-	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult)
+	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
 		QueryPerformanceCounter(&t0);
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
-			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult())
+			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult() && !port->IsKickOff())
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (!m_MasterPort->GetResult())
@@ -4207,6 +4227,14 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 		if (!port->GetResult())
 		{
 			errType = port->GetErrorCode(&dwErrorCode);
+			bResult = FALSE;
+			break;
+		}
+
+		if (port->IsKickOff())
+		{
+			dwErrorCode = CustomError_Speed_Too_Slow;
+			errType = ErrorType_Custom;
 			bResult = FALSE;
 			break;
 		}
@@ -4306,6 +4334,16 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode);
 	}
 
+	if (port->IsKickOff())
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Speed_Too_Slow;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+	}
+
 	if (!m_MasterPort->GetResult())
 	{
 		bResult = FALSE;
@@ -4347,7 +4385,7 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
 	ErrorType errType = ErrorType_System;
-	DWORD dwLen = BUF_SECTORS * BYTES_PER_SECTOR;
+	DWORD dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 	ULONGLONG ullCompleteSize = 0;
 
 	// 计算精确速度
@@ -4377,7 +4415,7 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 	POSITION pos = m_MapFiles.GetStartPosition();
 	ULONGLONG ullFileSize = 0;
 	CString strSourceFile,strDestFile;
-	while (pos && !*m_lpCancel && bResult && port->GetPortState() == PortState_Active)
+	while (pos && !*m_lpCancel && bResult && port->GetPortState() == PortState_Active && !port->IsKickOff())
 	{
 		m_MapFiles.GetNextAssoc(pos,strSourceFile,ullFileSize);
 
@@ -4399,9 +4437,10 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 		}
 		
 		ullCompleteSize = 0;
-		dwLen = BUF_SECTORS * BYTES_PER_SECTOR;
+		dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 
-		while (bResult && !*m_lpCancel && ullCompleteSize < ullFileSize && port->GetPortState() == PortState_Active)
+		while (bResult && !*m_lpCancel && !port->IsKickOff()
+			&& ullCompleteSize < ullFileSize && port->GetPortState() == PortState_Active)
 		{
 			QueryPerformanceCounter(&t0);
 
@@ -4460,6 +4499,16 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,user cancelled.")
 			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode);
+	}
+
+	if (port->IsKickOff())
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Speed_Too_Slow;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
 	}
 
 	if (bResult)
@@ -4593,7 +4642,7 @@ BOOL CDisk::ReadLocalImage()
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (*m_lpCancel)
@@ -4809,7 +4858,7 @@ BOOL CDisk::ReadRemoteImage()
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (*m_lpCancel)
@@ -5077,7 +5126,7 @@ BOOL CDisk::Compress()
 			&& m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active)
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (!m_MasterPort->GetResult() || *m_lpCancel )
@@ -5201,7 +5250,7 @@ BOOL CDisk::Uncompress()
 			&& m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active)
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (!m_MasterPort->GetResult() || *m_lpCancel)
@@ -5359,7 +5408,7 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult())
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (!m_MasterPort->GetResult())
@@ -5544,7 +5593,7 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult())
 		{
-			Sleep(10);
+			Sleep(5);
 		}
 
 		if (!m_MasterPort->GetResult())
@@ -5830,8 +5879,8 @@ BOOL CDisk::CleanDisk( CPort *port )
 			ErrorType errType = ErrorType_System;
 
 			ULONGLONG ullStartSectors = 0;
-			DWORD dwSectors = BUF_SECTORS;
-			DWORD dwLen = BUF_SECTORS * dwBytePerSector;
+			DWORD dwSectors = m_nBlockSectors;
+			DWORD dwLen = m_nBlockSectors * dwBytePerSector;
 
 			port->SetStartTime(CTime::GetCurrentTime());
 
@@ -5859,7 +5908,7 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 			port->SetValidSize(port->GetTotalSize());
 
-			while (!*m_lpCancel && ullStartSectors < ullSectorNums)
+			while (!*m_lpCancel && ullStartSectors < ullSectorNums && !port->IsKickOff())
 			{
 				QueryPerformanceCounter(&t0);
 
@@ -5927,6 +5976,16 @@ BOOL CDisk::CleanDisk( CPort *port )
 					,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode);
 			}
 
+			if (port->IsKickOff())
+			{
+				bResult = FALSE;
+				dwErrorCode = CustomError_Speed_Too_Slow;
+				errType = ErrorType_Custom;
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+					,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+			}
+
 			port->SetEndTime(CTime::GetCurrentTime());
 			port->SetResult(bResult);
 
@@ -5978,14 +6037,14 @@ BOOL CDisk::CleanDisk( CPort *port )
 			for (int i = 0; i < 7;i++)
 			{
 				ULONGLONG ullStartSectors = 0;
-				DWORD dwSectors = BUF_SECTORS;
-				DWORD dwLen = BUF_SECTORS * dwBytePerSector;
+				DWORD dwSectors = m_nBlockSectors;
+				DWORD dwLen = m_nBlockSectors * dwBytePerSector;
 
 				port->SetCompleteSize(0);
 				port->SetUsedNoWaitTimeS(0);
 				port->SetUsedWaitTimeS(0);
 
-				while (!*m_lpCancel && ullStartSectors < ullSectorNums)
+				while (!*m_lpCancel && ullStartSectors < ullSectorNums && !port->IsKickOff())
 				{
 					QueryPerformanceCounter(&t0);
 
@@ -6066,6 +6125,18 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port=%s,Disk %d,Speed=%.2f,custom errorcode=0x%X,user cancelled.")
 						,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode);
+					break;
+				}
+
+				if (port->IsKickOff())
+				{
+					bResult = FALSE;
+					dwErrorCode = CustomError_Speed_Too_Slow;
+					errType = ErrorType_Custom;
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+						,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+
 					break;
 				}
 			}
@@ -6161,74 +6232,6 @@ BOOL CDisk::FormatDisk(CPort *port)
 			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 		goto FORMAT_END;
 	}
-	
-
-
-
-	/*
-	CString strFile,strComand,strBuffer;
-	strFile.Format(_T("format_%d.script"),port->GetPortNum());
-	strComand.Format(_T("diskpart.exe /s %s"),strFile);
-	CFile file(strFile,CFile::modeCreate | CFile::modeWrite);
-
-	if (m_dwClusterSize == 0)
-	{
-		strBuffer.Format(_T("select disk=%d\r\n")
-						 _T("clean\r\n")
-						 _T("create partition primary\r\n")
-						 _T("select partition=1\r\n")
-						 _T("format fs=%s label=\"%s\" quick override\r\n")
-						 _T("exit\r\n"),port->GetDiskNum(),m_strFileSystem,m_strVolumnLabel);
-	}
-	else
-	{
-		strBuffer.Format(_T("select disk=%d\r\n")
-						 _T("clean\r\n")
-						 _T("create partition primary\r\n")
-						 _T("select partition=1\r\n")
-						 _T("format fs=%s label=\"%s\" unit=%d quick override\r\n")
-						 _T("exit\r\n"),port->GetDiskNum(),m_strFileSystem,m_strVolumnLabel,m_dwClusterSize);
-	}
-
-	USES_CONVERSION;
-	char *buffer = W2A(strBuffer);
-
-	file.Write(buffer,strlen(buffer));
-	file.Flush();
-	file.Close();
-
-	STARTUPINFO si;
-	PROCESS_INFORMATION pi;
-	ZeroMemory(&si,sizeof(STARTUPINFO));
-	si.cb = sizeof(STARTUPINFO);
-	si.dwFlags = STARTF_USESHOWWINDOW;
-	si.wShowWindow = SW_HIDE;
-	
-	if (CreateProcess(NULL,strComand.GetBuffer(),NULL,NULL,FALSE,0,NULL,NULL,&si,&pi))
-	{
-		WaitForSingleObject(pi.hProcess,INFINITE);
-
-		GetExitCodeProcess(pi.hProcess,&dwErrorCode);
-		CloseHandle(pi.hProcess);
-		CloseHandle(pi.hThread);
-
-		if (dwErrorCode != 0)
-		{
-			bResult = FALSE;
-		}
-		else
-		{
-			bResult = TRUE;
-		}
-		
-	}
-	else
-	{
-		bResult = FALSE;
-	}
-
-	DeleteFile(strFile);
-	*/
 	
 FORMAT_END:
 	SetDiskAtrribute(hDisk,FALSE,FALSE,&dwErrorCode);

@@ -28,6 +28,7 @@ private:
 	CString m_strModuleName;
 	WorkMode m_WorkMode;
 	HashMethod m_HashMethod;
+	BOOL m_bKickOff; // ÌÞ³ý±êÖ¾
 	
 	// Ó³Ïñ
 	CString m_strFileName;
@@ -103,6 +104,9 @@ public:
 	HashMethod GetHashMethod();
 	CString GetHashMethodString();
 	int GetHashLength();
+
+	BOOL IsKickOff();
+	void SetKickOff(BOOL bKickOff);
 
 	//Ó³Ïñ
 	CString GetFileName();

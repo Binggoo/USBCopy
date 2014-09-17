@@ -45,6 +45,7 @@ void CPort::Initial()
 	m_strSN = _T("");
 	m_strModuleName = _T("");
 	m_WorkMode = WorkMode_None;
+	m_bKickOff = FALSE;
 
 	// Ó³Ïñ
 	m_strFileName = _T("");
@@ -84,6 +85,8 @@ void CPort::Reset()
 	m_bResult = TRUE;
 	m_dwErrorCode = 0;
 	m_ErrorType = ErrorType_System;
+
+	m_bKickOff = FALSE;
 }
 
 void CPort::SetPortNum( int iPortNum )
@@ -568,5 +571,15 @@ LPOVERLAPPED CPort::GetOverlapped(BOOL bRead)
 		return &m_WriteOverlapped;
 	}
 	
+}
+
+BOOL CPort::IsKickOff()
+{
+	return m_bKickOff;
+}
+
+void CPort::SetKickOff( BOOL bKickOff )
+{
+	m_bKickOff = bKickOff;
 }
 
