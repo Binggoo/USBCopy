@@ -2,6 +2,7 @@
 #include "Port.h"
 #include "HashMethod.h"
 #include "PortCommand.h"
+#include "IoctlDef.h"
 
 typedef CMap<CString,LPCTSTR,ULONGLONG,ULONGLONG> CMapStringToULL;
 
@@ -15,7 +16,7 @@ public:
 	static HANDLE GetHandleOnPhysicalDrive(int iDiskNumber,DWORD dwFlagsAndAttributes,PDWORD pdwErrorCode);
 	static HANDLE GetHandleOnVolume(TCHAR letter,DWORD dwFlagsAndAttributes,PDWORD pdwErrorCode);
 	static HANDLE GetHandleOnFile(LPCTSTR lpszFileName,DWORD dwCreationDisposition,DWORD dwFlagsAndAttributes,PDWORD pdwErrorCode);
-	static ULONGLONG GetNumberOfSectors(HANDLE hDevice,PDWORD pdwBytesPerSector);
+	static ULONGLONG GetNumberOfSectors(HANDLE hDevice,PDWORD pdwBytesPerSector,MEDIA_TYPE *type);
 	static void DeleteDirectory( LPCTSTR lpszPath );
 	static BOOL CreateDisk(int disk,ULONG PartitionNumber);
 	static BOOL DestroyDisk(int disk);
@@ -28,7 +29,7 @@ public:
 	static BOOL SetDiskAtrribute(HANDLE hDisk,BOOL bReadOnly,BOOL bOffline,PDWORD pdwErrorCode);
 	static BOOL GetTSModelNameAndSerialNumber(HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode);
 	static BOOL GetDiskModelNameAndSerialNumber(HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode);
-
+	static BOOL GetUsbHDDModelNameAndSerialNumber(HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode);
 	// 公共方法
 	void Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile,CPortCommand *pCommand,UINT nBlockSectors);
 	void SetMasterPort(CPort *port);
@@ -106,7 +107,7 @@ private:
 		LPBYTE lpSectBuff, 
 		LPOVERLAPPED lpOverlap,
 		DWORD *pdwErrorCode,
-		DWORD dwTimeOut = 2000);
+		DWORD dwTimeOut = 10000);
 	BOOL WriteSectors(HANDLE hDevice,
 		ULONGLONG ullStartSector,
 		DWORD dwSectors,
@@ -114,7 +115,7 @@ private:
 		LPBYTE lpSectBuff,
 		LPOVERLAPPED lpOverlap, 
 		DWORD *pdwErrorCode,
-		DWORD dwTimeOut = 2000);
+		DWORD dwTimeOut = 10000);
 
 	BOOL ReadFileAsyn(HANDLE hFile,
 		ULONGLONG ullOffset,
@@ -122,14 +123,14 @@ private:
 		LPBYTE lpBuffer,
 		LPOVERLAPPED lpOverlap,
 		PDWORD pdwErrorCode,
-		DWORD dwTimeOut = 2000);
+		DWORD dwTimeOut = 10000);
 	BOOL WriteFileAsyn(HANDLE hFile,
 		ULONGLONG ullOffset,
 		DWORD &dwSize,
 		LPBYTE lpBuffer,
 		LPOVERLAPPED lpOverlap,
 		PDWORD pdwErrorCode,
-		DWORD dwTimeOut= 2000);
+		DWORD dwTimeOut= 10000);
 
 
 	// 文件系统分析
@@ -210,6 +211,8 @@ private:
 		void *pSenseBuffer,
 		UCHAR ucSenseLength,
 		ULONG ulTimeout );
+
+	static DWORD DoIdentifyDeviceSat(HANDLE hDevice, BYTE target, IDENTIFY_DEVICE* data, COMMAND_TYPE type);
 };
 
 typedef struct _STRUCT_LPVOID_PARM

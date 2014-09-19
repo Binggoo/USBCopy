@@ -11,6 +11,7 @@
 #include "BurnIn.h"
 #include "SoftwareRecovery.h"
 #include "MoreFunction.h"
+#include "ExportLog.h"
 
 // CSystemMenu 对话框
 
@@ -284,6 +285,15 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 	}
 
 	// 只允许从USB接口导log
+	CExportLog exportLog;
+
+	if (exportLog.DoModal() == IDCANCEL)
+	{
+		return;
+	}
+
+	CStringArray strFilesArray;
+	exportLog.GetFileArray(strFilesArray);
 
 	GetDlgItem(IDC_BTN_EXPORT_LOG)->EnableWindow(FALSE);
 
@@ -366,11 +376,14 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 			}
 
 			strSourceFile = m_strAppPath + _T("\\record.txt");
-			if (PathFileExists(strSourceFile))
-			{
-				strDestFile = strDrive + time.Format(_T("record_%Y%m%d%H%M%S.txt"));
+			int nCount = strFilesArray.GetCount();
 
-				bSuc &= CopyFile(strSourceFile,strDestFile,FALSE);
+			for (int i = 0; i < nCount;i++)
+			{
+				strSourceFile = m_strAppPath + _T("\\") + strFilesArray.GetAt(i);
+				strDestFile = strDrive + strFilesArray.GetAt(i);
+
+				CopyFile(strSourceFile,strDestFile,FALSE);
 			}
 
 			if (bSuc)

@@ -269,8 +269,8 @@ void CScanningDlg::ScanningDevice()
 
 							ULONGLONG ullSectorNums = 0;
 							DWORD dwBytesPerSector = 0;
-							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector);
-							CloseHandle(hDevice);
+							MEDIA_TYPE type;
+							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector,&type);
 
 							if (ullSectorNums > 0)
 							{
@@ -304,6 +304,9 @@ void CScanningDlg::ScanningDevice()
 
 									strModel = CString(szModelName);
 									strSN = CString(szSerialNumber);
+
+									strModel.Trim();
+									strSN.Trim();
 								}
 								else
 								{
@@ -320,7 +323,7 @@ void CScanningDlg::ScanningDevice()
 										LPCSTR vendorId = "";
 										LPCSTR productId = "";
 
-										LPCSTR serialNumber = "";
+//										LPCSTR serialNumber = "";
 
 										if ((DeviceDescriptor->ProductIdOffset != 0) &&
 											(DeviceDescriptor->ProductIdOffset != -1)) 
@@ -336,15 +339,72 @@ void CScanningDlg::ScanningDevice()
 											vendorId        += (ULONG_PTR)DeviceDescriptor->VendorIdOffset;
 										}
 
-										if ((DeviceDescriptor->SerialNumberOffset != 0) &&
-											(DeviceDescriptor->SerialNumberOffset != -1)) 
+// 										if ((DeviceDescriptor->SerialNumberOffset != 0) &&
+// 											(DeviceDescriptor->SerialNumberOffset != -1)) 
+// 										{
+// 											serialNumber     = (LPCSTR)(DeviceDescriptor);
+// 											serialNumber    += (ULONG_PTR)DeviceDescriptor->SerialNumberOffset;
+// 										}
+
+//										strSN = CString(serialNumber);
+										strModel = CString(vendorId) + CString(productId);
+
+										if (pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber)
 										{
-											serialNumber     = (LPCSTR)(DeviceDescriptor);
-											serialNumber    += (ULONG_PTR)DeviceDescriptor->SerialNumberOffset;
+											PSTRING_DESCRIPTOR_NODE StringDescs = pUsbDeviceInfo->StringDescs;
+											UCHAR Index = pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber;
+											// Use an actual "int" here because it's passed as a printf * precision
+											int descChars;  
+
+											while (StringDescs)
+											{
+												if (StringDescs->DescriptorIndex == Index)
+												{
+
+													//
+													// bString from USB_STRING_DESCRIPTOR isn't NULL-terminated, so 
+													// calculate the number of characters.  
+													// 
+													// bLength is the length of the whole structure, not just the string.  
+													// 
+													// bLength is bytes, bString is WCHARs
+													// 
+													descChars = 
+														( (int) StringDescs->StringDescriptor->bLength - 
+														offsetof(USB_STRING_DESCRIPTOR, bString) ) /
+														sizeof(WCHAR);
+													//
+													// Use the * precision and pass the number of characters just caculated.
+													// bString is always WCHAR so specify widestring regardless of what TCHAR resolves to
+													// 
+													strSN.Format(_T("%.*ws"),
+														descChars,
+														StringDescs->StringDescriptor->bString);
+												}
+
+												StringDescs = StringDescs->Next;
+											}
 										}
 
-										strSN = CString(serialNumber);
-										strModel = CString(vendorId) + CString(productId);
+										strModel.Trim();
+										strSN.Trim();
+
+										// 判断是移动硬盘还是U盘，如果是移动硬盘可以获取SN和Model
+										if (type == FixedMedia && DeviceDescriptor->BusType == BusTypeUsb)
+										{
+											TCHAR szModelName[256] = {NULL};
+											TCHAR szSerialNumber[256] = {NULL};
+
+											if (CDisk::GetUsbHDDModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode))
+											{
+												strModel = CString(szModelName);
+												strSN = CString(szSerialNumber);
+
+												strModel.Trim();
+												strSN.Trim();
+											}
+
+										}
 
 									}
 
@@ -358,6 +418,8 @@ void CScanningDlg::ScanningDevice()
 								port->SetBytesPerSector(dwBytesPerSector);
 								port->SetTotalSize(ullSectorNums * dwBytesPerSector);
 								port->SetVolumeArray(strVolumeArray);
+								port->SetSN(strSN);
+								port->SetModuleName(strModel);
 
 								CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,ModelName=%s,SN=%s")
 									,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
@@ -370,6 +432,8 @@ void CScanningDlg::ScanningDevice()
 								port->Initial();
 								
 							}
+
+							CloseHandle(hDevice);
 							
 						}
 						else

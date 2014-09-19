@@ -154,7 +154,7 @@ private:
 	DWORD UploadLog(CString strLogName,CString strLog);
 	CString GetUploadLogString();
 	void WriteUploadLog(CString strLog);
-	void SetAllFailed();
+	void SetAllFailed(DWORD dwErrorCode,ErrorType errType);
 	void OnStop();
 
 	BOOL IsLisence();

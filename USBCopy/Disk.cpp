@@ -10,9 +10,6 @@
 
 #include "Fat32.h"
 
-#include <ntddscsi.h>
-#include "IoctlDef.h"
-
 #ifdef _DEBUG
 #pragma comment(lib,"zlib128d.lib")
 #else
@@ -127,7 +124,7 @@ HANDLE CDisk::GetHandleOnFile( LPCTSTR lpszFileName,DWORD dwCreationDisposition,
 	return hFile;
 }
 
-ULONGLONG CDisk::GetNumberOfSectors( HANDLE hDevice,PDWORD pdwBytesPerSector )
+ULONGLONG CDisk::GetNumberOfSectors( HANDLE hDevice,PDWORD pdwBytesPerSector,MEDIA_TYPE *type )
 {
 	DWORD junk;
 	DISK_GEOMETRY_EX diskgeometry;
@@ -136,6 +133,11 @@ ULONGLONG CDisk::GetNumberOfSectors( HANDLE hDevice,PDWORD pdwBytesPerSector )
 	if (!bResult)
 	{
 		return 0;
+	}
+
+	if (type != NULL)
+	{
+		*type = diskgeometry.Geometry.MediaType;
 	}
 
 	if (pdwBytesPerSector != NULL)
@@ -659,6 +661,38 @@ BOOL CDisk::GetTSModelNameAndSerialNumber( HANDLE hDevice,LPTSTR lpszModulName,L
 	return TRUE;
 }
 
+BOOL CDisk::GetUsbHDDModelNameAndSerialNumber(HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode)
+{
+	IDENTIFY_DEVICE identify = {0};
+
+	DWORD dwRet = DoIdentifyDeviceSat(hDevice,0xA0,&identify,CMD_TYPE_SAT);
+
+	if (dwRet != 0)
+	{
+		*pdwErrorCode =dwRet;
+	}
+
+	DWORD dwDiskData[IDENTIFY_BUFFER_SIZE / 2];
+	WORD *pIDSector; // 对应结构IDSECTOR，见头文件
+	pIDSector = (WORD *)(&identify);      //lint !e826
+	for(DWORD i = 0; i < IDENTIFY_BUFFER_SIZE / 2; i++)
+	{
+		dwDiskData[i] = pIDSector[i];       //lint !e662 !e661
+	}
+
+	// get serial number
+	TCHAR *pSN = ConvertSENDCMDOUTPARAMSBufferToString(dwDiskData, 10, 19);
+	int nLen = _tcslen(pSN) + 1;
+	_tcscpy_s(lpszSerialNum,nLen, pSN);
+
+	// get model number
+	TCHAR *pModel = ConvertSENDCMDOUTPARAMSBufferToString(dwDiskData, 27, 46);
+	nLen = _tcslen(pModel) + 1;
+	_tcscpy_s(lpszModulName,nLen,pModel);
+
+	return TRUE;
+}
+
 BOOL CDisk::GetDiskModelNameAndSerialNumber( HANDLE hDevice,LPTSTR lpszModulName,LPTSTR lpszSerialNum,DWORD *pdwErrorCode )
 {
 	DWORD readed = 0;
@@ -738,7 +772,7 @@ BOOL CDisk::GetDiskModelNameAndSerialNumber( HANDLE hDevice,LPTSTR lpszModulName
 	nLen = _tcslen(pModel) + 1;
 	_tcscpy_s(lpszModulName,nLen,pModel);
 
-	return 0;
+	return TRUE;
 }
 
 TCHAR * CDisk::ConvertSENDCMDOUTPARAMSBufferToString( const DWORD *dwDiskData, DWORD nFirstIndex, DWORD nLastIndex )
@@ -801,6 +835,158 @@ DWORD CDisk::ScsiCommand( HANDLE hDevice, void *pCdb, UCHAR ucCdbLength, void *p
 	}
 
 	return 0;
+}
+
+DWORD CDisk::DoIdentifyDeviceSat( HANDLE hDevice, BYTE target, IDENTIFY_DEVICE* data, COMMAND_TYPE type )
+{
+	BOOL	bRet;
+	DWORD	dwReturned;
+	DWORD	length;
+
+	SCSI_PASS_THROUGH_WITH_BUFFERS sptwb;
+
+	if(data == NULL)
+	{
+		return	-1;
+	}
+
+	::ZeroMemory(data, sizeof(IDENTIFY_DEVICE));
+
+	if(hDevice == INVALID_HANDLE_VALUE)
+	{
+		return	-1;
+	}
+
+	::ZeroMemory(&sptwb,sizeof(SCSI_PASS_THROUGH_WITH_BUFFERS));
+
+	sptwb.spt.Length = sizeof(SCSI_PASS_THROUGH);
+	sptwb.spt.PathId = 0;
+	sptwb.spt.TargetId = 0;
+	sptwb.spt.Lun = 0;
+	sptwb.spt.SenseInfoLength = 24;
+	sptwb.spt.DataIn = SCSI_IOCTL_DATA_IN;
+	sptwb.spt.DataTransferLength = IDENTIFY_BUFFER_SIZE;
+	sptwb.spt.TimeOutValue = 2;
+	sptwb.spt.DataBufferOffset = offsetof(SCSI_PASS_THROUGH_WITH_BUFFERS, ucDataBuf);
+	sptwb.spt.SenseInfoOffset = offsetof(SCSI_PASS_THROUGH_WITH_BUFFERS, ucSenseBuf);
+
+	if(type == CMD_TYPE_SAT)
+	{
+		sptwb.spt.CdbLength = 12;
+		sptwb.spt.Cdb[0] = 0xA1;//ATA PASS THROUGH(12) OPERATION CODE(A1h)
+		sptwb.spt.Cdb[1] = (4 << 1) | 0; //MULTIPLE_COUNT=0,PROTOCOL=4(PIO Data-In),Reserved
+		sptwb.spt.Cdb[2] = (1 << 3) | (1 << 2) | 2;//OFF_LINE=0,CK_COND=0,Reserved=0,T_DIR=1(ToDevice),BYTE_BLOCK=1,T_LENGTH=2
+		sptwb.spt.Cdb[3] = 0;//FEATURES (7:0)
+		sptwb.spt.Cdb[4] = 1;//SECTOR_COUNT (7:0)
+		sptwb.spt.Cdb[5] = 0;//LBA_LOW (7:0)
+		sptwb.spt.Cdb[6] = 0;//LBA_MID (7:0)
+		sptwb.spt.Cdb[7] = 0;//LBA_HIGH (7:0)
+		sptwb.spt.Cdb[8] = target;
+		sptwb.spt.Cdb[9] = ID_CMD;//COMMAND
+	}
+	else if(type == CMD_TYPE_SUNPLUS)
+	{
+		sptwb.spt.CdbLength = 12;
+		sptwb.spt.Cdb[0] = 0xF8;
+		sptwb.spt.Cdb[1] = 0x00;
+		sptwb.spt.Cdb[2] = 0x22;
+		sptwb.spt.Cdb[3] = 0x10;
+		sptwb.spt.Cdb[4] = 0x01;
+		sptwb.spt.Cdb[5] = 0x00; 
+		sptwb.spt.Cdb[6] = 0x01; 
+		sptwb.spt.Cdb[7] = 0x00; 
+		sptwb.spt.Cdb[8] = 0x00;
+		sptwb.spt.Cdb[9] = 0x00;
+		sptwb.spt.Cdb[10] = target; 
+		sptwb.spt.Cdb[11] = 0xEC; // ID_CMD
+	}
+	else if(type == CMD_TYPE_IO_DATA)
+	{
+		sptwb.spt.CdbLength = 12;
+		sptwb.spt.Cdb[0] = 0xE3;
+		sptwb.spt.Cdb[1] = 0x00;
+		sptwb.spt.Cdb[2] = 0x00;
+		sptwb.spt.Cdb[3] = 0x01;
+		sptwb.spt.Cdb[4] = 0x01;
+		sptwb.spt.Cdb[5] = 0x00; 
+		sptwb.spt.Cdb[6] = 0x00; 
+		sptwb.spt.Cdb[7] = target;
+		sptwb.spt.Cdb[8] = 0xEC;  // ID_CMD
+		sptwb.spt.Cdb[9] = 0x00;
+		sptwb.spt.Cdb[10] = 0x00; 
+		sptwb.spt.Cdb[11] = 0x00;
+	}
+	else if(type == CMD_TYPE_LOGITEC)
+	{
+		sptwb.spt.CdbLength = 10;
+		sptwb.spt.Cdb[0] = 0xE0;
+		sptwb.spt.Cdb[1] = 0x00;
+		sptwb.spt.Cdb[2] = 0x00;
+		sptwb.spt.Cdb[3] = 0x00;
+		sptwb.spt.Cdb[4] = 0x00;
+		sptwb.spt.Cdb[5] = 0x00; 
+		sptwb.spt.Cdb[6] = 0x00; 
+		sptwb.spt.Cdb[7] = target; 
+		sptwb.spt.Cdb[8] = 0xEC;  // ID_CMD
+		sptwb.spt.Cdb[9] = 0x4C;
+	}
+	else if(type == CMD_TYPE_JMICRON)
+	{
+		sptwb.spt.CdbLength = 12;
+		sptwb.spt.Cdb[0] = 0xDF;
+		sptwb.spt.Cdb[1] = 0x10;
+		sptwb.spt.Cdb[2] = 0x00;
+		sptwb.spt.Cdb[3] = 0x02;
+		sptwb.spt.Cdb[4] = 0x00;
+		sptwb.spt.Cdb[5] = 0x00; 
+		sptwb.spt.Cdb[6] = 0x01; 
+		sptwb.spt.Cdb[7] = 0x00; 
+		sptwb.spt.Cdb[8] = 0x00;
+		sptwb.spt.Cdb[9] = 0x00;
+		sptwb.spt.Cdb[10] = target; 
+		sptwb.spt.Cdb[11] = 0xEC; // ID_CMD
+	}
+	else if(type == CMD_TYPE_CYPRESS)
+	{
+		sptwb.spt.CdbLength = 16;
+		sptwb.spt.Cdb[0] = 0x24;
+		sptwb.spt.Cdb[1] = 0x24;
+		sptwb.spt.Cdb[2] = 0x00;
+		sptwb.spt.Cdb[3] = 0xBE;
+		sptwb.spt.Cdb[4] = 0x01;
+		sptwb.spt.Cdb[5] = 0x00; 
+		sptwb.spt.Cdb[6] = 0x00; 
+		sptwb.spt.Cdb[7] = 0x01; 
+		sptwb.spt.Cdb[8] = 0x00;
+		sptwb.spt.Cdb[9] = 0x00;
+		sptwb.spt.Cdb[10] = 0x00; 
+		sptwb.spt.Cdb[11] = target;
+		sptwb.spt.Cdb[12] = 0xEC; // ID_CMD
+		sptwb.spt.Cdb[13] = 0x00;
+		sptwb.spt.Cdb[14] = 0x00;
+		sptwb.spt.Cdb[15] = 0x00;
+	}
+	else
+	{
+		return -1;
+	}
+
+	length = offsetof(SCSI_PASS_THROUGH_WITH_BUFFERS, ucDataBuf) + sptwb.spt.DataTransferLength;
+
+	bRet = ::DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH, 
+		&sptwb, sizeof(SCSI_PASS_THROUGH),
+		&sptwb, length,	&dwReturned, NULL);
+
+	::CloseHandle(hDevice);
+
+	if(bRet == FALSE || dwReturned != length)
+	{
+		return	GetLastError();
+	}
+
+	memcpy_s(data, sizeof(IDENTIFY_DEVICE), sptwb.ucDataBuf, sizeof(IDENTIFY_DEVICE));
+
+	return	0;
 }
 
 BOOL CDisk::ReadSectors( HANDLE hDevice,ULONGLONG ullStartSector,DWORD dwSectors,DWORD dwBytesPerSector,
@@ -1040,7 +1226,7 @@ void CDisk::SetMasterPort( CPort *port )
 		else
 		{
 			m_MasterPort->SetPortState(PortState_Active);
-			m_ullSectorNums = GetNumberOfSectors(m_hMaster,&m_dwBytesPerSector);
+			m_ullSectorNums = GetNumberOfSectors(m_hMaster,&m_dwBytesPerSector,NULL);
 			m_ullCapacity = m_ullSectorNums * m_dwBytesPerSector;
 		}
 		break;
@@ -3731,7 +3917,7 @@ BOOL CDisk::QuickClean(CPort *port,PDWORD pdwErrorCode )
 	if (SetDiskAtrribute(hDisk,FALSE,TRUE,pdwErrorCode))
 	{
 		DWORD dwBytesPerSector = 0;
-		ULONGLONG ullSectorNums = GetNumberOfSectors(hDisk,&dwBytesPerSector);
+		ULONGLONG ullSectorNums = GetNumberOfSectors(hDisk,&dwBytesPerSector,NULL);
 		DWORD dwSectors = CLEAN_LENGTH/dwBytesPerSector;
 		DWORD dwSize = 0;
 

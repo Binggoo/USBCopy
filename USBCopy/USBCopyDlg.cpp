@@ -5,6 +5,10 @@
 //                            2. 当程序用在USB拷贝机，侦测不到设备时不能断电.
 //V1.0.1.0 2014-09-16 Binggoo 1. 增加手动选择数据块扇区大小。正式发布。
 //V1.0.1.1 2014-09-17 Binggoo 1. 读写磁盘和文件时，加入超时
+//V1.0.2.0 2014-09-19 Binggoo 1. 修改超时时间为10s
+//                            2. 添加记录设备的序列号和型号。
+//                            3. Record以每天的形式记录。
+//                            4. 导出log时，可以选择Record的时间
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -1030,8 +1034,6 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 			// 全部FAIL
 			m_Command.AllFail();
 
-			SetAllFailed();
-
 			m_bRunning = FALSE;
 
 			PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd); 
@@ -1152,7 +1154,7 @@ void CUSBCopyDlg::OnStop()
 			m_strMsg += _T(" Upload log failed !");
 
 			// 把所有设置成fail
-			SetAllFailed();
+			SetAllFailed(0,ErrorType_System);
 		}
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("upload log success."));
@@ -1395,6 +1397,8 @@ BOOL CUSBCopyDlg::IsReady()
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 
 			bRet = FALSE;
+
+			SetAllFailed(CustomError_No_Target,ErrorType_Custom);
 		}
 		break;
 
@@ -1405,6 +1409,8 @@ BOOL CUSBCopyDlg::IsReady()
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 
 			bRet = FALSE;
+
+			SetAllFailed(CustomError_No_Master,ErrorType_Custom);
 		}
 		break;
 
@@ -1414,13 +1420,17 @@ BOOL CUSBCopyDlg::IsReady()
 			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Master."),strWorkMode,CustomError_No_Master);
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 
+			SetAllFailed(CustomError_No_Master,ErrorType_Custom);
+
 			bRet = FALSE;
 		}
 
 		if (!IsExistTarget())
 		{
-			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Master);
+			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Target);
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+
+			SetAllFailed(CustomError_No_Target,ErrorType_Custom);
 
 			bRet = FALSE;
 		}
@@ -2638,7 +2648,8 @@ void CUSBCopyDlg::MatchDevice()
 						{
 							ULONGLONG ullSectorNums = 0;
 							DWORD dwBytesPerSector = 0;
-							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector);
+							MEDIA_TYPE type;
+							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector,&type);
 
 							// 如果是母盘设置ReadOnly
 							if (port->GetPortNum() == 0)
@@ -2699,9 +2710,13 @@ void CUSBCopyDlg::MatchDevice()
 
 									strModel = CString(szModelName);
 									strSN = CString(szSerialNumber);
+
+									strModel.Trim();
+									strSN.Trim();
 								}
 								else
 								{
+
 									PSTORAGE_DEVICE_DESCRIPTOR DeviceDescriptor;
 									DeviceDescriptor=(PSTORAGE_DEVICE_DESCRIPTOR)new BYTE[sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1];
 									DeviceDescriptor->Size = sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1;
@@ -2715,7 +2730,7 @@ void CUSBCopyDlg::MatchDevice()
 										LPCSTR vendorId = "";
 										LPCSTR productId = "";
 
-										LPCSTR serialNumber = "";
+//										LPCSTR serialNumber = "";
 
 										if ((DeviceDescriptor->ProductIdOffset != 0) &&
 											(DeviceDescriptor->ProductIdOffset != -1)) 
@@ -2731,19 +2746,77 @@ void CUSBCopyDlg::MatchDevice()
 											vendorId        += (ULONG_PTR)DeviceDescriptor->VendorIdOffset;
 										}
 
-										if ((DeviceDescriptor->SerialNumberOffset != 0) &&
-											(DeviceDescriptor->SerialNumberOffset != -1)) 
+// 										if ((DeviceDescriptor->SerialNumberOffset != 0) &&
+// 											(DeviceDescriptor->SerialNumberOffset != -1)) 
+// 										{
+// 											serialNumber     = (LPCSTR)(DeviceDescriptor);
+// 											serialNumber    += (ULONG_PTR)DeviceDescriptor->SerialNumberOffset;
+// 										}
+
+//										strSN = CString(serialNumber);
+										strModel = CString(vendorId) + CString(productId);
+
+										if (pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber)
 										{
-											serialNumber     = (LPCSTR)(DeviceDescriptor);
-											serialNumber    += (ULONG_PTR)DeviceDescriptor->SerialNumberOffset;
+											PSTRING_DESCRIPTOR_NODE StringDescs = pUsbDeviceInfo->StringDescs;
+											UCHAR Index = pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber;
+											// Use an actual "int" here because it's passed as a printf * precision
+											int descChars;  
+
+											while (StringDescs)
+											{
+												if (StringDescs->DescriptorIndex == Index)
+												{
+
+													//
+													// bString from USB_STRING_DESCRIPTOR isn't NULL-terminated, so 
+													// calculate the number of characters.  
+													// 
+													// bLength is the length of the whole structure, not just the string.  
+													// 
+													// bLength is bytes, bString is WCHARs
+													// 
+													descChars = 
+														( (int) StringDescs->StringDescriptor->bLength - 
+														offsetof(USB_STRING_DESCRIPTOR, bString) ) /
+														sizeof(WCHAR);
+													//
+													// Use the * precision and pass the number of characters just caculated.
+													// bString is always WCHAR so specify widestring regardless of what TCHAR resolves to
+													// 
+													strSN.Format(_T("%.*ws"),
+														descChars,
+														StringDescs->StringDescriptor->bString);
+												}
+
+												StringDescs = StringDescs->Next;
+											}
 										}
 
-										strSN = CString(serialNumber);
-										strModel = CString(vendorId) + CString(productId);
-										
+										strModel.Trim();
+										strSN.Trim();
+
+										// 判断是移动硬盘还是U盘，如果是移动硬盘可以获取SN和Model
+										if (type == FixedMedia && DeviceDescriptor->BusType == BusTypeUsb)
+										{
+											TCHAR szModelName[256] = {NULL};
+											TCHAR szSerialNumber[256] = {NULL};
+
+											if (CDisk::GetUsbHDDModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode))
+											{
+												strModel = CString(szModelName);
+												strSN = CString(szSerialNumber);
+
+												strModel.Trim();
+												strSN.Trim();
+											}
+
+										}
+
 									}
 
 									delete []DeviceDescriptor;
+
 								}
 
 								if (!port->IsConnected())
@@ -2759,6 +2832,8 @@ void CUSBCopyDlg::MatchDevice()
 								port->SetBytesPerSector(dwBytesPerSector);
 								port->SetTotalSize(ullSectorNums * dwBytesPerSector);
 								port->SetVolumeArray(strVolumeArray);
+								port->SetSN(strSN);
+								port->SetModuleName(strModel);
 
 								break;
 							}
@@ -3508,7 +3583,9 @@ CString CUSBCopyDlg::GetUploadLogString()
 
 void CUSBCopyDlg::WriteUploadLog( CString strLog )
 {
-	CString strRecordFile = m_strAppPath + RECODE_FILE;
+	CString strRecordFile;
+	CTime time = CTime::GetCurrentTime();
+	strRecordFile.Format(_T("%s\\RECORD_%s.txt"),m_strAppPath,time.Format(_T("%Y%m%d")));
 
 	HANDLE hFile = CreateFile(strRecordFile,
 							  GENERIC_READ | GENERIC_WRITE,
@@ -3533,12 +3610,18 @@ void CUSBCopyDlg::WriteUploadLog( CString strLog )
 	CloseHandle(hFile);
 }
 
-void CUSBCopyDlg::SetAllFailed()
+void CUSBCopyDlg::SetAllFailed(DWORD dwErrorCode,ErrorType errType)
 {
 	if (m_MasterPort.IsConnected())
 	{
 		m_MasterPort.SetResult(FALSE);
 		m_MasterPort.SetPortState(PortState_Fail);
+
+		if (dwErrorCode != 0)
+		{
+			m_MasterPort.SetErrorCode(errType,dwErrorCode);
+		}
+		
 	}
 
 	POSITION pos = m_TargetPorts.GetHeadPosition();
@@ -3551,6 +3634,12 @@ void CUSBCopyDlg::SetAllFailed()
 		{
 			port->SetResult(FALSE);
 			port->SetPortState(PortState_Fail);
+
+			if (dwErrorCode != 0)
+			{
+				port->SetErrorCode(errType,dwErrorCode);
+			}
+			
 		}
 	}
 }

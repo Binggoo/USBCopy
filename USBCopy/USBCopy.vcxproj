@@ -162,6 +162,7 @@
     <ClInclude Include="DiskFormatSetting.h" />
     <ClInclude Include="EnumStorage.h" />
     <ClInclude Include="EnumUSB.h" />
+    <ClInclude Include="ExportLog.h" />
     <ClInclude Include="Fat32.h" />
     <ClInclude Include="FileCopySetting.h" />
     <ClInclude Include="Fs.h" />
@@ -216,6 +217,7 @@
     <ClCompile Include="DiskFormatSetting.cpp" />
     <ClCompile Include="EnumStorage.cpp" />
     <ClCompile Include="EnumUSB.cpp" />
+    <ClCompile Include="ExportLog.cpp" />
     <ClCompile Include="Fat32.cpp" />
     <ClCompile Include="FileCopySetting.cpp" />
     <ClCompile Include="Fs.cpp" />
