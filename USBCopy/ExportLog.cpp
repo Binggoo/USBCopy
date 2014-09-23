@@ -31,10 +31,10 @@ void CExportLog::DoDataExchange(CDataExchange* pDX)
 
 
 BEGIN_MESSAGE_MAP(CExportLog, CDialogEx)
-	ON_CBN_SELCHANGE(IDC_COMBO_DATE, &CExportLog::OnCbnSelchangeComboDate)
 	ON_BN_CLICKED(IDC_BTN_DEL, &CExportLog::OnBnClickedBtnDel)
 	ON_BN_CLICKED(IDOK, &CExportLog::OnBnClickedOk)
 	ON_CBN_EDITCHANGE(IDC_COMBO_DATE, &CExportLog::OnCbnEditchangeComboDate)
+	ON_CBN_SELCHANGE(IDC_COMBO_DATE, &CExportLog::OnCbnSelchangeComboDate)
 END_MESSAGE_MAP()
 
 
@@ -132,17 +132,6 @@ void CExportLog::AddListData(DWORD days)
 	ff.Close();
 }
 
-
-void CExportLog::OnCbnSelchangeComboDate()
-{
-	// TODO: 在此添加控件通知处理程序代码
-	
-	DWORD dwDays = GetDlgItemInt(IDC_COMBO_DATE);
-
-	AddListData(dwDays);
-}
-
-
 void CExportLog::OnBnClickedBtnDel()
 {
 	// TODO: 在此添加控件通知处理程序代码
@@ -202,4 +191,24 @@ void CExportLog::OnCbnEditchangeComboDate()
 	{
 		m_ComboBoxDate.SetWindowText(_T(""));
 	}
+	else
+	{
+		DWORD dwDays = _ttoi(strText);
+
+		AddListData(dwDays);
+	}
+}
+
+
+void CExportLog::OnCbnSelchangeComboDate()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	int nSelIndex = m_ComboBoxDate.GetCurSel();
+
+	CString strText;
+	m_ComboBoxDate.GetLBText(nSelIndex,strText);
+
+	DWORD dwDays = _ttoi(strText);
+
+	AddListData(dwDays);
 }

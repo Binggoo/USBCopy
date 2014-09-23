@@ -31,10 +31,10 @@ private:
 	void InitialListCtrl();
 	void AddListData(DWORD days);
 public:
-	afx_msg void OnCbnSelchangeComboDate();
 	afx_msg void OnBnClickedBtnDel();
 	afx_msg void OnBnClickedOk();
 
 	void GetFileArray(CStringArray &strArray);
 	afx_msg void OnCbnEditchangeComboDate();
+	afx_msg void OnCbnSelchangeComboDate();
 };
