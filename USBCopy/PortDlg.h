@@ -40,6 +40,8 @@ private:
 	HANDLE m_hLogFile;
 	volatile BOOL m_bEnableKickOff;
 
+	CToolTipCtrl m_Tooltips;
+
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 
 	BOOL IsSlowest();
@@ -57,4 +59,5 @@ public:
 	void Initial();
 	void SetBitmap(UINT nResource);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 };

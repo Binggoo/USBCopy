@@ -195,4 +195,6 @@ private:
 	CButtonST m_BtnMenu;
 	CButtonST m_BtnSetting;
 	CButtonST m_BtnWorkMode;
+public:
+	afx_msg void OnClose();
 };

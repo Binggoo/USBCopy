@@ -9,6 +9,8 @@
 //                            2. 添加记录设备的序列号和型号。
 //                            3. Record以每天的形式记录。
 //                            4. 导出log时，可以选择Record的时间
+//V1.0.3.0 2014-09-25 Binggoo 1.界面上显示TF/SD卡的序列号
+//                            2.当鼠标移动到SD卡上时，显示此卡的信息
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -125,6 +127,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_CONNECT_SOCKET, &CUSBCopyDlg::OnConnectSocket)
 	ON_MESSAGE(WM_DISCONNECT_SOCKET, &CUSBCopyDlg::OnDisconnectSocket)
 	ON_MESSAGE(WM_SOCKET_MSG, &CUSBCopyDlg::OnSocketMsg)
+	ON_WM_CLOSE()
 END_MESSAGE_MAP()
 
 
@@ -137,6 +140,7 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	// Add "About..." menu item to system menu.
 
 	// IDM_ABOUTBOX must be in the system command range.
+	
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
 
@@ -153,6 +157,7 @@ BOOL CUSBCopyDlg::OnInitDialog()
 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
 		}
 	}
+	
 
 	// Set the icon for this dialog.  The framework does this automatically
 	//  when the application's main window is not a dialog
@@ -3704,4 +3709,13 @@ DWORD WINAPI CUSBCopyDlg::ConnectSocketThreadProc( LPVOID lpParm )
 	pDlg->OnConnectSocket(0,0);
 
 	return 0;
+}
+
+
+void CUSBCopyDlg::OnClose()
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	//CDialogEx::OnClose();
+	return;
 }

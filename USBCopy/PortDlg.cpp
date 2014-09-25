@@ -23,6 +23,7 @@ CPortDlg::CPortDlg(CWnd* pParent /*=NULL*/)
 	m_bEnableKickOff = FALSE;
 
 	m_bIsUSB = FALSE;
+
 }
 
 CPortDlg::~CPortDlg()
@@ -56,6 +57,10 @@ BOOL CPortDlg::OnInitDialog()
 	SetDlgItemText(IDC_GROUP_PORT,m_Port->GetPortName());
 //	m_ProgressCtrl.ShowPercent(TRUE);
 	m_ProgressCtrl.SetRange32(0,100);
+
+	m_Tooltips.Create(this,TTS_ALWAYSTIP);
+	m_Tooltips.SetMaxTipWidth(200);
+	m_Tooltips.AddTool(&m_PictureCtrol,_T("Offline"));
 	
 	Initial();
 
@@ -146,6 +151,7 @@ void CPortDlg::Initial()
 
 	SetDlgItemText(IDC_TEXT_SPEED,_T(""));
 	SetDlgItemText(IDC_TEXT_SIZE,_T(""));
+	SetDlgItemText(IDC_TEXT_SN,_T(""));
 
 	m_ProgressCtrl.SetPos(0);
 
@@ -237,7 +243,7 @@ CPort * CPortDlg::GetPort()
 
 void CPortDlg::UpdateState()
 {
-	CString strSpeed,strSize;
+	CString strSpeed,strSize,strSN,strTips;
 	int iPercent = 0;
 	UINT nID  = IDB_GRAY;
 	switch (m_Port->GetPortState())
@@ -251,6 +257,8 @@ void CPortDlg::UpdateState()
 		}
 		strSpeed = _T("");
 		strSize = _T("");
+		strSN = _T("");
+		strTips = _T("Offline");
 		iPercent = 0;
 
 		if (m_bOnlineCommand)
@@ -271,6 +279,8 @@ void CPortDlg::UpdateState()
 
 		strSpeed = _T("");
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		strSN = m_Port->GetSN();
+		strTips.Format(_T("Online\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
 		iPercent = 0;
 
 		if (!m_bOnlineCommand)
@@ -304,7 +314,10 @@ void CPortDlg::UpdateState()
 
 		strSpeed = m_Port->GetRealSpeedString();
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		strSN = m_Port->GetSN();
 		iPercent = m_Port->GetPercent();
+
+		strTips.Format(_T("Running\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
 
 		break;
 
@@ -318,7 +331,10 @@ void CPortDlg::UpdateState()
 
 		strSpeed = m_Port->GetRealSpeedString();
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		strSN = m_Port->GetSN();
 		iPercent = 100;
+
+		strTips.Format(_T("PASS\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
 
 		if (!m_bStopCommand)
 		{	
@@ -339,7 +355,9 @@ void CPortDlg::UpdateState()
 
 		strSpeed = m_Port->GetRealSpeedString();
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
+		strSN = m_Port->GetSN();
 		iPercent = m_Port->GetPercent();
+		strTips.Format(_T("FAIL\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
 
 		if (!m_bStopCommand)
 		{
@@ -359,10 +377,22 @@ void CPortDlg::UpdateState()
 	m_PictureCtrol.SetBitmap(m_Bitmap);
 	SetDlgItemText(IDC_TEXT_SIZE,strSize);
 	SetDlgItemText(IDC_TEXT_SPEED,strSpeed);
+	SetDlgItemText(IDC_TEXT_SN,strSN);
 	m_ProgressCtrl.SetPos(iPercent);
+
+	m_Tooltips.UpdateTipText(strTips,&m_PictureCtrol);
 }
 
 void CPortDlg::EnableKickOff(BOOL bEnable)
 {
 	m_bEnableKickOff = bEnable;
+}
+
+BOOL CPortDlg::PreTranslateMessage(MSG* pMsg)
+{
+	// TODO: 在此添加专用代码和/或调用基类
+
+	m_Tooltips.RelayEvent(pMsg);
+	
+	return CDialogEx::PreTranslateMessage(pMsg);
 }
