@@ -108,6 +108,7 @@
     <None Include="ReadMe.txt" />
     <None Include="res\burnin.bmp" />
     <None Include="res\debug.bmp" />
+    <None Include="res\diffcopy.bmp" />
     <None Include="res\diskclean.bmp" />
     <None Include="res\diskcompare.bmp" />
     <None Include="res\diskformat.bmp" />
@@ -120,6 +121,7 @@
     <None Include="res\manager.bmp" />
     <None Include="res\menu.bmp" />
     <None Include="res\more.bmp" />
+    <None Include="res\package.bmp" />
     <None Include="res\quickcopy.bmp" />
     <None Include="res\restore.bmp" />
     <None Include="res\return.bmp" />
@@ -156,6 +158,7 @@
     <ClInclude Include="CRC32.h" />
     <ClInclude Include="DataQueue.h" />
     <ClInclude Include="DeviceList.h" />
+    <ClInclude Include="DiffCopySetting.h" />
     <ClInclude Include="Disk.h" />
     <ClInclude Include="DiskCleanSettingDlg.h" />
     <ClInclude Include="DiskCompareSettingDlg.h" />
@@ -177,6 +180,7 @@
     <ClInclude Include="IoctlDef.h" />
     <ClInclude Include="MD5.h" />
     <ClInclude Include="MoreFunction.h" />
+    <ClInclude Include="PackageName.h" />
     <ClInclude Include="Password.h" />
     <ClInclude Include="Port.h" />
     <ClInclude Include="PortCommand.h" />
@@ -191,6 +195,7 @@
     <ClInclude Include="SystemMenu.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="Thread.h" />
+    <ClInclude Include="Tools.h" />
     <ClInclude Include="USBCopy.h" />
     <ClInclude Include="USBCopyDlg.h" />
     <ClInclude Include="XFolderDialog\XFileOpenListView.h" />
@@ -211,6 +216,7 @@
     <ClCompile Include="CRC32.cpp" />
     <ClCompile Include="DataQueue.cpp" />
     <ClCompile Include="DeviceList.cpp" />
+    <ClCompile Include="DiffCopySetting.cpp" />
     <ClCompile Include="Disk.cpp" />
     <ClCompile Include="DiskCleanSettingDlg.cpp" />
     <ClCompile Include="DiskCompareSettingDlg.cpp" />
@@ -230,6 +236,7 @@
     <ClCompile Include="ImageNameDlg.cpp" />
     <ClCompile Include="MD5.cpp" />
     <ClCompile Include="MoreFunction.cpp" />
+    <ClCompile Include="PackageName.cpp" />
     <ClCompile Include="Password.cpp" />
     <ClCompile Include="Port.cpp" />
     <ClCompile Include="PortCommand.cpp" />
@@ -245,6 +252,7 @@
     </ClCompile>
     <ClCompile Include="SystemMenu.cpp" />
     <ClCompile Include="Thread.cpp" />
+    <ClCompile Include="Tools.cpp" />
     <ClCompile Include="USBCopy.cpp" />
     <ClCompile Include="USBCopyDlg.cpp" />
     <ClCompile Include="XFolderDialog\XFileOpenListView.cpp" />

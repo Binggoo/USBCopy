@@ -89,6 +89,14 @@ void CPort::Reset()
 	m_bKickOff = FALSE;
 }
 
+void CPort::Active()
+{
+	m_ullCompleteSize = 0;
+	m_dbUsedWaitTimeS = 0.0;
+	m_dbUsedNoWaitTimeS = 0.0;
+	m_PortState = PortState_Active;
+}
+
 void CPort::SetPortNum( int iPortNum )
 {
 	m_iPortNum = iPortNum;

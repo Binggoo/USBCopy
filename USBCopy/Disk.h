@@ -5,6 +5,7 @@
 #include "IoctlDef.h"
 
 typedef CMap<CString,LPCTSTR,ULONGLONG,ULONGLONG> CMapStringToULL;
+typedef CMap<CPort *,CPort *,CStringArray*,CStringArray*> CMapPortStringArray;
 
 class CDisk
 {
@@ -45,6 +46,9 @@ public:
 
 	void SetSocket(SOCKET sClient,BOOL bServerFirst);
 
+	// 2014-10-14 增量拷贝新增
+	void SetDiffCopyParm(UINT nSourceType,BOOL bServer,UINT nCompareRule,BOOL bUpload,const CStringArray &logArray,BOOL bIncludeSunDir);
+
 private:
 	CPort    *m_MasterPort;
 	PortList *m_TargetPorts;
@@ -82,7 +86,7 @@ private:
 	CStringArray  m_FileArray;
 	CStringArray  m_FodlerArray;
 
-	CMapStringToULL m_MapFiles;
+	CMapStringToULL m_MapCopyFiles;
 
 	BOOL m_bQuickFormat;
 	FileSystem m_FileSystem;
@@ -99,6 +103,24 @@ private:
 	int m_iCompressLevel;
 
 	UINT m_nBlockSectors;
+
+	// 20140-10-14 新增增量拷贝
+	CMapPortStringArray m_MapPortStringArray;
+	CStringArray m_ArrayLogPath;
+	BOOL m_bUploadUserLog;
+	BOOL m_bIncludeSubDir;
+	UINT m_nCompareRule; //0 - FileSize, 1 - HashValue
+	UINT m_nSourceType;  //0 - Package, 1 - Master
+	CStringArray m_ArrayDelFiles;
+	CStringArray m_ArrayDelFolders;
+	CMapStringToULL m_MapSizeSourceFiles;
+	CMapStringToULL m_MapSizeDestFiles;
+	CMapStringToString m_MapHashSourceFiles;
+	CMapStringToString m_MapHashDestFiles;
+	CStringArray m_ArraySameFile;
+	ULONGLONG m_ullHashFilesSize;
+	CMapStringToString m_MapSourceFolders;
+	CMapStringToString m_MapDestFolders;
 
 	BOOL ReadSectors(HANDLE hDevice,
 		ULONGLONG ullStartSector,
@@ -171,6 +193,12 @@ private:
 
 	static DWORD WINAPI FormatDiskThreadProc(LPVOID lpParm);
 
+	// 2014-10-14 增量拷贝新增
+	static DWORD WINAPI SearchUserLogThreadProc(LPVOID lpParm);
+	static DWORD WINAPI DeleteChangeThreadProc(LPVOID lpParm);
+	static DWORD WINAPI EnumFileThreadProc(LPVOID lpParm);
+	static DWORD WINAPI ComputeHashThreadProc(LPVOID lpParm);
+
 	BOOL OnCopyDisk();
 	BOOL OnCopyImage();
 	BOOL OnMakeImage();
@@ -178,6 +206,8 @@ private:
 	BOOL OnCleanDisk();
 	BOOL OnCopyFiles();
 	BOOL OnFormatDisk();
+	// 2014-10-14 增量拷贝新增
+	BOOL OnDiffCopy();
 
 	BOOL ReadDisk();
 	BOOL ReadImage();
@@ -189,6 +219,7 @@ private:
 	BOOL CleanDisk(CPort *port);
 
 	BOOL ReadFiles();
+	BOOL ReadLocalFiles();
 	BOOL WriteFiles(CPort *port,CDataQueue *pDataQueue);
 	BOOL VerifyFiles(CPort *port,CHashMethod *pHashMethod);
 
@@ -200,6 +231,21 @@ private:
 	BOOL WriteLocalImage(CPort *port,CDataQueue *pDataQueue);
 	BOOL WriteRemoteImage(CPort *port,CDataQueue *pDataQueue);
 
+	// 2014-10-14 增量拷贝新增
+	BOOL SearchUserLog(CPort *port);
+	void SearchUserLog(CString strPath,CString strType,CStringArray *pArray);
+	void CleanMapPortStringArray();
+	BOOL UploadUserLog();
+	BOOL ReadRemoteFiles();
+	BOOL DownloadChangeList();
+	BOOL QueryChangeList();
+	BOOL DeleteChange(CPort *port);
+	int EnumFile(CString strPath,CString strVolume,CMapStringToULL *pMap,CMapStringToString *pArray);
+
+	BOOL EnumFileSize(CPort *port,CMapStringToULL *pMap,CMapStringToString *pArray);
+	BOOL ComputeHashValue(CPort *port,CMapStringToString *pMap);
+	void CompareFileSize();
+	void CompareHashValue();
 
 	static TCHAR *ConvertSENDCMDOUTPARAMSBufferToString(const DWORD *dwDiskData, DWORD nFirstIndex, DWORD nLastIndex);
 	static DWORD ScsiCommand( HANDLE hDevice,
@@ -220,5 +266,6 @@ typedef struct _STRUCT_LPVOID_PARM
 	LPVOID lpVoid1;   //CDisk
 	LPVOID lpVoid2;   //CPort
 	LPVOID lpVoid3;   //CHashMethod or CDataQueue
+	LPVOID lpVoid4;   //Other
 }VOID_PARM,*LPVOID_PARM;
 

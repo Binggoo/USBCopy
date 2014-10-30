@@ -299,6 +299,10 @@ CString CBurnIn::GetWorkModeString( WorkMode workMode )
 	case WorkMode_DiskFormat:
 		strWorkMode.LoadString(IDS_WORK_MODE_DISK_FORMAT);
 		break;
+
+	case WorkMode_DifferenceCopy:
+		strWorkMode.LoadString(IDS_WORK_MODE_DIFF_COPY);
+		break;
 	}
 
 	return strWorkMode;

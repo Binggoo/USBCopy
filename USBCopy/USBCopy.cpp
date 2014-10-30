@@ -5,6 +5,8 @@
 #include "stdafx.h"
 #include "USBCopy.h"
 #include "USBCopyDlg.h"
+#include "Ini.h"
+#include "Utils.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -53,6 +55,30 @@ BOOL CUSBCopyApp::InitInstance()
 	// TODO: You should modify this string to be something appropriate
 	// such as the name of your company or organization
 	SetRegistryKey(_T("Local AppWizard-Generated Applications"));
+
+	CString strPath = CUtils::GetAppPath();
+	CString strConfigName = CUtils::GetFilePathWithoutName(strPath) + CONFIG_NAME;
+
+	CIni ini(strConfigName);
+
+	int language = ini.GetInt(_T("Option"),_T("Language"),-1);
+	LCID lcid = GetThreadLocale();
+	if (language == 0)
+	{
+		if (LANG_CHINESE == PRIMARYLANGID(LANGIDFROMLCID(lcid)))
+		{
+			SetThreadUILanguage(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
+		}
+
+	}
+	else if (language == 1)
+	{
+		if (LANG_ENGLISH == PRIMARYLANGID(LANGIDFROMLCID(lcid)))
+		{
+			SetThreadUILanguage(MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED));
+		}
+
+	}
 
 	CUSBCopyDlg dlg;
 	m_pMainWnd = &dlg;

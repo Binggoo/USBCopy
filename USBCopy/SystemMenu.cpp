@@ -47,6 +47,7 @@ BEGIN_MESSAGE_MAP(CSystemMenu, CDialogEx)
 	ON_COMMAND(ID_MOREFUNCTION_DEBUG, &CSystemMenu::OnBnClickedButtonDebug)
 	ON_WM_SETCURSOR()
 	ON_BN_CLICKED(IDC_BTN_MORE, &CSystemMenu::OnBnClickedBtnMore)
+	ON_WM_SHOWWINDOW()
 END_MESSAGE_MAP()
 
 
@@ -86,19 +87,18 @@ BOOL CSystemMenu::OnInitDialog()
 	m_BtnExport.SetBitmaps(IDB_EXPORT,RGB(255,255,255));
 
 	m_BtnReturn.SubclassDlgItem(IDOK,this);
-	m_BtnReturn.DrawBorder(FALSE);
 	m_BtnReturn.SetBitmaps(IDB_RETURN,RGB(255,255,255));
-
-	SetDlgItemText(IDOK,_T(""));
+	m_BtnReturn.SetFlat(FALSE);
+// 	m_BtnReturn.DrawBorder(FALSE);
+// 	SetDlgItemText(IDOK,_T(""));
 
 	m_BtnMore.SubclassDlgItem(IDC_BTN_MORE,this);
 	m_BtnMore.SetFlat(FALSE);
 	m_BtnMore.SetBitmaps(IDB_MORE,RGB(255,255,255));
 
-	m_BitmapSoftRec.LoadBitmap(IDB_RESTORE);
-	m_BitmapViewLog.LoadBitmap(IDB_VIEW_LOG);
-	m_BitmapBurnIn.LoadBitmap(IDB_BURN_IN);
-	m_BitmapDebug.LoadBitmap(IDB_DEBUG);
+	m_BtnPackage.SubclassDlgItem(IDC_BTN_PKG_MANAGER,this);
+	m_BtnPackage.SetFlat(FALSE);
+	m_BtnPackage.SetBitmaps(IDB_PACKAGE,RGB(255,255,255));
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -484,6 +484,7 @@ BOOL CSystemMenu::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		case IDC_BTN_EXPORT_LOG:
 		case IDOK:
 		case IDC_BTN_MORE:
+		case IDC_BTN_PKG_MANAGER:
 			if (pWnd->IsWindowEnabled())
 			{
 				SetCursor(LoadCursor(NULL,MAKEINTRESOURCE(IDC_HAND)));
@@ -510,4 +511,18 @@ void CSystemMenu::OnBnClickedBtnMore()
 	moreFunc->MoveWindow(rectBtn.right,rectBtn.top,rectDlg.Width(),rectDlg.Height());
 	moreFunc->ShowWindow(SW_SHOW);
 
+}
+
+
+void CSystemMenu::OnShowWindow(BOOL bShow, UINT nStatus)
+{
+	CDialogEx::OnShowWindow(bShow, nStatus);
+
+	// TODO: 在此处添加消息处理程序代码
+	CRect rect,rectParent;
+	GetWindowRect(&rect);
+	GetParent()->GetClientRect(rectParent);
+	GetParent()->ClientToScreen(&rectParent);
+
+	MoveWindow(rectParent.left + 50,rect.top,rect.Width(),rect.Height());
 }

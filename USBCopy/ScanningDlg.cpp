@@ -188,7 +188,14 @@ void CScanningDlg::ScanningDevice()
 		{
 			port = m_pMasterPort;
 
-			if (m_WorkMode == WorkMode_DiskClean || m_WorkMode == WorkMode_ImageCopy || m_WorkMode == WorkMode_DiskFormat)
+			// 不需要母盘
+			if (m_WorkMode == WorkMode_DiskClean 
+				|| m_WorkMode == WorkMode_ImageCopy 
+				|| m_WorkMode == WorkMode_DiskFormat
+				|| (m_WorkMode == WorkMode_DifferenceCopy 
+				&& m_pIni->GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Package
+				&& m_pIni->GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0) == PathType_Remote)
+				)
 			{
 				port->Initial();
 				nCount++;
@@ -260,11 +267,13 @@ void CScanningDlg::ScanningDevice()
 								break;
 
 							case WorkMode_FileCopy:
+							case WorkMode_DifferenceCopy:
 								// 去掉只读，并且online
 								if (port->GetPortNum() != 0)
 								{
 									CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
 								}
+								break;
 							}
 
 							ULONGLONG ullSectorNums = 0;
@@ -470,18 +479,29 @@ BOOL CScanningDlg::IsAllConnected()
 {
 	switch (m_WorkMode)
 	{
-	case WorkMode_ImageCopy:
-	case WorkMode_DiskClean:
-	case WorkMode_DiskFormat:
-		break;
-
-	case WorkMode_ImageMake:
-		return m_pMasterPort->IsConnected();
-
-	default:
+	case WorkMode_FullCopy:
+	case WorkMode_QuickCopy:
+	case WorkMode_FileCopy:
+		// 必须要有母盘
 		if (!m_pMasterPort->IsConnected())
 		{
 			return FALSE;
+		}
+		break;
+
+	case WorkMode_ImageMake:
+		// 只要求有母盘
+		return m_pMasterPort->IsConnected();
+
+	case WorkMode_DifferenceCopy:
+		if (m_pIni->GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Master
+			|| m_pIni->GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0) == PathType_Local)
+		{
+			// 需要母盘
+			if (!m_pMasterPort->IsConnected())
+			{
+				return FALSE;
+			}
 		}
 		break;
 

@@ -33,9 +33,10 @@ private:
 	CButtonST m_BtnImageCopy;
 	CButtonST m_BtnImageMake;
 	CButtonST m_BtnDiskCompare;
-	CButtonST m_BtnDiskFormat;
+	CButtonST m_BtnTools;
 	CButtonST m_BtnDiskClean;
 	CButtonST m_BtnReturn;
+	CButtonST m_BtnDiffCopy;
 
 public:
 	void SetConfig(CIni *pIni);
@@ -49,6 +50,8 @@ public:
 	afx_msg void OnBnClickedBtnFileCopy();
 	afx_msg void OnBnClickedBtnDiskCompare();
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
-	afx_msg void OnBnClickedBtnDiskFormat();
+	afx_msg void OnBnClickedBtnTools();
 	afx_msg void OnBnClickedBtnReturn();
+	afx_msg void OnBnClickedBtnDifferenceCopy();
+	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 };

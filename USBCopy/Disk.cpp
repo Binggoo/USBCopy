@@ -9,6 +9,7 @@
 #include "zlib.h"
 
 #include "Fat32.h"
+#include "Ini.h"
 
 #ifdef _DEBUG
 #pragma comment(lib,"zlib128d.lib")
@@ -49,6 +50,12 @@ CDisk::CDisk(void)
 	m_iCompressLevel = Z_BEST_SPEED;
 
 	m_nBlockSectors = BUF_SECTORS;
+
+	// 2014-10-14 增量拷贝新增
+	m_nSourceType = SourceType_Package;
+	m_nCompareRule = 0;
+	m_bIncludeSubDir = FALSE;
+	m_bUploadUserLog = FALSE;
 }
 
 
@@ -1213,65 +1220,79 @@ void CDisk::SetMasterPort( CPort *port )
 	switch (m_MasterPort->GetPortType())
 	{
 	case PortType_MASTER_DISK:
-		m_hMaster = GetHandleOnPhysicalDrive(m_MasterPort->GetDiskNum(),
-			FILE_FLAG_OVERLAPPED,&dwErrorCode);
-		if (m_hMaster == INVALID_HANDLE_VALUE)
 		{
-			m_MasterPort->SetResult(FALSE);
-			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
-			m_MasterPort->SetPortState(PortState_Fail);
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - OpenDisk error,system errorcode=%ld,%s")
-				,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			m_hMaster = GetHandleOnPhysicalDrive(m_MasterPort->GetDiskNum(),
+				FILE_FLAG_OVERLAPPED,&dwErrorCode);
+			if (m_hMaster == INVALID_HANDLE_VALUE)
+			{
+				m_MasterPort->SetResult(FALSE);
+				m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+				m_MasterPort->SetPortState(PortState_Fail);
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - OpenDisk error,system errorcode=%ld,%s")
+					,m_MasterPort->GetPortName(),m_MasterPort->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			}
+			else
+			{
+				m_MasterPort->SetPortState(PortState_Active);
+				m_ullSectorNums = GetNumberOfSectors(m_hMaster,&m_dwBytesPerSector,NULL);
+				m_ullCapacity = m_ullSectorNums * m_dwBytesPerSector;
+			}
 		}
-		else
-		{
-			m_MasterPort->SetPortState(PortState_Active);
-			m_ullSectorNums = GetNumberOfSectors(m_hMaster,&m_dwBytesPerSector,NULL);
-			m_ullCapacity = m_ullSectorNums * m_dwBytesPerSector;
-		}
+		
 		break;
 
 	case PortType_MASTER_FILE:
-		m_hMaster = GetHandleOnFile(m_MasterPort->GetFileName(),
-			OPEN_EXISTING,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+		{
+			m_hMaster = GetHandleOnFile(m_MasterPort->GetFileName(),
+				OPEN_EXISTING,FILE_FLAG_OVERLAPPED,&dwErrorCode);
 
-		if (m_hMaster == INVALID_HANDLE_VALUE)
-		{
-			m_MasterPort->SetResult(FALSE);
-			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
-			m_MasterPort->SetPortState(PortState_Fail);
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Open image file error,filename=%s,system errorcode=%ld,%s")
-				,m_MasterPort->GetFileName(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-		}
-		else
-		{
-			m_MasterPort->SetPortState(PortState_Active);
-			LARGE_INTEGER li = {0};
-			if (GetFileSizeEx(m_hMaster,&li))
+			if (m_hMaster == INVALID_HANDLE_VALUE)
 			{
-				m_ullCapacity = (ULONGLONG)li.QuadPart;
+				m_MasterPort->SetResult(FALSE);
+				m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+				m_MasterPort->SetPortState(PortState_Fail);
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Open image file error,filename=%s,system errorcode=%ld,%s")
+					,m_MasterPort->GetFileName(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 			}
+			else
+			{
+				m_MasterPort->SetPortState(PortState_Active);
+				LARGE_INTEGER li = {0};
+				if (GetFileSizeEx(m_hMaster,&li))
+				{
+					m_ullCapacity = (ULONGLONG)li.QuadPart;
+				}
 
+			}
 		}
+		
 
 		break;
 
 	case PortType_SERVER:
-		// 本地创建IMAGE
-		CString strTempName,strImageFile;
-		strImageFile = m_MasterPort->GetFileName();
-
-		strTempName.Format(_T("%s.$$$"),strImageFile.Left(strImageFile.GetLength() - 4));
-
-		m_hMaster = GetHandleOnFile(strTempName,
-			CREATE_ALWAYS,FILE_FLAG_OVERLAPPED,&dwErrorCode);
-
-		if (m_hMaster == INVALID_HANDLE_VALUE)
 		{
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Open image file error,filename=%s,system errorcode=%ld,%s")
-				,strTempName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-		}
+			// 本地创建IMAGE
+			CString strTempName,strImageFile;
+			strImageFile = m_MasterPort->GetFileName();
 
+			strTempName.Format(_T("%s.$$$"),strImageFile.Left(strImageFile.GetLength() - 4));
+
+			m_hMaster = GetHandleOnFile(strTempName,
+				CREATE_ALWAYS,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+			if (m_hMaster == INVALID_HANDLE_VALUE)
+			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Open image file error,filename=%s,system errorcode=%ld,%s")
+					,strTempName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			}
+
+			m_MasterPort->SetPortState(PortState_Active);
+		}
+		
+
+		break;
+
+	default:
 		m_MasterPort->SetPortState(PortState_Active);
 
 		break;
@@ -3276,8 +3297,9 @@ BOOL CDisk::OnCleanDisk()
 
 BOOL CDisk::OnCopyFiles()
 {
+	m_bServerFirst = FALSE;
 	m_ullValidSize = 0;
-	m_MapFiles.RemoveAll();
+	m_MapCopyFiles.RemoveAll();
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Files statistic start......"));
 
@@ -3296,7 +3318,7 @@ BOOL CDisk::OnCopyFiles()
 
 			m_ullValidSize += liFileSize.QuadPart;
 
-			m_MapFiles.SetAt(strFilePath,liFileSize.QuadPart);
+			m_MapCopyFiles.SetAt(strFilePath,liFileSize.QuadPart);
 
 			CloseHandle(hFile);
 		}
@@ -3313,16 +3335,16 @@ BOOL CDisk::OnCopyFiles()
 	SetValidSize(m_ullValidSize);
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Files statistic end, total files count=%d, total size=%I64d")
-		,m_MapFiles.GetCount(),m_ullValidSize);
+		,m_MapCopyFiles.GetCount(),m_ullValidSize);
 
 	CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Copy Files List:"));
 	CString strList;
-	POSITION pos = m_MapFiles.GetStartPosition();
+	POSITION pos = m_MapCopyFiles.GetStartPosition();
 	CString strFile;
 	ULONGLONG ullFileSize = 0;
 	while (pos)
 	{
-		m_MapFiles.GetNextAssoc(pos,strFile,ullFileSize);
+		m_MapCopyFiles.GetNextAssoc(pos,strFile,ullFileSize);
 		strList.Format(_T("FilePath:%s  FileSize:%I64d"),strFile,ullFileSize);
 		CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
 	}
@@ -3511,6 +3533,619 @@ BOOL CDisk::OnFormatDisk()
 	return bResult;
 }
 
+BOOL CDisk::OnDiffCopy()
+{
+	m_ullValidSize = 0;
+	m_ullHashFilesSize = 0;
+	m_MapCopyFiles.RemoveAll();
+	m_ArrayDelFiles.RemoveAll();
+	CleanMapPortStringArray();
+	m_MapHashDestFiles.RemoveAll();
+	m_MapHashSourceFiles.RemoveAll();
+	m_MapSizeDestFiles.RemoveAll();
+	m_MapSizeSourceFiles.RemoveAll();
+	m_ArraySameFile.RemoveAll();
+	m_ArrayDelFolders.RemoveAll();
+	m_MapSourceFolders.RemoveAll();
+	m_MapDestFolders.RemoveAll();
+
+	BOOL bResult = FALSE;
+	DWORD dwErrorCode = 0;
+
+	if (m_bUploadUserLog)
+	{
+		char function[1024] = "USER LOG";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Search user log..."));
+
+		DWORD dwSearchThreadId = 0;
+
+		HANDLE *hSearchThreads = new HANDLE[m_nCurrentTargetCount];
+
+		UINT nCount = 0;
+		POSITION pos = m_TargetPorts->GetHeadPosition();
+		while (pos)
+		{
+			CPort *port = m_TargetPorts->GetNext(pos);
+			if (port->IsConnected() && port->GetResult())
+			{
+				LPVOID_PARM lpVoid = new VOID_PARM;
+				lpVoid->lpVoid1 = this;
+				lpVoid->lpVoid2 = port;
+
+				hSearchThreads[nCount] = CreateThread(NULL,0,SearchUserLogThreadProc,lpVoid,0,&dwSearchThreadId);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateSearchUserLogThread,ThreadId=0x%04X,HANDLE=0x%04X")
+					,port->GetPortName(),port->GetDiskNum(),dwSearchThreadId,hSearchThreads[nCount]);
+
+				nCount++;
+			}
+		}
+
+		//等待线程结束
+		WaitForMultipleObjects(nCount,hSearchThreads,TRUE,INFINITE);
+		for (UINT i = 0; i < nCount;i++)
+		{
+			GetExitCodeThread(hSearchThreads[i],&dwErrorCode);
+			bResult |= dwErrorCode;
+			CloseHandle(hSearchThreads[i]);
+		}
+		delete []hSearchThreads;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Upload user log..."));
+
+		bResult = UploadUserLog();
+
+		CleanMapPortStringArray();
+
+		strcpy_s(function,"DIFF. COPY");
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+	}
+
+	if (m_nSourceType == SourceType_Package)
+	{
+		if (m_bServerFirst)
+		{
+			//第一步查询package大小
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query package..."));
+
+			USES_CONVERSION;
+			CString strPkgName = CUtils::GetFileName(m_MasterPort->GetFileName());
+			char *fileName = W2A(strPkgName);
+
+			DWORD dwLen = sizeof(CMD_IN) + strlen(fileName) + 2;
+
+			BYTE *bufSend = new BYTE[dwLen];
+			ZeroMemory(bufSend,dwLen);
+			bufSend[dwLen - 1] = END_FLAG;
+
+			CMD_IN queryPkgIn = {0};
+			queryPkgIn.dwCmdIn = CMD_QUERY_PKG_IN;
+			queryPkgIn.dwSizeSend = dwLen;
+
+			memcpy(bufSend,&queryPkgIn,sizeof(CMD_IN));
+			memcpy(bufSend + sizeof(CMD_IN),fileName,strlen(fileName));
+
+			if (!Send(m_ClientSocket,(char *)bufSend,dwLen,NULL,&dwErrorCode))
+			{
+				delete []bufSend;
+
+				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+				m_MasterPort->SetPortState(PortState_Fail);
+				m_MasterPort->SetResult(FALSE);
+				m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query package from server error,Pkgname=%s,system errorcode=%ld,%s")
+					,strPkgName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+
+				return FALSE;
+			}
+
+			delete []bufSend;
+
+			QUERY_PKG_OUT queryPkgOut = {0};
+			dwLen = sizeof(QUERY_PKG_OUT);
+			if (!Recv(m_ClientSocket,(char *)&queryPkgOut,dwLen,NULL,&dwErrorCode))
+			{
+
+				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+				m_MasterPort->SetPortState(PortState_Fail);
+				m_MasterPort->SetResult(FALSE);
+				m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query package from server error,Pkgname=%s,system errorcode=%ld,%s")
+					,strPkgName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+				POSITION pos = m_TargetPorts->GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts->GetNext(pos);
+					if (port->IsConnected())
+					{
+						port->SetEndTime(CTime::GetCurrentTime());
+						port->SetPortState(PortState_Fail);
+						port->SetResult(FALSE);
+						port->SetErrorCode(ErrorType_System,dwErrorCode);
+					}
+				}
+
+				return FALSE;
+			}
+
+			if ((queryPkgOut.dwErrorCode != 0 && queryPkgOut.dwErrorCode != 2 && queryPkgOut.dwErrorCode != 18)
+				|| queryPkgOut.dwCmdOut != CMD_QUERY_PKG_OUT || queryPkgOut.dwSizeSend != dwLen)
+			{
+
+				dwErrorCode = CustomError_Get_Data_From_Server_Error;
+				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+				m_MasterPort->SetPortState(PortState_Fail);
+				m_MasterPort->SetResult(FALSE);
+				m_MasterPort->SetErrorCode(ErrorType_Custom,dwErrorCode);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query package from server error,Pkgname=%s,custom errorcode=0x%X,get data from server error")
+					,strPkgName,dwErrorCode);
+
+				POSITION pos = m_TargetPorts->GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts->GetNext(pos);
+					if (port->IsConnected())
+					{
+						port->SetEndTime(CTime::GetCurrentTime());
+						port->SetPortState(PortState_Fail);
+						port->SetResult(FALSE);
+						port->SetErrorCode(ErrorType_System,dwErrorCode);
+					}
+				}
+
+				return FALSE;
+			}
+
+			m_ullValidSize = queryPkgOut.ullFileSize;
+			m_ullCapacity = queryPkgOut.ullFileSize;
+
+			// 第二步下载变更列表信息
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query change list..."));
+			if (QueryChangeList())
+			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Down change list..."));
+				if (DownloadChangeList())
+				{
+					CString strChangeFile;
+					strChangeFile.Format(_T(".\\%s.ini"),m_MasterPort->GetFileName());
+
+					CIni ini(strChangeFile);
+					ini.GetKeyLines(_T("DelFiles"),&m_ArrayDelFiles);
+					ini.GetKeyLines(_T("DelFolders"),&m_ArrayDelFolders);
+
+				}
+			}
+
+			// 第三步
+		}
+		else
+		{
+			//遍历母盘中的Package
+			EnumFile(m_MasterPort->GetFileName());
+
+			//获取ChangeLIST
+			CString strChangeFile;
+			strChangeFile.Format(_T("%s.ini"),m_MasterPort->GetFileName());
+
+			CIni ini(strChangeFile);
+			ini.GetKeyNames(_T("DelFiles"),&m_ArrayDelFiles);
+		}
+	}
+	else
+	{
+		//第一步，遍历母盘和任一子盘中的文件
+		char function[1024] = "COMPARE";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Enum files start..."));
+
+		bResult = TRUE;
+		DWORD dwThreadId = 0;
+		HANDLE hThreads[2] = {NULL};
+
+		LPVOID_PARM lpVoidMaster = new VOID_PARM;
+		lpVoidMaster->lpVoid1 = this;
+		lpVoidMaster->lpVoid2 = m_MasterPort;
+		lpVoidMaster->lpVoid3 = &m_MapSizeSourceFiles;
+		lpVoidMaster->lpVoid4 = &m_MapSourceFolders;
+
+		hThreads[0] = CreateThread(NULL,0,EnumFileThreadProc,lpVoidMaster,0,&dwThreadId); 
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Diff. Copy(Master) - CreateEnumFileThread,ThreadId=0x%04X,HANDLE=0x%04X")
+			,dwThreadId,hThreads[0]);
+
+		POSITION pos = m_TargetPorts->GetHeadPosition();
+		while (pos)
+		{
+			CPort *port = m_TargetPorts->GetNext(pos);
+			if (port->IsConnected())
+			{
+				LPVOID_PARM lpVoidTarget = new VOID_PARM;
+				lpVoidTarget->lpVoid1 = this;
+				lpVoidTarget->lpVoid2 = port;
+				lpVoidTarget->lpVoid3 = &m_MapSizeDestFiles;
+				lpVoidTarget->lpVoid4 = &m_MapDestFolders;
+
+				hThreads[1] = CreateThread(NULL,0,EnumFileThreadProc,lpVoidTarget,0,&dwThreadId); 
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Diff. Copy(Target-%d) - CreateEnumFileThread,ThreadId=0x%04X,HANDLE=0x%04X")
+					,port->GetPortNum(),dwThreadId,hThreads[1]);
+			}
+		}
+
+		// 等待遍历结束
+		WaitForMultipleObjects(2,hThreads,TRUE,INFINITE);
+		for (UINT i = 0; i < 2;i++)
+		{
+			GetExitCodeThread(hThreads[i],&dwErrorCode);
+			bResult &= dwErrorCode;
+			CloseHandle(hThreads[i]);
+		}
+
+		if (!bResult)
+		{
+			//失败则退出
+			ErrorType errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+
+			if (dwErrorCode == 0)
+			{
+				pos = m_TargetPorts->GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts->GetNext(pos);
+					if (port->IsConnected() && !port->GetResult())
+					{
+						errType = port->GetErrorCode(&dwErrorCode);
+						break;
+					}
+				}
+			}
+
+			pos = m_TargetPorts->GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts->GetNext(pos);
+				if (port->IsConnected())
+				{
+					port->SetEndTime(CTime::GetCurrentTime());
+					port->SetPortState(PortState_Fail);
+					port->SetResult(FALSE);
+					port->SetErrorCode(errType,dwErrorCode);
+				}
+			}
+
+			return FALSE;
+		}
+
+		// 第二步，比较文件名称和大小,判断哪些是要删除，哪些是要拷贝
+		CompareFileSize();
+		
+		if (m_nCompareRule != CompareRule_Fast)
+		{
+			//需要比较哈希值
+			//创建计算哈希值线程
+
+			SetValidSize(m_ullHashFilesSize);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Compute files hash start..."));
+
+			lpVoidMaster = new VOID_PARM;
+			lpVoidMaster->lpVoid1 = this;
+			lpVoidMaster->lpVoid2 = m_MasterPort;
+			lpVoidMaster->lpVoid3 = &m_MapHashSourceFiles;
+			
+
+			hThreads[0] = CreateThread(NULL,0,ComputeHashThreadProc,lpVoidMaster,0,&dwThreadId);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Diff. Copy(Master) - ComputeHashThread,ThreadId=0x%04X,HANDLE=0x%04X")
+				,dwThreadId,hThreads[0]);
+
+			pos = m_TargetPorts->GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts->GetNext(pos);
+				if (port->IsConnected())
+				{
+					LPVOID_PARM lpVoidTarget = new VOID_PARM;
+					lpVoidTarget->lpVoid1 = this;
+					lpVoidTarget->lpVoid2 = port;
+					lpVoidTarget->lpVoid3 = &m_MapHashDestFiles;
+
+					hThreads[1] = CreateThread(NULL,0,ComputeHashThreadProc,lpVoidTarget,0,&dwThreadId); 
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Diff. Copy(Target-%d) - ComputeHashThread,ThreadId=0x%04X,HANDLE=0x%04X")
+						,port->GetPortNum(),dwThreadId,hThreads[1]);
+				}
+			}
+
+			// 等待遍历结束
+			WaitForMultipleObjects(2,hThreads,TRUE,INFINITE);
+			for (UINT i = 0; i < 2;i++)
+			{
+				GetExitCodeThread(hThreads[i],&dwErrorCode);
+				bResult &= dwErrorCode;
+				CloseHandle(hThreads[i]);
+			}
+
+			if (!bResult)
+			{
+				//失败则退出
+				ErrorType errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+
+				if (dwErrorCode == 0)
+				{
+					pos = m_TargetPorts->GetHeadPosition();
+					while (pos)
+					{
+						CPort *port = m_TargetPorts->GetNext(pos);
+						if (port->IsConnected() && !port->GetResult())
+						{
+							errType = port->GetErrorCode(&dwErrorCode);
+							break;
+						}
+					}
+				}
+
+				pos = m_TargetPorts->GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts->GetNext(pos);
+					if (port->IsConnected())
+					{
+						port->SetEndTime(CTime::GetCurrentTime());
+						port->SetPortState(PortState_Fail);
+						port->SetResult(FALSE);
+						port->SetErrorCode(errType,dwErrorCode);
+					}
+				}
+
+				return FALSE;
+			}
+
+			// 比较文件HASH值
+			CompareHashValue();
+		}
+
+		strcpy_s(function,"DIFF. COPY");
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+	}
+
+	SetValidSize(m_ullValidSize);
+
+	if (!m_bServerFirst)
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Copy Files statistic: total files count=%d, total size=%I64d")
+			,m_MapCopyFiles.GetCount(),m_ullValidSize);
+
+		CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Copy Files List:"));
+		CString strList;
+		POSITION pos = m_MapCopyFiles.GetStartPosition();
+		CString strFile;
+		ULONGLONG ullFileSize = 0;
+		while (pos)
+		{
+			m_MapCopyFiles.GetNextAssoc(pos,strFile,ullFileSize);
+			strList.Format(_T("FilePath:%s  FileSize:%I64d"),strFile,ullFileSize);
+			CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
+		}
+	}
+
+	int nDelFileCount = m_ArrayDelFiles.GetCount();
+	int nDelFolderCout = m_ArrayDelFolders.GetCount();
+
+	if (nDelFileCount > 0 || nDelFolderCout > 0)
+	{
+		if (nDelFileCount > 0)
+		{
+			CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Delete Files List:"));
+
+			for (int i = 0; i < nDelFileCount;i++)
+			{
+				CUtils::WriteLogFile(m_hLogFile,FALSE,m_ArrayDelFiles.GetAt(i));
+			}
+		}
+
+		if (nDelFolderCout > 0)
+		{
+			CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Delete Folders List:"));
+
+			for (int i = 0; i < nDelFolderCout;i++)
+			{
+				CUtils::WriteLogFile(m_hLogFile,FALSE,m_ArrayDelFolders.GetAt(i));
+			}
+		}
+		
+
+		// 创建删除文件线程
+		char function[1024] = "DELETE";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+		DWORD dwDelThreadId = 0;
+
+		HANDLE *hDelThreads = new HANDLE[m_nCurrentTargetCount];
+
+		UINT nCount = 0;
+		POSITION pos = m_TargetPorts->GetHeadPosition();
+		while (pos)
+		{
+			CPort *port = m_TargetPorts->GetNext(pos);
+			if (port->IsConnected() && port->GetResult())
+			{
+				LPVOID_PARM lpVoid = new VOID_PARM;
+				lpVoid->lpVoid1 = this;
+				lpVoid->lpVoid2 = port;
+
+				hDelThreads[nCount] = CreateThread(NULL,0,DeleteChangeThreadProc,lpVoid,0,&dwDelThreadId);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateDeleteChangeThread,ThreadId=0x%04X,HANDLE=0x%04X")
+					,port->GetPortName(),port->GetDiskNum(),dwDelThreadId,hDelThreads[nCount]);
+
+				nCount++;
+			}
+		}
+
+		//等待线程结束
+		WaitForMultipleObjects(nCount,hDelThreads,TRUE,INFINITE);
+		for (UINT i = 0; i < nCount;i++)
+		{
+			GetExitCodeThread(hDelThreads[i],&dwErrorCode);
+			bResult |= dwErrorCode;
+			CloseHandle(hDelThreads[i]);
+		}
+		delete []hDelThreads;
+
+		strcpy_s(function,"DIFF. COPY");
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+	}
+
+	// 开始拷贝文件
+	bResult = FALSE;
+	DWORD dwReadId,dwWriteId,dwVerifyId;
+
+	HANDLE hReadThread = CreateThread(NULL,0,ReadFilesThreadProc,this,0,&dwReadId);
+
+	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Diff. Copy - CreateReadFilesThread,ThreadId=0x%04X,HANDLE=0x%04X")
+		,dwReadId,hReadThread);
+
+	UINT nCount = 0;
+	HANDLE *hWriteThreads = new HANDLE[m_nCurrentTargetCount];
+
+	POSITION pos = m_TargetPorts->GetHeadPosition();
+	POSITION posQueue = m_DataQueueList.GetHeadPosition();
+	while (pos && posQueue)
+	{
+		CPort *port = m_TargetPorts->GetNext(pos);
+		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
+		if (port->IsConnected())
+		{
+			LPVOID_PARM lpVoid = new VOID_PARM;
+			lpVoid->lpVoid1 = this;
+			lpVoid->lpVoid2 = port;
+			lpVoid->lpVoid3 = dataQueue;
+
+			hWriteThreads[nCount] = CreateThread(NULL,0,WriteFilesThreadProc,lpVoid,0,&dwWriteId);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateWriteFilesThread,ThreadId=0x%04X,HANDLE=0x%04X")
+				,port->GetPortName(),port->GetDiskNum(),dwWriteId,hWriteThreads[nCount]);
+
+			nCount++;
+		}
+	}
+
+	//等待写磁盘线程结束
+	WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
+	for (UINT i = 0; i < nCount;i++)
+	{
+		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
+		bResult |= dwErrorCode;
+		CloseHandle(hWriteThreads[i]);
+	}
+	delete []hWriteThreads;
+
+	//等待读磁盘线程结束
+	WaitForSingleObject(hReadThread,INFINITE);
+	GetExitCodeThread(hReadThread,&dwErrorCode);
+	bResult &= dwErrorCode;
+	CloseHandle(hReadThread);
+
+	if (bResult && m_bHashVerify)
+	{
+		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
+
+		nCount = 0;
+		pos = m_TargetPorts->GetHeadPosition();
+		while (pos)
+		{
+			CPort *port = m_TargetPorts->GetNext(pos);
+			if (port->IsConnected() && port->GetResult())
+			{
+				nCount++;
+			}
+		}
+
+		HANDLE *hVerifyThreads = new HANDLE[nCount];
+
+		nCount = 0;
+		pos = m_TargetPorts->GetHeadPosition();
+		while (pos)
+		{
+			CPort *port = m_TargetPorts->GetNext(pos);
+			if (port->IsConnected() && port->GetResult())
+			{
+				CHashMethod *pHashMethod;
+
+				switch (port->GetHashMethod())
+				{
+				case HashMethod_CHECKSUM32:
+					pHashMethod = new CChecksum32();
+					break;
+
+				case HashMethod_CRC32:
+					pHashMethod = new CCRC32();
+					break;
+
+				case HashMethod_MD5:
+					pHashMethod = new MD5();
+					break;
+				}
+
+				LPVOID_PARM lpVoid = new VOID_PARM;
+				lpVoid->lpVoid1 = this;
+				lpVoid->lpVoid2 = port;
+				lpVoid->lpVoid3 = pHashMethod;
+
+				hVerifyThreads[nCount] = CreateThread(NULL,0,VerifyFilesThreadProc,lpVoid,0,&dwVerifyId);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateVerifyFilesThread,ThreadId=0x%04X,HANDLE=0x%04X")
+					,port->GetPortName(),port->GetDiskNum(),dwVerifyId,hVerifyThreads[nCount]);
+
+				nCount++;
+			}
+		}
+
+		//等待校验线程结束
+		WaitForMultipleObjects(nCount,hVerifyThreads,TRUE,INFINITE);
+
+		bResult = FALSE;
+		for (UINT i = 0; i < nCount;i++)
+		{
+			GetExitCodeThread(hVerifyThreads[i],&dwErrorCode);
+			bResult |= dwErrorCode;
+			CloseHandle(hVerifyThreads[i]);
+		}
+		delete []hVerifyThreads;
+
+		if (!bResult)
+		{
+			// 任意取一个错误
+			ErrorType errType = ErrorType_System;
+			DWORD dwErrorCode = 0;
+
+			pos = m_TargetPorts->GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts->GetNext(pos);
+				if (port->IsConnected() && !port->GetResult())
+				{
+					errType = port->GetErrorCode(&dwErrorCode);
+					break;
+				}
+			}
+
+			m_MasterPort->SetErrorCode(errType,dwErrorCode);
+		}
+	}
+
+	return bResult;
+}
+
 BOOL CDisk::ReadDisk()
 {
 	BOOL bResult = TRUE;
@@ -3527,6 +4162,8 @@ BOOL CDisk::ReadDisk()
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	QueryPerformanceFrequency(&freq);
+
+	m_MasterPort->Active();
 
 	POSITION pos = m_EffList.GetHeadPosition();
 
@@ -3704,6 +4341,8 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
 	ErrorType errType = ErrorType_System;
+
+	port->Active();
 
 	port->SetStartTime(CTime::GetCurrentTime());
 
@@ -3974,6 +4613,8 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 	DWORD dwSectors = m_nBlockSectors;
 	DWORD dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 
+	port->Active();
+
 	if (m_WorkMode == WorkMode_DiskCompare)
 	{
 		port->SetStartTime(CTime::GetCurrentTime());
@@ -4173,6 +4814,21 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 
 BOOL CDisk::ReadFiles()
 {
+	BOOL bRet;
+	if (m_bServerFirst)
+	{
+		bRet = ReadRemoteFiles();
+	}
+	else
+	{
+		bRet = ReadLocalFiles();
+	}
+
+	return bRet;
+}
+
+BOOL CDisk::ReadLocalFiles()
+{
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
 	ErrorType errType = ErrorType_System;
@@ -4185,12 +4841,14 @@ BOOL CDisk::ReadFiles()
 
 	QueryPerformanceFrequency(&freq);
 
-	POSITION pos = m_MapFiles.GetStartPosition();
+	m_MasterPort->Active();
+
+	POSITION pos = m_MapCopyFiles.GetStartPosition();
 	ULONGLONG ullFileSize = 0;
 	CString strSourceFile,strDestFile;
 	while (pos && !*m_lpCancel && bResult && m_MasterPort->GetPortState() == PortState_Active)
 	{
-		m_MapFiles.GetNextAssoc(pos,strSourceFile,ullFileSize);
+		m_MapCopyFiles.GetNextAssoc(pos,strSourceFile,ullFileSize);
 
 		// 目标文件为去掉盘符剩余的文件
 		strDestFile = strSourceFile.Right(strSourceFile.GetLength() - 2);
@@ -4286,7 +4944,7 @@ BOOL CDisk::ReadFiles()
 		CloseHandle(hFile);
 	}
 
-	if (m_MapFiles.GetCount() == 0)
+	if (m_MapCopyFiles.GetCount() == 0)
 	{
 		bResult = FALSE;
 		dwErrorCode = CustomError_No_File_Select;
@@ -4363,6 +5021,303 @@ BOOL CDisk::ReadFiles()
 	return bResult;
 }
 
+BOOL CDisk::ReadRemoteFiles()
+{
+	BOOL bResult = TRUE;
+	DWORD dwErrorCode = 0;
+	ErrorType errType = ErrorType_System;
+
+	ULONGLONG ullReadSize = 0,ullCompleteSize = 0;
+	DWORD dwLen = 0;
+
+	// 计算精确速度
+	LARGE_INTEGER freq,t0,t1,t2;
+	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	WSAOVERLAPPED ol = {0};
+	ol.hEvent = WSACreateEvent();
+
+	QueryPerformanceFrequency(&freq);
+
+	m_MasterPort->Active();
+
+	// 发送DOWN PACKAGE命令
+	CString strPackageName = CUtils::GetFileName(m_MasterPort->GetFileName());
+
+	USES_CONVERSION;
+	char *pkgName = W2A(strPackageName);
+
+	DWORD dwSendLen = sizeof(CMD_IN) + strlen(pkgName) + 2;
+	BYTE *sendBuf = new BYTE[dwSendLen];
+	ZeroMemory(sendBuf,dwSendLen);
+	sendBuf[dwSendLen - 1] = END_FLAG;
+
+	CMD_IN downPkgIn = {0};
+	downPkgIn.dwCmdIn = CMD_DOWN_PKG_IN;
+	downPkgIn.dwSizeSend = dwSendLen;
+
+	memcpy(sendBuf,&downPkgIn,sizeof(CMD_IN));
+	memcpy(sendBuf + sizeof(CMD_IN),pkgName,strlen(pkgName));
+
+	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
+	{
+		QueryPerformanceCounter(&t0);
+		// 判断队列是否达到限制值
+		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
+			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
+		{
+			Sleep(5);
+		}
+
+		if (*m_lpCancel)
+		{
+			dwErrorCode = CustomError_Cancel;
+			errType = ErrorType_Custom;
+			bResult = FALSE;
+			break;
+		}
+
+		if (IsAllFailed(errType,&dwErrorCode))
+		{
+			bResult = FALSE;
+			break;
+		}
+
+		QueryPerformanceCounter(&t1);
+
+		if (!Send(m_ClientSocket,(char *)sendBuf,dwSendLen,NULL,&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send down package command error,Pkgname=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strPackageName,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			break;
+		}
+
+		CMD_OUT downPkgOut = {0};
+		dwLen = sizeof(CMD_OUT);
+		if (!Recv(m_ClientSocket,(char *)&downPkgOut,dwLen,&ol,&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down package error,Pkgname=%s,Speed=%.2f,system errorcode=%ld,%s")
+				,strPackageName,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			break;
+		}
+
+		dwLen = downPkgOut.dwSizeSend - sizeof(CMD_OUT);
+
+		BYTE *pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
+
+		DWORD dwRead = 0;
+
+		while(dwRead < dwLen)
+		{
+			DWORD dwByteRead = dwLen - dwRead;
+			if (!Recv(m_ClientSocket,(char *)(pByte+dwRead),dwByteRead,&ol,&dwErrorCode))
+			{
+				bResult = FALSE;
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down package error,Pkgname=%s,Speed=%.2f,system errorcode=%ld,%s")
+					,strPackageName,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				break;
+			}
+
+			dwRead += dwByteRead;
+		}
+
+		if (dwRead < dwLen)
+		{
+			bResult = FALSE;
+
+			delete []pByte;
+
+			break;
+		}
+
+		if (downPkgOut.dwErrorCode != 0)
+		{
+			bResult = FALSE;
+			errType = downPkgOut.errType;
+			dwErrorCode = downPkgOut.dwErrorCode;
+
+			delete []pByte;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down package error,Pkgname=%s,Speed=%.2f,system errorcode=%d,%s")
+				,strPackageName,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			break;
+		}
+
+		if (downPkgOut.dwCmdOut != CMD_DOWN_PKG_OUT || downPkgOut.dwSizeSend != dwLen + sizeof(CMD_OUT))
+		{
+			bResult = FALSE;
+			errType = ErrorType_Custom;
+			dwErrorCode = CustomError_Get_Data_From_Server_Error;
+
+			delete []pByte;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down package error,Pkgname=%s,Speed=%.2f,custom errorcode=0x%X,get data from server error")
+				,strPackageName,m_MasterPort->GetRealSpeed(),dwErrorCode);
+			break;
+		}
+
+		// CM_OUT + 文件名称 + '\0' + 文件内容 + 结束标志
+		int len = strlen((char *)pByte) + 1;
+		char *file = new char[len];
+		strcpy_s(file,len,(char *)pByte);
+
+		CString strDestFile(file);
+		delete []file;
+
+		if (strDestFile.Left(1) != _T("\\"))
+		{
+			strDestFile = _T("\\") + strDestFile;
+		}
+		
+		BYTE flag = pByte[dwLen - 1];
+
+		DWORD dwFileLen = dwLen - len - 1;
+		BYTE *pFileData = new BYTE[dwFileLen];
+		ZeroMemory(pFileData,dwFileLen);
+		memcpy(pFileData,pByte + len,dwFileLen);
+
+		delete []pByte;
+		pByte = NULL;
+		
+		DATA_INFO dataInfo = {0};
+		dataInfo.szFileName = new TCHAR[strDestFile.GetLength()+1];
+		_tcscpy_s(dataInfo.szFileName,strDestFile.GetLength()+1,strDestFile);
+		dataInfo.ullOffset = ullCompleteSize;
+		dataInfo.dwDataSize = dwFileLen;
+		dataInfo.pData = pFileData;
+		AddDataQueueList(dataInfo);
+
+		delete []dataInfo.szFileName;
+
+		if (m_bComputeHash)
+		{
+			m_pMasterHashMethod->update((void *)pFileData,dwFileLen);
+		}
+
+		dwErrorCode = 0;
+
+		delete []pFileData;
+
+		ullReadSize += dwFileLen;
+		ullCompleteSize += dwFileLen;
+
+		if (flag == END_FLAG)
+		{
+			CString strSourceFile = _T("M:") + strDestFile;
+			m_MapCopyFiles.SetAt(strSourceFile,ullCompleteSize);
+			ullCompleteSize = 0;
+		}
+
+		QueryPerformanceCounter(&t2);
+
+		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
+		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
+		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
+
+		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
+
+	}
+
+	WSACloseEvent(ol.hEvent);
+
+	if (m_hMaster != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(m_hMaster);
+		m_hMaster = INVALID_HANDLE_VALUE;
+	}
+
+	if (!bResult)
+	{
+		// 发送停止命令
+		downPkgIn.byStop = TRUE;
+		memcpy(sendBuf,&downPkgIn,sizeof(CMD_IN));
+		memcpy(sendBuf + sizeof(CMD_IN),pkgName,strlen(pkgName));
+
+		DWORD dwError = 0;
+
+		Send(m_ClientSocket,(char *)sendBuf,dwSendLen,NULL,&dwError);
+	}
+
+	delete []sendBuf;
+
+	if (*m_lpCancel)
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Cancel;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read image file error,filename=%s,Speed=%.2f,custom errorcode=0x%X,user cancelled.")
+			,m_MasterPort->GetFileName(),m_MasterPort->GetRealSpeed(),dwErrorCode);
+	}
+
+	// 先设置为停止状态
+	// 先设置为停止状态
+	if (bResult)
+	{
+		m_MasterPort->SetPortState(PortState_Stop);
+	}
+	else
+	{
+		m_MasterPort->SetResult(FALSE);
+		m_MasterPort->SetPortState(PortState_Fail);
+		m_MasterPort->SetErrorCode(errType,dwErrorCode);
+	}
+
+
+	// 所有数据都拷贝完
+	while (!m_bCompressComplete)
+	{
+		Sleep(100);
+	}
+
+	if (!m_MasterPort->GetResult())
+	{
+		bResult = FALSE;
+		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+	}
+
+	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+	m_MasterPort->SetResult(bResult);
+
+	if (bResult)
+	{
+		m_MasterPort->SetPortState(PortState_Pass);
+		if (m_bComputeHash)
+		{
+			m_MasterPort->SetHash(m_pMasterHashMethod->digest(),m_pMasterHashMethod->getHashLength());
+
+			for (int i = 0; i < m_pMasterHashMethod->getHashLength();i++)
+			{
+				CString strHash;
+				strHash.Format(_T("%02X"),m_pMasterHashMethod->digest()[i]);
+				m_strMasterHash += strHash;
+			}
+
+			CString strHashMethod(m_pMasterHashMethod->getHashMetod());
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Package %s - %s,HashValue=%s")
+				,m_MasterPort->GetFileName(),strHashMethod,m_strMasterHash);
+
+		}
+	}
+	else
+	{
+		m_MasterPort->SetPortState(PortState_Fail);
+		m_MasterPort->SetErrorCode(errType,dwErrorCode);
+	}
+
+	return bResult;
+}
+
+
 BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 {
 	BOOL bResult = TRUE;
@@ -4377,6 +5332,8 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	QueryPerformanceFrequency(&freq);
+
+	port->Active();
 
 	port->SetStartTime(CTime::GetCurrentTime());
 
@@ -4578,6 +5535,8 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 	DWORD dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 	ULONGLONG ullCompleteSize = 0;
 
+	port->Active();
+
 	// 计算精确速度
 	LARGE_INTEGER freq,t0,t1,t2;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
@@ -4602,12 +5561,12 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 
 	CString strVolume = volumeArray.GetAt(0);
 
-	POSITION pos = m_MapFiles.GetStartPosition();
+	POSITION pos = m_MapCopyFiles.GetStartPosition();
 	ULONGLONG ullFileSize = 0;
 	CString strSourceFile,strDestFile;
 	while (pos && !*m_lpCancel && bResult && port->GetPortState() == PortState_Active && !port->IsKickOff())
 	{
-		m_MapFiles.GetNextAssoc(pos,strSourceFile,ullFileSize);
+		m_MapCopyFiles.GetNextAssoc(pos,strSourceFile,ullFileSize);
 
 		// 目标文件为去掉盘符剩余的文件
 		strDestFile = strSourceFile.Right(strSourceFile.GetLength() - 2);
@@ -4757,7 +5716,7 @@ BOOL CDisk::Start()
 	m_EffList.RemoveAll();
 	ZeroMemory(m_ImageHash,LEN_DIGEST);
 	m_CompressQueue.Clear();
-	m_MapFiles.RemoveAll();
+	m_MapCopyFiles.RemoveAll();
 
 	
 	BOOL bRet = FALSE;
@@ -4792,6 +5751,10 @@ BOOL CDisk::Start()
 		bRet = OnFormatDisk();
 		break;
 
+	case WorkMode_DifferenceCopy:
+		bRet = OnDiffCopy();
+		break;
+
 	}
 
 	return bRet;
@@ -4824,6 +5787,8 @@ BOOL CDisk::ReadLocalImage()
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	QueryPerformanceFrequency(&freq);
+
+	m_MasterPort->Active();
 
 	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
 	{
@@ -5023,6 +5988,8 @@ BOOL CDisk::ReadRemoteImage()
 
 	QueryPerformanceFrequency(&freq);
 
+	m_MasterPort->Active();
+
 	// 发送COPY IMAGE命令
 	CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
 
@@ -5071,8 +6038,10 @@ BOOL CDisk::ReadRemoteImage()
 		{
 			bResult = FALSE;
 
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send copy image command error,system errorcode=%ld,%s")
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send copy image command error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
 				,m_MasterPort->GetFileName(),m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			break;
 		}
 
 		CMD_OUT copyImageOut = {0};
@@ -5568,6 +6537,7 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 	ULONGLONG ullOffset = SIZEOF_IMAGE_HEADER;
 	DWORD dwLen = 0;
 
+	port->Active();
 	port->SetStartTime(CTime::GetCurrentTime());
 
 	HANDLE hFile = GetHandleOnFile(port->GetFileName(),CREATE_ALWAYS,FILE_FLAG_OVERLAPPED,&dwErrorCode);
@@ -5752,6 +6722,7 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 	ULONGLONG ullOffset = SIZEOF_IMAGE_HEADER;
 	DWORD dwLen = 0;
 
+	port->Active();
 	port->SetStartTime(CTime::GetCurrentTime());
 
 	CString strImageName = CUtils::GetFileName(port->GetFileName());
@@ -6024,6 +6995,8 @@ BOOL CDisk::CleanDisk( CPort *port )
 {
 	DWORD dwBytePerSector = port->GetBytesPerSector();
 	ULONGLONG ullSectorNums = port->GetTotalSize() / dwBytePerSector;
+
+	port->Active();
 
 	switch(m_CleanMode)
 	{
@@ -6596,6 +7569,61 @@ DWORD WINAPI CDisk::FormatDiskThreadProc(LPVOID lpParm)
 	return bResult;
 }
 
+DWORD WINAPI CDisk::SearchUserLogThreadProc(LPVOID lpParm)
+{
+	LPVOID_PARM parm = (LPVOID_PARM)lpParm;
+	CDisk *disk = (CDisk *)parm->lpVoid1;
+	CPort *port = (CPort *)parm->lpVoid2;
+
+	BOOL bResult = disk->SearchUserLog(port);
+
+	delete parm;
+
+	return bResult;
+}
+
+DWORD WINAPI CDisk::DeleteChangeThreadProc(LPVOID lpParm)
+{
+	LPVOID_PARM parm = (LPVOID_PARM)lpParm;
+	CDisk *disk = (CDisk *)parm->lpVoid1;
+	CPort *port = (CPort *)parm->lpVoid2;
+
+	BOOL bResult = disk->DeleteChange(port);
+
+	delete parm;
+
+	return bResult;
+}
+
+DWORD WINAPI CDisk::EnumFileThreadProc(LPVOID lpParm)
+{
+	LPVOID_PARM parm = (LPVOID_PARM)lpParm;
+	CDisk *disk = (CDisk *)parm->lpVoid1;
+	CPort *port = (CPort *)parm->lpVoid2;
+	CMapStringToULL *pMap = (CMapStringToULL *)parm->lpVoid3;
+	CMapStringToString *pArray = (CMapStringToString *)parm->lpVoid4;
+
+	BOOL bResult = disk->EnumFileSize(port,pMap,pArray);
+
+	delete parm;
+
+	return bResult;
+}
+
+DWORD WINAPI CDisk::ComputeHashThreadProc(LPVOID lpParm)
+{
+	LPVOID_PARM parm = (LPVOID_PARM)lpParm;
+	CDisk *disk = (CDisk *)parm->lpVoid1;
+	CPort *port = (CPort *)parm->lpVoid2;
+	CMapStringToString *pMap = (CMapStringToString *)parm->lpVoid3;
+
+	BOOL bResult = disk->ComputeHashValue(port,pMap);
+
+	delete parm;
+
+	return bResult;
+}
+
 void CDisk::AddDataQueueList( DATA_INFO dataInfo )
 {
 	POSITION pos1 = m_DataQueueList.GetHeadPosition();
@@ -6659,6 +7687,8 @@ void CDisk::SetFileAndFolder( const CStringArray &fileArray,const CStringArray &
 int CDisk::EnumFile( CString strSource )
 {
 	int nCount = 0; // 文件夹的数量
+
+	strSource.TrimRight(_T('\\'));
 	CString strFindFile = strSource + _T("\\*");
 
 	CFileFind ff;
@@ -6679,21 +7709,50 @@ int CDisk::EnumFile( CString strSource )
 		}
 		else
 		{
-			DWORD dwErrorCode = 0;
-			HANDLE hFile = GetHandleOnFile(ff.GetFilePath(),OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,&dwErrorCode);
-			if (hFile != INVALID_HANDLE_VALUE)
-			{
-				LARGE_INTEGER liFileSize = {0};
+			m_ullValidSize += ff.GetLength();
+			m_MapCopyFiles.SetAt(ff.GetFilePath(),ff.GetLength());
+		}
+	}
+	ff.Close();
 
-				GetFileSizeEx(hFile,&liFileSize);
+	return nCount;
+}
 
-				m_ullValidSize += liFileSize.QuadPart;
+int CDisk::EnumFile( CString strPath,CString strVolume,CMapStringToULL *pMap ,CMapStringToString *pArray)
+{
+	int nCount = 0; // 文件的数量
 
-				m_MapFiles.SetAt(ff.GetFilePath(),liFileSize.QuadPart);
+	strPath.TrimRight(_T('\\'));
 
-				CloseHandle(hFile);
-			}
+	CString strFindFile = strPath + _T("\\*");
 
+	CFileFind ff;
+	BOOL bFind = ff.FindFile(strFindFile,0);
+	while (bFind)
+	{
+		bFind = ff.FindNextFile();
+
+		if (ff.GetFileName() == _T(".") || ff.GetFileName() == _T(".."))
+		{
+			continue;
+		}
+
+		CString strPathFile = ff.GetFilePath();
+
+		// 去掉盘符
+		strPathFile = strPathFile.Mid(strVolume.GetLength());
+
+		if (ff.IsDirectory())
+		{
+			nCount += EnumFile(ff.GetFilePath(),strVolume,pMap,pArray);
+
+			pArray->SetAt(strPathFile,strPathFile);
+		}
+		else
+		{
+			nCount++;
+			
+			pMap->SetAt(strPathFile,ff.GetLength());
 		}
 	}
 	ff.Close();
@@ -6714,6 +7773,16 @@ void CDisk::SetFormatParm( CString strVolumeLabel,FileSystem fileSystem,DWORD dw
 	}
 }
 
+void CDisk::SetDiffCopyParm(UINT nSourceType,BOOL bServer,UINT nCompareRule,BOOL bUpload,const CStringArray &logArray,BOOL bIncludeSunDir)
+{
+	m_nSourceType = nSourceType;
+	m_bServerFirst = bServer;
+	m_nCompareRule = nCompareRule;
+	m_ArrayLogPath.Copy(logArray);
+	m_bIncludeSubDir = bIncludeSunDir;
+	m_bUploadUserLog = bUpload;
+}
+
 void CDisk::SetSocket( SOCKET sClient,BOOL bServerFirst )
 {
 	m_ClientSocket = sClient;
@@ -6724,3 +7793,818 @@ void CDisk::SetMakeImageParm( int compressLevel /*= Z_BEST_SPEED*/ )
 {
 	m_iCompressLevel = compressLevel;
 }
+
+BOOL CDisk::SearchUserLog( CPort *port )
+{
+	int nCount = m_ArrayLogPath.GetCount();
+
+	CStringArray volumeArray;
+	port->GetVolumeArray(volumeArray);
+	if (volumeArray.GetCount() != 1)
+	{
+
+		port->SetEndTime(CTime::GetCurrentTime());
+		port->SetResult(FALSE);
+		port->SetPortState(PortState_Fail);
+		port->SetErrorCode(ErrorType_Custom,CustomError_Unrecognized_Partition);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - partition error,custom errorcode=0x%X,unrecognized partition")
+			,port->GetPortName(),port->GetDiskNum(),CustomError_Unrecognized_Partition);
+
+		return FALSE;
+
+	}
+
+	if (nCount > 0)
+	{
+		CString strVolume = volumeArray.GetAt(0);
+		CStringArray *pArray = new CStringArray;
+		CString strPath,strType,strValue;
+
+		for (int i = 0; i < nCount;i++)
+		{
+			// Path:Ext
+			strValue = m_ArrayLogPath.GetAt(i);
+			int nPos = strValue.ReverseFind(_T(':'));
+			strPath = strValue.Left(nPos);
+			strType = strValue.Right(strValue.GetLength() - nPos - 1);
+
+			strPath.Trim();
+			strType.Trim();
+
+			strPath = strVolume + strPath;
+
+			SearchUserLog(strPath,strType,pArray);
+		}
+
+		m_MapPortStringArray.SetAt(port,pArray);
+	}
+
+	return TRUE;
+}
+
+void CDisk::SearchUserLog( CString strPath,CString strType,CStringArray *pArray )
+{
+	CString strFindFile;
+
+	strFindFile.Format(_T("%s%s"),strPath,strType);
+
+	CFileFind ff;
+	BOOL bFind = ff.FindFile(strFindFile,0);
+	while (bFind)
+	{
+		bFind = ff.FindNextFile();
+
+		if (ff.GetFileName() == _T(".") || ff.GetFileName() == _T(".."))
+		{
+			continue;
+		}
+
+		if (ff.IsDirectory())
+		{
+			if (m_bIncludeSubDir)
+			{
+				SearchUserLog(ff.GetFilePath(),strType,pArray);
+			}
+		}
+		else
+		{			
+			pArray->Add(ff.GetFilePath());
+		}
+	}
+
+	ff.Close();
+}
+
+void CDisk::CleanMapPortStringArray()
+{
+	CPort *port = NULL;
+	CStringArray *pArray = NULL;
+
+	POSITION pos = m_MapPortStringArray.GetStartPosition();
+
+	while (pos)
+	{
+		m_MapPortStringArray.GetNextAssoc(pos,port,pArray);
+
+		if (pArray != NULL)
+		{
+			delete pArray;
+			pArray = NULL;
+		}
+	}
+
+	m_MapPortStringArray.RemoveAll();
+}
+
+BOOL CDisk::UploadUserLog()
+{
+	CPort *port = NULL;
+	CStringArray *pArray = NULL;
+	DWORD dwErrorCode = 0;
+	POSITION pos = m_MapPortStringArray.GetStartPosition();
+	BOOL bResult = TRUE;
+	while (pos)
+	{
+		m_MapPortStringArray.GetNextAssoc(pos,port,pArray);
+
+		if (pArray != NULL)
+		{
+			int nCount = pArray->GetCount();
+			CString strLogName,strSN,strFileName;
+			strSN = port->GetSN();
+			if (strSN.IsEmpty())
+			{
+				strSN.Format(_T("NOSN-%d"),port->GetPortNum());
+			}
+
+			for (int i = 0;i < nCount;i++)
+			{
+				strFileName = pArray->GetAt(i);
+				strLogName.Format(_T("%s\\%s"),strSN,CUtils::GetFileName(strFileName));
+
+				HANDLE hFile = GetHandleOnFile(strFileName,OPEN_EXISTING,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+				if (hFile == INVALID_HANDLE_VALUE)
+				{
+					continue;
+				}
+
+				LARGE_INTEGER liFileSize;
+				GetFileSizeEx(hFile,&liFileSize);
+
+				ULONGLONG ullCompleteSize = 0;
+				DWORD dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
+
+				while (ullCompleteSize < (ULONGLONG)liFileSize.QuadPart)
+				{
+					PBYTE pByte = new BYTE[dwLen];
+					ZeroMemory(pByte,dwLen);
+
+					if (!ReadFileAsyn(hFile,ullCompleteSize,dwLen,pByte,port->GetOverlapped(TRUE),&dwErrorCode))
+					{
+						bResult = FALSE;
+						delete []pByte;
+
+						CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,read user log file %s failed,system errorcode=%ld,%s")
+							,port->GetPortName(),port->GetDiskNum(),strFileName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+						break;
+					}
+					else
+					{
+						ullCompleteSize += dwLen;
+						// 发送到服务器
+						USES_CONVERSION;
+						char *filename = W2A(strLogName);
+
+						CMD_IN userLogIn = {0};
+
+						DWORD dwSize = sizeof(CMD_IN) + strlen(filename) + 1 + dwLen + 1;
+
+						userLogIn.dwCmdIn = CMD_USER_LOG_IN;
+						userLogIn.dwSizeSend = dwSize;
+
+						BYTE *pSendData = new BYTE[dwSize];
+						ZeroMemory(pSendData,dwSize);
+
+						memcpy(pSendData,&userLogIn,sizeof(CMD_IN));
+						memcpy(pSendData + sizeof(CMD_IN),filename,strlen(filename));
+						memcpy(pSendData + sizeof(CMD_IN) + strlen(filename) + 1,pByte,dwLen);
+
+						if (ullCompleteSize >= (ULONGLONG)liFileSize.QuadPart)
+						{
+							pSendData[dwSize - 1] = END_FLAG;
+						}
+						
+						delete []pByte;
+						pByte = NULL;
+
+						DWORD dwErrorCode = 0;
+						if (!Send(m_ClientSocket,(char *)pSendData,dwSize,NULL,&dwErrorCode))
+						{
+							bResult = FALSE;
+							delete []pSendData;
+
+							CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSASend() failed with system error code:%d,%s")
+								,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+							break;
+						}
+						delete []pSendData;
+
+						UPLOAD_LOG_OUT uploadLogOut = {0};
+						dwSize = sizeof(UPLOAD_LOG_OUT);
+						if (!Recv(m_ClientSocket,(char *)&uploadLogOut,dwSize,NULL,&dwErrorCode))
+						{
+							bResult = FALSE;
+							CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSARecv() failed with system error code:%d,%s")
+								,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+							break;
+						}
+
+						if (uploadLogOut.dwErrorCode != 0)
+						{
+							bResult = FALSE;
+							dwErrorCode = uploadLogOut.dwErrorCode;
+							CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv() failed with system error code:%d,%s")
+								,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+							break;
+						}
+					}
+				}
+
+				CloseHandle(hFile);
+				
+			}
+		}
+	}
+
+	return bResult;
+}
+
+BOOL CDisk::DownloadChangeList()
+{
+	DWORD dwErrorCode = 0;
+	BOOL bResult = TRUE;
+	DWORD dwLen = 0;
+
+	WSAOVERLAPPED ol = {0};
+	ol.hEvent = WSACreateEvent();
+
+	CString strChangeList;
+	strChangeList.Format(_T("%s.ini"),m_MasterPort->GetFileName());
+
+	HANDLE hFile = GetHandleOnFile(strChangeList,CREATE_ALWAYS,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Create change list file failed,filename=%s,system errorcode=%ld,%s")
+			,strChangeList,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return FALSE;
+	}
+
+	USES_CONVERSION;
+	char *changelist = W2A(strChangeList);
+
+	DWORD dwSendLen = sizeof(CMD_IN) + strlen(changelist) + 2;
+
+	CMD_IN downChangeList = {0};
+	downChangeList.dwCmdIn = CMD_DOWN_LIST_IN;
+	downChangeList.dwSizeSend = dwSendLen;
+
+	BYTE *bufSend = new BYTE[dwSendLen];
+	ZeroMemory(bufSend,dwSendLen);
+
+	memcpy(bufSend,&downChangeList,sizeof(CMD_IN));
+	memcpy(bufSend + sizeof(CMD_IN),changelist,strlen(changelist));
+	bufSend[dwSendLen - 1] = END_FLAG;
+
+	ULONGLONG ullOffset = 0;
+
+	while (1)
+	{
+		if (!Send(m_ClientSocket,(char *)bufSend,dwSendLen,&ol,&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send down change list command error,filename=%s,system errorcode=%ld,%s")
+				,strChangeList,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			break;;
+		}
+
+		CMD_OUT downListOut = {0};
+		dwLen = sizeof(CMD_OUT);
+		if (!Recv(m_ClientSocket,(char *)&downListOut,dwLen,&ol,&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down change list error,filename=%s,system errorcode=%ld,%s")
+				,strChangeList,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			break;
+		}
+
+		dwLen = downListOut.dwSizeSend - sizeof(CMD_OUT);
+
+		BYTE *pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
+
+		DWORD dwRead = 0;
+
+		while(dwRead < dwLen)
+		{
+			DWORD dwByteRead = dwLen - dwRead;
+			if (!Recv(m_ClientSocket,(char *)(pByte+dwRead),dwByteRead,&ol,&dwErrorCode))
+			{
+				bResult = FALSE;
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down change list error,Pkgname=%s,Speed=%.2f,system errorcode=%ld,%s")
+					,strChangeList,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				break;
+			}
+
+			dwRead += dwByteRead;
+		}
+
+		if (dwRead < dwLen)
+		{
+			bResult = FALSE;
+
+			delete []pByte;
+
+			break;
+		}
+
+		if (downListOut.dwErrorCode != 0)
+		{
+			bResult = FALSE;
+
+			delete []pByte;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down change list error,Pkgname=%s,Speed=%.2f,system errorcode=%d,%s")
+				,strChangeList,m_MasterPort->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			break;
+		}
+
+		if (downListOut.dwCmdOut != CMD_DOWN_LIST_OUT || downListOut.dwSizeSend != dwLen + sizeof(CMD_OUT))
+		{
+			bResult = FALSE;
+
+			delete []pByte;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv down change list error,Pkgname=%s,Speed=%.2f,custom errorcode=0x%X,get data from server error")
+				,strChangeList,m_MasterPort->GetRealSpeed(),dwErrorCode);
+			break;
+		}
+
+		BYTE flag = pByte[dwLen - 1];
+		DWORD dwFileLen = dwLen - 1;
+		BYTE *pFileData = new BYTE[dwFileLen];
+		ZeroMemory(pFileData,dwFileLen);
+
+		memcpy(pFileData,pByte,dwFileLen);
+		delete []pByte;
+
+		if (!WriteFileAsyn(hFile,ullOffset,dwFileLen,pFileData,m_MasterPort->GetOverlapped(FALSE),&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Create change list file failed,filename=%s,system errorcode=%ld,%s")
+				,strChangeList,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			break;
+		}
+
+		ullOffset += dwFileLen;
+
+		if (flag == END_FLAG)
+		{
+			ullOffset = 0;
+			break;
+		}
+	}
+	CloseHandle(hFile);
+	WSACloseEvent(ol.hEvent);
+
+	if (!bResult)
+	{
+		DeleteFile(strChangeList);
+
+		// 发送停止命令
+		downChangeList.byStop = TRUE;
+		memcpy(bufSend,&downChangeList,sizeof(CMD_IN));
+		memcpy(bufSend + sizeof(CMD_IN),changelist,strlen(changelist));
+
+		DWORD dwError = 0;
+
+		Send(m_ClientSocket,(char *)bufSend,dwSendLen,NULL,&dwError);
+	}
+
+	delete []bufSend;
+
+	return bResult;
+
+}
+
+BOOL CDisk::QueryChangeList()
+{
+	DWORD dwErrorCode = 0,dwLen = 0;
+	CString strChangeList;
+	strChangeList.Format(_T("%s.ini"),m_MasterPort->GetFileName());
+
+	USES_CONVERSION;
+	char *changelist = W2A(strChangeList);
+
+	DWORD dwSendLen = sizeof(CMD_IN) + strlen(changelist) + 2;
+
+	CMD_IN queryChangeList = {0};
+	queryChangeList.dwCmdIn = CMD_QUERY_LIST_IN;
+	queryChangeList.dwSizeSend = dwSendLen;
+
+	BYTE *bufSend = new BYTE[dwSendLen];
+	ZeroMemory(bufSend,dwSendLen);
+
+	memcpy(bufSend,&queryChangeList,sizeof(CMD_IN));
+	memcpy(bufSend + sizeof(CMD_IN),changelist,strlen(changelist));
+	bufSend[dwSendLen - 1] = END_FLAG;
+
+	if (!Send(m_ClientSocket,(char *)bufSend,dwSendLen,NULL,&dwErrorCode))
+	{
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send query change list command error,filename=%s,system errorcode=%ld,%s")
+			,strChangeList,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		delete []bufSend;
+
+		return FALSE;
+	}
+
+	delete []bufSend;
+
+	QUERY_LIST_OUT queryListOut = {0};
+	dwLen = sizeof(QUERY_LIST_OUT);
+	if (!Recv(m_ClientSocket,(char *)&queryListOut,dwLen,NULL,&dwErrorCode))
+	{
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv query change list command error,filename=%s,system errorcode=%ld,%s")
+			,strChangeList,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+
+		return FALSE;
+	}
+
+	if (queryListOut.dwErrorCode != 0)
+	{
+		// 不存在变更文件
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("The change list file(%s) doesn't exist in server.")
+			,strChangeList);
+
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+BOOL CDisk::DeleteChange( CPort *port )
+{
+	CStringArray volumeArray;
+	port->GetVolumeArray(volumeArray);
+	if (volumeArray.GetCount() != 1)
+	{
+		port->SetEndTime(CTime::GetCurrentTime());
+		port->SetResult(FALSE);
+		port->SetPortState(PortState_Fail);
+		port->SetErrorCode(ErrorType_Custom,CustomError_Unrecognized_Partition);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - partition error,custom errorcode=0x%X,unrecognized partition")
+			,port->GetPortName(),port->GetDiskNum(),CustomError_Unrecognized_Partition);
+
+		return FALSE;
+
+	}
+
+	CString strVolume = volumeArray.GetAt(0);
+
+	port->Active();
+
+	// 删除文件
+	int nCount = m_ArrayDelFiles.GetCount();
+
+	for (int i = 0;i < nCount;i++)
+	{
+		CString strFile = m_ArrayDelFiles.GetAt(i);
+
+		if (strFile.Left(1) != _T("\\"))
+		{
+			strFile = _T("\\") + strFile;
+		}
+
+		strFile = strVolume + strFile;
+
+		DeleteFile(strFile);
+	}
+
+	// 删除文件夹
+	nCount = m_ArrayDelFolders.GetCount();
+	for (int i = 0;i < nCount;i++)
+	{
+		CString strFolder = m_ArrayDelFolders.GetAt(i);
+
+		if (strFolder.Left(1) != _T("\\"))
+		{
+			strFolder = _T("\\") + strFolder;
+		}
+
+		strFolder = strVolume + strFolder;
+
+		CUtils::DeleteDirectory(strFolder);
+	}
+
+
+	return TRUE;
+}
+
+BOOL CDisk::ComputeHashValue( CPort *port,CMapStringToString *pMap )
+{
+	CStringArray volumeArray;
+	port->GetVolumeArray(volumeArray);
+	if (volumeArray.GetCount() != 1)
+	{
+		port->SetResult(FALSE);
+		port->SetEndTime(CTime::GetCurrentTime());
+		port->SetErrorCode(ErrorType_Custom,CustomError_Unrecognized_Partition);
+		port->SetPortState(PortState_Fail);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - partition error,custom errorcode=0x%X,unrecognized partition")
+			,port->GetPortName(),port->GetDiskNum(),CustomError_Unrecognized_Partition);
+
+		return FALSE;
+
+	}
+
+	int nFileCount = m_ArraySameFile.GetCount();
+
+	if (nFileCount == 0)
+	{
+		return TRUE;
+	}
+
+	CHashMethod *pHashMethod = NULL;
+
+	switch (port->GetHashMethod())
+	{
+	case HashMethod_CHECKSUM32:
+		pHashMethod = new CChecksum32();
+		break;
+
+	case HashMethod_CRC32:
+		pHashMethod = new CCRC32();
+		break;
+
+	case HashMethod_MD5:
+		pHashMethod = new MD5();
+		break;
+
+	default:
+		pHashMethod = new CChecksum32();
+		break;
+	}
+
+	CString strVolume = volumeArray.GetAt(0);
+
+	CString strFilePath;
+	ULONGLONG ullCompleteSize = 0;
+	DWORD dwErrorCode = 0;
+	DWORD dwLen =  m_nBlockSectors * BYTES_PER_SECTOR;
+
+	// 计算精确速度
+	LARGE_INTEGER freq,t1,t2;
+	double dbTime = 0.0;
+
+	QueryPerformanceFrequency(&freq);
+
+	port->Active();
+
+	for (int i = 0; i < nFileCount; i++)
+	{
+		strFilePath = strVolume + m_ArraySameFile.GetAt(i);
+
+		HANDLE hFile = GetHandleOnFile(strFilePath,OPEN_EXISTING,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+		if (hFile == INVALID_HANDLE_VALUE)
+		{
+
+			port->SetResult(FALSE);
+			port->SetEndTime(CTime::GetCurrentTime());
+			port->SetErrorCode(ErrorType_System,dwErrorCode);
+			port->SetPortState(PortState_Fail);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - open file %s failed,system errorcode=%ld,%s")
+				,port->GetPortName(),port->GetDiskNum(),strFilePath,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			delete pHashMethod;
+			return FALSE;
+		}
+
+		LARGE_INTEGER liFileSize;
+		GetFileSizeEx(hFile,&liFileSize);
+
+		ullCompleteSize = 0;
+		dwLen =  m_nBlockSectors * BYTES_PER_SECTOR;
+
+		BYTE *pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
+
+		pHashMethod->reset();
+
+		while (ullCompleteSize < (ULONGLONG)liFileSize.QuadPart)
+		{
+			QueryPerformanceCounter(&t1);
+			if (!ReadFileAsyn(hFile,ullCompleteSize,dwLen,pByte,port->GetOverlapped(TRUE),&dwErrorCode))
+			{
+
+				port->SetResult(FALSE);
+				port->SetEndTime(CTime::GetCurrentTime());
+				port->SetErrorCode(ErrorType_System,dwErrorCode);
+				port->SetPortState(PortState_Fail);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - read file %s failed,system errorcode=%ld,%s")
+					,port->GetPortName(),port->GetDiskNum(),strFilePath,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+				delete []pByte;
+				CloseHandle(hFile);
+				delete pHashMethod;
+				return FALSE;
+			}
+
+			ullCompleteSize += dwLen;
+
+			pHashMethod->update((void *)pByte,dwLen);
+
+			QueryPerformanceCounter(&t2);
+
+			dbTime = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart;
+
+			port->AppendUsedWaitTimeS(dbTime);
+			port->AppendUsedNoWaitTimeS(dbTime);
+			port->AppendCompleteSize(dwLen);
+			
+		}
+
+		delete []pByte;
+
+		CloseHandle(hFile);
+
+		CString strHashValue;
+		for (int k = 0; k < pHashMethod->getHashLength();k++)
+		{
+			CString strValue;
+			strValue.Format(_T("%02X"),pHashMethod->digest()[k]);
+			strHashValue += strValue;
+		}
+
+		pMap->SetAt(m_ArraySameFile.GetAt(i),strHashValue);
+	}
+	delete pHashMethod;
+
+	return TRUE;
+}
+
+BOOL CDisk::EnumFileSize( CPort *port,CMapStringToULL *pMap,CMapStringToString *pArray)
+{
+	CStringArray volumeArray;
+	port->GetVolumeArray(volumeArray);
+	if (volumeArray.GetCount() != 1)
+	{
+		port->SetEndTime(CTime::GetCurrentTime());
+		port->SetResult(FALSE);
+		port->SetPortState(PortState_Fail);
+		port->SetErrorCode(ErrorType_Custom,CustomError_Unrecognized_Partition);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - partition error,custom errorcode=0x%X,unrecognized partition")
+			,port->GetPortName(),port->GetDiskNum(),CustomError_Unrecognized_Partition);
+
+		return FALSE;
+
+	}
+
+	CString strVolume = volumeArray.GetAt(0);
+
+	int nFileCount = EnumFile(strVolume,strVolume,pMap,pArray);
+
+	return TRUE;
+}
+
+void CDisk::CompareFileSize()
+{
+	//比较母盘与目标盘
+	CString strSourceFile,strSourceFileWithVolume;
+	ULONGLONG ullSourceFileSize = 0,ullDestFileSize = 0;
+
+	POSITION pos = m_MapSizeSourceFiles.GetStartPosition();
+
+	while (pos)
+	{
+		m_MapSizeSourceFiles.GetNextAssoc(pos,strSourceFile,ullSourceFileSize);
+
+		if (m_MapSizeDestFiles.Lookup(strSourceFile,ullDestFileSize))
+		{
+
+			if (ullSourceFileSize == ullDestFileSize)
+			{
+				m_ArraySameFile.Add(strSourceFile);
+				m_ullHashFilesSize += ullSourceFileSize;
+			}
+			else
+			{
+				if (strSourceFile.Left(1) == _T("\\"))
+				{
+					strSourceFileWithVolume = _T("M:") + strSourceFile;
+				}
+				else
+				{
+					strSourceFileWithVolume = _T("M:\\") + strSourceFile;
+				}
+				
+				m_MapCopyFiles.SetAt(strSourceFileWithVolume,ullSourceFileSize);
+				m_ullValidSize += ullSourceFileSize;
+			}
+
+			m_MapSizeDestFiles.RemoveKey(strSourceFile);
+		}
+		else
+		{
+			if (strSourceFile.Left(1) == _T("\\"))
+			{
+				strSourceFileWithVolume = _T("M:") + strSourceFile;
+			}
+			else
+			{
+				strSourceFileWithVolume = _T("M:\\") + strSourceFile;
+			}
+
+			m_MapCopyFiles.SetAt(strSourceFileWithVolume,ullSourceFileSize);
+			m_ullValidSize += ullSourceFileSize;
+		}
+	}
+
+	// m_MapSizeDestFiles中剩余的文件是母盘中没有的文件需要删除
+	CString strDestFile;
+	pos = m_MapSizeDestFiles.GetStartPosition();
+
+	while (pos)
+	{
+		m_MapSizeDestFiles.GetNextAssoc(pos,strDestFile,ullDestFileSize);
+
+		m_ArrayDelFiles.Add(strDestFile);
+	}
+
+	// 判断哪些文件夹需要删除
+	pos = m_MapDestFolders.GetStartPosition();
+	CString strValue;
+	while (pos)
+	{
+		m_MapDestFolders.GetNextAssoc(pos,strSourceFile,strValue);
+
+		if (!m_MapSourceFolders.Lookup(strSourceFile,strValue))
+		{
+			m_ArrayDelFolders.Add(strSourceFile);
+		}
+	}
+
+}
+
+void CDisk::CompareHashValue()
+{
+	CString strSourceFile,strSourceFileWithVolume,strSourceHashValue,strDestHashValue;
+	ULONGLONG ullSourceFileSize;
+
+	POSITION pos = m_MapHashSourceFiles.GetStartPosition();
+
+	while (pos)
+	{
+		m_MapHashSourceFiles.GetNextAssoc(pos,strSourceFile,strSourceHashValue);
+
+		if (m_MapHashDestFiles.Lookup(strSourceFile,strDestHashValue))
+		{
+
+			if (strSourceHashValue.CompareNoCase(strDestHashValue) != 0)
+			{
+				if (strSourceFile.Left(1) == _T("\\"))
+				{
+					strSourceFileWithVolume = _T("M:") + strSourceFile;
+				}
+				else
+				{
+					strSourceFileWithVolume = _T("M:\\") + strSourceFile;
+				}
+
+				ullSourceFileSize = m_MapSizeSourceFiles[strSourceFile];
+
+				m_MapCopyFiles.SetAt(strSourceFileWithVolume,ullSourceFileSize);
+				m_ullValidSize += ullSourceFileSize;
+			}
+		}
+		else
+		{
+			if (strSourceFile.Left(1) == _T("\\"))
+			{
+				strSourceFileWithVolume = _T("M:") + strSourceFile;
+			}
+			else
+			{
+				strSourceFileWithVolume = _T("M:\\") + strSourceFile;
+			}
+
+			ullSourceFileSize = m_MapSizeSourceFiles[strSourceFile];
+
+			m_MapCopyFiles.SetAt(strSourceFileWithVolume,ullSourceFileSize);
+			m_ullValidSize += ullSourceFileSize;
+		}
+	}
+}
+

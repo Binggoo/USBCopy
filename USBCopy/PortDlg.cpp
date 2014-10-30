@@ -157,6 +157,7 @@ void CPortDlg::Initial()
 
 	m_bOnlineCommand = FALSE;
 	m_bStopCommand = FALSE;
+	m_nCount = 0;
 
 	Invalidate(TRUE);
 }
@@ -220,7 +221,17 @@ BOOL CPortDlg::IsSlowest()
 			double dbAvgSpeed = dbTotolSpeed / (nCount + 1);
 			if (dbSpeed < dbAvgSpeed * nRelativeSpeed / 100)
 			{
-				m_Port->SetKickOff(TRUE);
+				m_nCount++;
+
+				if (m_nCount >= 10)
+				{
+					m_Port->SetKickOff(TRUE);
+				}
+				
+			}
+			else
+			{
+				m_nCount = 0;
 			}
 		}
 
@@ -228,7 +239,17 @@ BOOL CPortDlg::IsSlowest()
 		{
 			if (dbSpeed < nAbsolteSpeed)
 			{
-				m_Port->SetKickOff(TRUE);
+				m_nCount++;
+
+				if (m_nCount >= 10)
+				{
+					m_Port->SetKickOff(TRUE);
+				}
+				
+			}
+			else
+			{
+				m_nCount = 0;
 			}
 		}
 	}

@@ -11,15 +11,6 @@
 #include "PortCommand.h"
 #include "BtnST.h"
 
-#define CONFIG_NAME     _T("\\USBCopy.ini")
-#define MACHINE_INFO    _T("\\MachineInfo.ini")
-#define LOG_FILE     _T("\\USBCopy.log")
-#define LOG_FILE_BAK     _T("\\USBCopy.log.bak")
-#define MASTER_PATH  _T("M:\\")
-#define RECODE_FILE  _T("\\record.txt");
-#define LOGO_TS         _T("TF/SD DUPLICATOR")
-#define LOGO_USB         _T("USB DUPLICATOR")
-
 #define MAX_RUN_TIMES  500
 
 #define TIMER_UPDATE_STATISTIC 1
@@ -197,4 +188,6 @@ private:
 	CButtonST m_BtnWorkMode;
 public:
 	afx_msg void OnClose();
+protected:
+	afx_msg LRESULT OnUpdateFunction(WPARAM wParam, LPARAM lParam);
 };

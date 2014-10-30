@@ -57,6 +57,7 @@ private:
 public:
 	void Initial();
 	void Reset(); //每次开始之前清除上一次数据
+	void Active();
 
 	//配置文件
 	void SetPortNum(int iPortNum);

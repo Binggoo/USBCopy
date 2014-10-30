@@ -39,11 +39,7 @@ private:
 	CButtonST m_BtnExport;
 	CButtonST m_BtnReturn;
 	CButtonST m_BtnMore;
-
-	CBitmap   m_BitmapSoftRec;
-	CBitmap   m_BitmapViewLog;
-	CBitmap   m_BitmapBurnIn;
-	CBitmap   m_BitmapDebug;
+	CButtonST m_BtnPackage;
 
 public:
 	afx_msg void OnBnClickedButtonUpdate();
@@ -58,4 +54,5 @@ public:
 	afx_msg void OnBnClickedButtonReturn();
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
 	afx_msg void OnBnClickedBtnMore();
+	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 };

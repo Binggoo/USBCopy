@@ -11,6 +11,9 @@
 //                            4. 导出log时，可以选择Record的时间
 //V1.0.3.0 2014-09-25 Binggoo 1.界面上显示TF/SD卡的序列号
 //                            2.当鼠标移动到SD卡上时，显示此卡的信息
+//V1.0.4.0 2014-10-15 Binggoo 1.增加差异拷贝功能
+//                            2.可以通过配置文件来配置程序显示语言，不配置时由系统语言决定
+//V1.0.5.0 2014-10-27 Binggoo 1.当开启剔除功能后，累计10s都低于设置速度时才剔除。
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -32,6 +35,8 @@
 #include "CompleteMsg.h"
 #include "FileCopySetting.h"
 #include "DiskFormatSetting.h"
+#include "DiffCopySetting.h"
+#include "PackageName.h"
 #include "Lisence.h"
 
 #include <dbt.h>
@@ -128,6 +133,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_DISCONNECT_SOCKET, &CUSBCopyDlg::OnDisconnectSocket)
 	ON_MESSAGE(WM_SOCKET_MSG, &CUSBCopyDlg::OnSocketMsg)
 	ON_WM_CLOSE()
+	ON_MESSAGE(WM_UPDATE_FUNCTION, &CUSBCopyDlg::OnUpdateFunction)
 END_MESSAGE_MAP()
 
 
@@ -724,6 +730,14 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 			strWorkMode = strWorkModeParm = strResText1;
 		}
 		break;
+
+	case WorkMode_DifferenceCopy:
+		{
+			nBitMap = IDB_DIFF_COPY;
+			strResText1.LoadString(IDS_WORK_MODE_DIFF_COPY);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
 	}
 
 	SetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
@@ -931,6 +945,14 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 			dlg.DoModal();
 		}
 		break;
+
+	case WorkMode_DifferenceCopy:
+		{
+			CDiffCopySetting dlg;
+			dlg.SetConfig(&m_Config,&m_MasterPort);
+			dlg.DoModal();
+		}
+		break;
 	}
 
 	InitialCurrentWorkMode();
@@ -996,6 +1018,23 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 					m_bServerFirst = dlg.GetServerFirst();
 				}	
 
+			}
+			break;
+
+		case WorkMode_DifferenceCopy:
+			{
+				// 如果是从服务端，则要输入下载包名称
+				if (m_Config.GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Package)
+				{
+					CPackageName dlg;
+					dlg.SetConfig(&m_Config,&m_MasterPort,m_ClientSocket);
+
+					if (dlg.DoModal() == IDCANCEL)
+					{
+						return;
+					}
+					
+				}
 			}
 			break;
 		}
@@ -1069,6 +1108,29 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 					m_Command.RedLight(port->GetPortNum(),TRUE);
 				}
 			}
+			break;
+
+		case WorkMode_DifferenceCopy:
+			pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					m_Command.GreenLightFlash(port->GetPortNum());
+				}
+				else
+				{
+					m_Command.RedLight(port->GetPortNum(),TRUE);
+				}
+			}
+
+			if (m_Config.GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Master
+				|| m_Config.GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0) == PathType_Local)
+			{
+				m_Command.GreenLightFlash(0);
+			}
+
 			break;
 
 		default:
@@ -1241,7 +1303,9 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 		ullMinCompleteSize = -1;
 		ullMaxValidSize = 0;
 	}
-	else if (m_WorkMode == WorkMode_ImageCopy)
+	else if (m_WorkMode == WorkMode_ImageCopy
+		|| (m_WorkMode == WorkMode_DifferenceCopy && m_Config.GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Package
+		&& m_Config.GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0) == PathType_Remote))
 	{
 		iMinPercent = m_FilePort.GetPercent();
 		ullMinCompleteSize = m_FilePort.GetCompleteSize();
@@ -1404,6 +1468,34 @@ BOOL CUSBCopyDlg::IsReady()
 			bRet = FALSE;
 
 			SetAllFailed(CustomError_No_Target,ErrorType_Custom);
+		}
+		break;
+
+	case WorkMode_DifferenceCopy:
+		{
+			if (!IsExistTarget())
+			{
+				strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Target);
+				CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+
+				bRet = FALSE;
+
+				SetAllFailed(CustomError_No_Target,ErrorType_Custom);
+			}
+
+			if (m_Config.GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Master
+				|| m_Config.GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0) == PathType_Local)
+			{
+				if (!IsExistMaster())
+				{
+					strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Master."),strWorkMode,CustomError_No_Master);
+					CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+
+					SetAllFailed(CustomError_No_Master,ErrorType_Custom);
+
+					bRet = FALSE;
+				}
+			}
 		}
 		break;
 
@@ -2237,6 +2329,149 @@ void CUSBCopyDlg::OnStart()
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 		}
 		break;
+
+	case WorkMode_DifferenceCopy:
+		{
+			BOOL bUploadUserLog = m_Config.GetBool(_T("DifferenceCopy"),_T("En_UserLog"),FALSE);
+			BOOL bComputeHash = m_Config.GetBool(_T("DifferenceCopy"),_T("En_ComputeHash"),FALSE);
+			BOOL bCompare = m_Config.GetBool(_T("DifferenceCopy"),_T("En_Compare"),FALSE);
+			BOOL bIncludeSubDir = m_Config.GetBool(_T("DifferenceCopy"),_T("En_IncludeSub"),FALSE);
+			UINT nSourceType = m_Config.GetUInt(_T("DifferenceCopy"),_T("SourceType"),0);
+			UINT nCompareRule = m_Config.GetUInt(_T("DifferenceCopy"),_T("CompareRule"),0);
+			UINT nPkgLocation = m_Config.GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0);
+			CString strPackageName = m_Config.GetString(_T("DifferenceCopy"),_T("PkgName"));
+			CStringArray strArrayLog;
+			
+			if (bUploadUserLog)
+			{
+				UINT nNumOfLogPath = m_Config.GetBool(_T("DifferenceCopy"),_T("NumOfLogPath"),FALSE);
+
+				CString strKey,strValue;
+
+				for (UINT i = 0;i < nNumOfLogPath;i++)
+				{
+					strKey.Format(_T("LogPath_%d"),i);
+					strValue = m_Config.GetString(_T("DifferenceCopy"),strKey);
+				
+					if (strValue.Find(_T(":")))
+					{
+						strArrayLog.Add(strValue);
+					}
+				}
+			}
+
+
+			CPort *masterPort = NULL;
+			if (nSourceType == SourceType_Package)
+			{
+				if (nPkgLocation == PathType_Local)
+				{
+					masterPort = &m_MasterPort;
+
+					strPackageName = MASTER_PATH + strPackageName;
+				}
+				else
+				{
+					masterPort = &m_FilePort;
+				}
+			}
+			else
+			{
+				nPkgLocation = PathType_Local;
+				masterPort = &m_MasterPort;
+			}
+
+
+			// 设置端口状态
+			masterPort->SetFileName(strPackageName);
+			masterPort->SetConnected(TRUE);
+			masterPort->SetPortState(PortState_Online);
+			masterPort->SetHashMethod(hashMethod);
+			masterPort->SetWorkMode(m_WorkMode);
+
+			POSITION pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					port->SetHashMethod(hashMethod);
+					port->SetWorkMode(m_WorkMode);
+				}
+			}
+
+			disk.SetMasterPort(masterPort);
+			disk.SetTargetPorts(&m_TargetPorts);
+			disk.SetHashMethod(bComputeHash,bCompare,hashMethod);
+			disk.SetSocket(m_ClientSocket,nPkgLocation);
+			disk.SetDiffCopyParm(nSourceType,nPkgLocation,nCompareRule,bUploadUserLog,strArrayLog,bIncludeSubDir);
+
+			bResult = disk.Start();
+
+			CString strHashValue;
+			if (bResult)
+			{
+				if (bComputeHash)
+				{
+					int len = masterPort->GetHashLength();
+					BYTE *pHash = new BYTE[len];
+					ZeroMemory(pHash,len);
+					masterPort->GetHash(pHash,len);
+					for (int i = 0;i < len;i++)
+					{
+						CString strHash;
+						strHash.Format(_T("%02X"),pHash[i]);
+
+						strHashValue += strHash;
+					}
+					delete []pHash;
+					strMsg.Format(_T("%s Completed !\r\nHashMethod=%s, HashValue=%s")
+						,strWorkMode,masterPort->GetHashMethodString(),strHashValue);
+				}
+				else
+				{
+					strMsg.Format(_T("%s Completed !!!"),strWorkMode);
+				}
+			}
+			else
+			{
+				ErrorType errType = ErrorType_System;
+				DWORD dwErrorCode = 0;
+				errType = masterPort->GetErrorCode(&dwErrorCode);
+
+				if (dwErrorCode == 0)
+				{
+					// 任意取一个错误
+					pos = m_TargetPorts.GetHeadPosition();
+					while (pos)
+					{
+						CPort *port = m_TargetPorts.GetNext(pos);
+
+						if (port->IsConnected() && !port->GetResult())
+						{
+							errType = port->GetErrorCode(&dwErrorCode);
+							break;
+						}
+					}
+				}
+
+				if (errType == ErrorType_System)
+				{
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				}
+				else
+				{
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+				}
+
+			}
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+
+		}
+		break;
 	}
 
 	m_strMsg = strMsg;
@@ -3014,6 +3249,10 @@ CString CUSBCopyDlg::GetWorkModeString( WorkMode mode )
 	case WorkMode_DiskFormat:
 		strWorkMode = _T("DISK FORMAT");
 		break;
+
+	case WorkMode_DifferenceCopy:
+		strWorkMode = _T("DIFF. COPY");
+		break;
 	}
 
 	return strWorkMode;
@@ -3134,6 +3373,13 @@ void CUSBCopyDlg::InitialBurnInTest()
 	case WorkMode_DiskFormat:
 		{
 			strResText1.LoadString(IDS_WORK_MODE_DISK_FORMAT);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+
+	case WorkMode_DifferenceCopy:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_DIFF_COPY);
 			strWorkMode = strWorkModeParm = strResText1;
 		}
 		break;
@@ -3450,7 +3696,7 @@ DWORD CUSBCopyDlg::UploadLog(CString strLogName,CString strLog)
 
 		return dwErrorCode;
 	}
-
+		
 	return 0;
 	
 }
@@ -3718,4 +3964,16 @@ void CUSBCopyDlg::OnClose()
 
 	//CDialogEx::OnClose();
 	return;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnUpdateFunction(WPARAM wParam, LPARAM lParam)
+{
+	char *function = (char *)wParam;
+
+	if (function != NULL)
+	{
+		SetDlgItemText(IDC_TEXT_FUNCTION2,CString(function));
+	}
+	return 0;
 }

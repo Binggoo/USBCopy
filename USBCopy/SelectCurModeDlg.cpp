@@ -36,8 +36,10 @@ BEGIN_MESSAGE_MAP(CSelectCurModeDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_FILE_COPY, &CSelectCurModeDlg::OnBnClickedBtnFileCopy)
 	ON_BN_CLICKED(IDC_BTN_DISK_COMPARE, &CSelectCurModeDlg::OnBnClickedBtnDiskCompare)
 	ON_WM_SETCURSOR()
-	ON_BN_CLICKED(IDC_BTN_DISK_FORMAT, &CSelectCurModeDlg::OnBnClickedBtnDiskFormat)
+	ON_BN_CLICKED(IDC_BTN_TOOLS, &CSelectCurModeDlg::OnBnClickedBtnTools)
 	ON_BN_CLICKED(IDC_BTN_RETURN, &CSelectCurModeDlg::OnBnClickedBtnReturn)
+	ON_BN_CLICKED(IDC_BTN_DIFFERENCE_COPY, &CSelectCurModeDlg::OnBnClickedBtnDifferenceCopy)
+	ON_WM_SHOWWINDOW()
 END_MESSAGE_MAP()
 
 
@@ -139,6 +141,10 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	case WorkMode_DiskFormat:
 		strResText.LoadString(IDS_WORK_MODE_DISK_FORMAT);
 		break;
+
+	case WorkMode_DifferenceCopy:
+		strResText.LoadString(IDS_WORK_MODE_DIFF_COPY);
+		break;
 	}
 
 	strMode.Format(_T(" - %s"),strResText);
@@ -148,7 +154,7 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	strTitle += strMode;
 	SetWindowText(strTitle);
 
-	m_font.CreatePointFont(200,_T("Arial"));
+	m_font.CreatePointFont(160,_T("Arial"));
 
 	GetDlgItem(IDC_BTN_FULL_COPY)->SetFont(&m_font);
 	GetDlgItem(IDC_BTN_QUICK_COPY)->SetFont(&m_font);
@@ -157,7 +163,9 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	GetDlgItem(IDC_BTN_IMAGE_MAKE)->SetFont(&m_font);
 	GetDlgItem(IDC_BTN_DISK_COMPARE)->SetFont(&m_font);
 	GetDlgItem(IDC_BTN_DISK_CLEAN)->SetFont(&m_font);
-	GetDlgItem(IDC_BTN_DISK_FORMAT)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_TOOLS)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_DIFFERENCE_COPY)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_RETURN)->SetFont(&m_font);
 
 	m_BtnFullCopy.SubclassDlgItem(IDC_BTN_FULL_COPY,this);
 	m_BtnFullCopy.SetFlat(FALSE);
@@ -187,14 +195,19 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	m_BtnDiskCompare.SetFlat(FALSE);
 	m_BtnDiskCompare.SetBitmaps(IDB_DISK_COMPARE,RGB(255,255,255));
 
-	m_BtnDiskFormat.SubclassDlgItem(IDC_BTN_DISK_FORMAT,this);
-	m_BtnDiskFormat.SetFlat(FALSE);
-	m_BtnDiskFormat.SetBitmaps(IDB_DISK_FORMAT,RGB(255,255,255));
+	m_BtnTools.SubclassDlgItem(IDC_BTN_TOOLS,this);
+	m_BtnTools.SetFlat(FALSE);
+	m_BtnTools.SetBitmaps(IDB_DISK_FORMAT,RGB(255,255,255));
 
 	m_BtnReturn.SubclassDlgItem(IDC_BTN_RETURN,this);
 	m_BtnReturn.SetBitmaps(IDB_RETURN,RGB(255,255,255));
-	m_BtnReturn.DrawBorder(FALSE);
-	SetDlgItemText(IDC_BTN_RETURN,_T(""));
+	m_BtnReturn.SetFlat(FALSE);
+	//m_BtnReturn.DrawBorder(FALSE);
+	//SetDlgItemText(IDC_BTN_RETURN,_T(""));
+
+	m_BtnDiffCopy.SubclassDlgItem(IDC_BTN_DIFFERENCE_COPY,this);
+	m_BtnDiffCopy.SetFlat(FALSE);
+	m_BtnDiffCopy.SetBitmaps(IDB_DIFF_COPY,RGB(255,255,255));
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -231,7 +244,7 @@ BOOL CSelectCurModeDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		case IDC_BTN_IMAGE_MAKE:
 		case IDC_BTN_DISK_COMPARE:
 		case IDC_BTN_DISK_CLEAN:
-		case IDC_BTN_DISK_FORMAT:
+		case IDC_BTN_TOOLS:
 		case IDC_BTN_RETURN:
 		//case IDOK:
 			if (pWnd->IsWindowEnabled())
@@ -247,7 +260,7 @@ BOOL CSelectCurModeDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 }
 
 
-void CSelectCurModeDlg::OnBnClickedBtnDiskFormat()
+void CSelectCurModeDlg::OnBnClickedBtnTools()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_WorkMode = WorkMode_DiskFormat;
@@ -259,4 +272,26 @@ void CSelectCurModeDlg::OnBnClickedBtnReturn()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	OnOK();
+}
+
+
+void CSelectCurModeDlg::OnBnClickedBtnDifferenceCopy()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_WorkMode = WorkMode_DifferenceCopy;
+	OnOK();
+}
+
+
+void CSelectCurModeDlg::OnShowWindow(BOOL bShow, UINT nStatus)
+{
+	CDialogEx::OnShowWindow(bShow, nStatus);
+
+	// TODO: 在此处添加消息处理程序代码
+	CRect rect,rectParent;
+	GetWindowRect(&rect);
+	GetParent()->GetClientRect(rectParent);
+	GetParent()->ClientToScreen(&rectParent);
+
+	MoveWindow(rectParent.left + 10,rectParent.top + 10,rect.Width(),rect.Height());
 }

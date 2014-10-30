@@ -42,6 +42,8 @@ private:
 
 	CToolTipCtrl m_Tooltips;
 
+	UINT m_nCount;
+
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 
 	BOOL IsSlowest();

@@ -51,7 +51,8 @@ typedef enum _ENUM_CUSTOM_ERROR
 	CustomError_Target_Small,
 	CustomError_Format_Error,
 	CustomError_Get_Data_From_Server_Error,
-	CustomError_Image_Hash_Value_Changed
+	CustomError_Image_Hash_Value_Changed,
+	CustomError_Enum_File_Failed
 
 }CustomError;
 
@@ -62,6 +63,7 @@ typedef enum _ENUM_WORK_MODE
 	WorkMode_FullCopy = 1,
 	WorkMode_QuickCopy,
 	WorkMode_FileCopy,
+	WorkMode_DifferenceCopy,
 	WorkMode_ImageCopy,
 	WorkMode_ImageMake,
 	WorkMode_DiskClean,
@@ -109,6 +111,18 @@ typedef enum _ENUM_SAVE_PATH
 	PathType_Local = 0,
 	PathType_Remote
 }PathType;
+
+typedef enum _ENUM_SOURCE_TYPE
+{
+	SourceType_Package = 0,
+	SourceType_Master
+}SourceType;
+
+typedef enum _ENUM_COMPARE_RULE
+{
+	CompareRule_Fast = 0,
+	CompareRule_Slow
+}CompareRule;
 
 typedef enum _ENUM_HASH_METHOD
 {
@@ -442,6 +456,74 @@ typedef struct _STRUCT_CMD_QUERY_IMAGE_OUT
 	BYTE  byFlag;
 }QUERY_IMAGE_OUT,*PQUERY_IMAGE_OUT;
 
+// 2014-10-11 新增
+typedef struct _STRUCT_CMD_DOWN_PKG_IN
+{
+	DWORD dwCmdIn;
+	DWORD dwSizeSend;
+	BYTE  byStop;
+	char  *pszImageName;
+	BYTE  byFlag;
+}DOWN_PKG_IN,DOWN_LIST_IN,*PDOWN_PKG_IN,*PDOWN_LIST_IN;
+
+typedef struct _STRUCT_CMD_DOWN_PKG_OUT
+{
+	DWORD dwCmdOut;
+	DWORD dwSizeSend;
+	ErrorType errType;
+	DWORD dwErrorCode;
+	char  *pszFileName;
+	BYTE  *pContext;
+	BYTE  byFlag;
+}DOWN_PKG_OUT,*PDOWN_PKG_OUT;
+
+typedef struct _STRUCT_CMD_DOWN_LIST_OUT
+{
+	DWORD dwCmdOut;
+	DWORD dwSizeSend;
+	ErrorType errType;
+	DWORD dwErrorCode;
+	BYTE  *pContext;
+	BYTE  byFlag;
+}DOWN_LIST_OUT,*PDOWN_LIST_OUT;
+
+typedef struct _STRUCT_CMD_CUSTOM_LOG_IN
+{
+	DWORD dwCmdIn;
+	DWORD dwSizeSend;
+	BYTE  byStop;
+	char  *pszImageName;
+	BYTE  *pContext;
+	BYTE  byFlag;
+}CUSTOM_LOG_IN,*PCUSTOM_LOG_IN;
+
+typedef struct _STRUCT_CMD_CUSTOM_LOG_OUT
+{
+	DWORD dwCmdOut;
+	DWORD dwSizeSend;
+	ErrorType errType;
+	DWORD dwErrorCode;
+}CUSTOM_LOG_OUT,*PCUSTOM_LOG_OUT;
+
+typedef struct _STRUCT_CMD_QUERY_PKG_IN
+{
+	DWORD dwCmdIn;
+	DWORD dwSizeSend;
+	BYTE  byStop;
+	char  *pszPkgName;
+	BYTE  byFlag;
+}QUERY_PKG_IN,QUERY_LIST_IN,*PQUERY_PKG_IN,*PQUERY_LIST_IN;
+
+typedef struct _STRUCT_CMD_QUERY_PKG_OUT
+{
+	DWORD dwCmdOut;
+	DWORD dwSizeSend;
+	ErrorType errType;
+	DWORD dwErrorCode;
+	ULONGLONG ullFileSize;
+	BYTE  byFlag;
+}QUERY_PKG_OUT,QUERY_LIST_OUT,*PQUERY_PKG_OUT,*PQUERY_LIST_OUT;
+
 #pragma pack(pop)
 
 /************************************************************************/
@@ -464,6 +546,7 @@ DEF_COMMU_CMD CMD_SYNC_TIME_OUT   = 0x43440100;
  * DWORD dwSizeSend; //发送的字节数;
  * BYTE byStop; //停止标志
  * char *pszImageName; //IMAGE名称
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED
  * <Output>:
  * DWORD dwSizeOfReturn; //返回数据总大小。
  * DEF_COMMU_CMD CMD_COPY_IMAGE_OUT;
@@ -516,6 +599,7 @@ DEF_COMMU_CMD CMD_UPLOAD_LOG_OUT  = 0x43440103;
  * DEF_COMMU_CMD CMD_QUERY_IMAGE_IN;
  * DWORD dwSizeSend; //发送的字节数;
  * char *pszImageName; //IMAGE名称
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED
  * <Output>:
  * DWORD dwSizeOfReturn; //返回数据总大小。
  * DEF_COMMU_CMD CMD_QUERY_IMAGE_OUT;
@@ -541,5 +625,100 @@ DEF_COMMU_CMD CMD_QUERY_IMAGE_OUT = 0x43440104;
 /************************************************************************/
 DEF_COMMU_CMD CMD_SHOW_SCREEN_IN  = 0x43440005;
 DEF_COMMU_CMD CMD_SHOW_SCREEN_OUT = 0x43440105;
+
+// 2014-10-11 新增
+
+/************************************************************************/
+/* COMMAND:CMD_DOWN_PKG
+ * <Input>:
+ * DEF_COMMU_CMD CMD_DOWN_PKG_IN;
+ * DWORD dwSizeSend; //发送的字节数;
+ * BYTE byStop; //停止标志
+ * char *pszPkgName; //Package名称
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED
+ * <Output>:
+ * DWORD dwSizeOfReturn; //返回数据总大小。
+ * DEF_COMMU_CMD CMD_DOWN_PKG_OUT;
+ * DWORD ErrorType; //错误类型
+ * DWORD dwErrorCode; //错误代码，0表示成功
+ * ULONGLONG ullFileSize;//Package文件大小
+ * BYTE *pContext; // Package内容
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED*/
+/************************************************************************/
+DEF_COMMU_CMD CMD_DOWN_PKG_IN  = 0x43440006;
+DEF_COMMU_CMD CMD_DOWN_PKG_OUT = 0x43440106;
+
+/************************************************************************/
+/* COMMAND:CMD_USER_LOG
+ * <Input>:
+ * DEF_COMMU_CMD CMD_USER_LOG_IN;
+ * DWORD dwSizeSend; //发送的字节数;
+ * char *pszLogName; //LOG名称，0字符结尾
+ * BYTE *pContext; //LOG文件内容
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED
+ * <Output>:
+ * DWORD dwSizeOfReturn; //返回数据总大小。
+ * DEF_COMMU_CMD CMD_USER_LOG_IN;
+ * DWORD ErrorType; //错误类型
+ * DWORD dwErrorCode; //错误代码，0表示成功 */
+/************************************************************************/
+DEF_COMMU_CMD CMD_USER_LOG_IN   = 0x43440007;
+DEF_COMMU_CMD CMD_USER_LOG_OUT  = 0x43440107;
+
+/************************************************************************/
+/* COMMAND:CMD_QUERY_PKG
+ * <Input>:
+ * DEF_COMMU_CMD CMD_QUERY_PKG_IN;
+ * DWORD dwSizeSend; //发送的字节数;
+ * char *pszPkgName; //IMAGE名称
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED
+ * <Output>:
+ * DWORD dwSizeOfReturn; //返回数据总大小。
+ * DEF_COMMU_CMD CMD_QUERY_PKG_OUT;
+ * DWORD ErrorType; //错误类型
+ * DWORD dwErrorCode; //错误代码，0表示成功
+ * ULONGLONG ullFileSize; //文件大小
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED */
+/************************************************************************/
+DEF_COMMU_CMD CMD_QUERY_PKG_IN  = 0x43440008;
+DEF_COMMU_CMD CMD_QUERY_PKG_OUT = 0x43440108;
+
+/************************************************************************/
+/* COMMAND:CMD_DOWN_LIST
+ * <Input>:
+ * DEF_COMMU_CMD CMD_DOWN_LIST_IN;
+ * DWORD dwSizeSend; //发送的字节数;
+ * BYTE byStop; //停止标志
+ * char *pszPkgName; //Package名称
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED
+ * <Output>:
+ * DWORD dwSizeOfReturn; //返回数据总大小。
+ * DEF_COMMU_CMD CMD_DOWN_LIST_OUT;
+ * DWORD ErrorType; //错误类型
+ * DWORD dwErrorCode; //错误代码，0表示成功
+ * ULONGLONG ullFileSize;//Package文件大小
+ * BYTE *pContext; // Package内容
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED*/
+/************************************************************************/
+DEF_COMMU_CMD CMD_DOWN_LIST_IN  = 0x43440009;
+DEF_COMMU_CMD CMD_DOWN_LIST_OUT = 0x43440109;
+
+/************************************************************************/
+/* COMMAND:CMD_QUERY_LIST
+ * <Input>:
+ * DEF_COMMU_CMD CMD_QUERY_LIST_IN;
+ * DWORD dwSizeSend; //发送的字节数;
+ * char *pszPkgName; //IMAGE名称
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED
+ * <Output>:
+ * DWORD dwSizeOfReturn; //返回数据总大小。
+ * DEF_COMMU_CMD CMD_QUERY_LIST_OUT;
+ * DWORD ErrorType; //错误类型
+ * DWORD dwErrorCode; //错误代码，0表示成功
+ * ULONGLONG ullFileSize; //文件大小
+ * BYTE byFlag; //开始结束标志，开始：BE,结束：ED */
+/************************************************************************/
+DEF_COMMU_CMD CMD_QUERY_LIST_IN  = 0x4344000A;
+DEF_COMMU_CMD CMD_QUERY_LIST_OUT = 0x4344010A;
 
 #endif
