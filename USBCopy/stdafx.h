@@ -28,6 +28,11 @@
 
 #define SD_TF
 
+#define CLIENT_NAME         L"MPTCopy"
+#define CLIENT_MAJOR_VER    1
+#define CLIENT_MINOR_VER    0
+#define CLIENT_REVISION     3
+
 #ifndef _AFX_NO_OLE_SUPPORT
 #include <afxdtctl.h>           // MFC support for Internet Explorer 4 Common Controls
 #endif

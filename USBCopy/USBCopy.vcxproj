@@ -41,9 +41,11 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <TargetName>MTPCopy</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <TargetName>MTPCopy</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -198,6 +200,8 @@
     <ClInclude Include="Tools.h" />
     <ClInclude Include="USBCopy.h" />
     <ClInclude Include="USBCopyDlg.h" />
+    <ClInclude Include="WpdDevice.h" />
+    <ClInclude Include="WPDFunction.h" />
     <ClInclude Include="XFolderDialog\XFileOpenListView.h" />
     <ClInclude Include="XFolderDialog\XFolderDialog.h" />
     <ClInclude Include="XFolderDialog\XFolderDialogRes.h" />
@@ -255,6 +259,8 @@
     <ClCompile Include="Tools.cpp" />
     <ClCompile Include="USBCopy.cpp" />
     <ClCompile Include="USBCopyDlg.cpp" />
+    <ClCompile Include="WpdDevice.cpp" />
+    <ClCompile Include="WPDFunction.cpp" />
     <ClCompile Include="XFolderDialog\XFileOpenListView.cpp" />
     <ClCompile Include="XFolderDialog\XFolderDialog.cpp" />
     <ClCompile Include="XFolderDialog\XHistoryCombo.cpp" />

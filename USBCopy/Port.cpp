@@ -591,3 +591,13 @@ void CPort::SetKickOff( BOOL bKickOff )
 	m_bKickOff = bKickOff;
 }
 
+CString CPort::GetDevicePath()
+{
+	return m_strDevicePath;
+}
+
+void CPort::SetDevicePath( CString strDevicePath )
+{
+	m_strDevicePath = strDevicePath;
+}
+

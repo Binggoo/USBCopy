@@ -43,6 +43,8 @@ BOOL CUSBCopyApp::InitInstance()
 
 	AfxEnableControlContainer();
 
+	CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
 	// Create the shell manager, in case the dialog contains
 	// any shell tree view or shell list view controls.
 	CShellManager *pShellManager = new CShellManager;
@@ -228,4 +230,13 @@ END:
 	}
 
 	return bResult;
+}
+
+
+int CUSBCopyApp::ExitInstance()
+{
+	// TODO: 在此添加专用代码和/或调用基类
+	// Uninitialize COM
+	CoUninitialize();
+	return CWinApp::ExitInstance();
 }

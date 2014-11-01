@@ -4229,11 +4229,12 @@ BOOL CDisk::ReadDisk()
 			}
 			else
 			{
-				DATA_INFO dataInfo = {0};
-				dataInfo.ullOffset = ullStartSectors * effData.wBytesPerSector;
-				dataInfo.dwDataSize = dwLen;
-				dataInfo.pData = new BYTE[dwLen];
-				memcpy(dataInfo.pData,pByte,dwLen);
+				PDATA_INFO dataInfo = new DATA_INFO;
+				ZeroMemory(dataInfo,sizeof(DATA_INFO));
+				dataInfo->ullOffset = ullStartSectors * effData.wBytesPerSector;
+				dataInfo->dwDataSize = dwLen;
+				dataInfo->pData = new BYTE[dwLen];
+				memcpy(dataInfo->pData,pByte,dwLen);
 
 				if (m_WorkMode == WorkMode_ImageMake)
 				{
@@ -4242,7 +4243,7 @@ BOOL CDisk::ReadDisk()
 				else
 				{
 					AddDataQueueList(dataInfo);
-					delete []dataInfo.pData;
+					delete []dataInfo->pData;
 				}
 
 				if (m_bComputeHash)
@@ -4451,18 +4452,18 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 			break;
 		}
 
-		DATA_INFO dataInfo = pDataQueue->GetHeadRemove();
+		PDATA_INFO dataInfo = pDataQueue->GetHeadRemove();
 
-		if (dataInfo.pData == NULL)
+		if (dataInfo == NULL)
 		{
 			continue;
 		}
 
-		ULONGLONG ullStartSectors = dataInfo.ullOffset / dwBytesPerSector;
-		DWORD dwSectors = dataInfo.dwDataSize / dwBytesPerSector;
+		ULONGLONG ullStartSectors = dataInfo->ullOffset / dwBytesPerSector;
+		DWORD dwSectors = dataInfo->dwDataSize / dwBytesPerSector;
 
 		QueryPerformanceCounter(&t1);
-		if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytesPerSector,dataInfo.pData,port->GetOverlapped(FALSE),&dwErrorCode))
+		if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytesPerSector,dataInfo->pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
 
@@ -4480,9 +4481,9 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 
 			port->AppendUsedWaitTimeS(dbTimeWait);
 			port->AppendUsedNoWaitTimeS(dbTimeNoWait);
-			port->AppendCompleteSize(dataInfo.dwDataSize);
+			port->AppendCompleteSize(dataInfo->dwDataSize);
 
-			delete []dataInfo.pData;
+			delete []dataInfo->pData;
 		}
 
 	}
@@ -4910,15 +4911,16 @@ BOOL CDisk::ReadLocalFiles()
 			}
 			else
 			{
-				DATA_INFO dataInfo = {0};
-				dataInfo.szFileName = new TCHAR[strDestFile.GetLength()+1];
-				_tcscpy_s(dataInfo.szFileName,strDestFile.GetLength()+1,strDestFile);
-				dataInfo.ullOffset = ullCompleteSize;
-				dataInfo.dwDataSize = dwLen;
-				dataInfo.pData = pByte;
+				PDATA_INFO dataInfo = new DATA_INFO;
+				ZeroMemory(dataInfo,sizeof(DATA_INFO));
+				dataInfo->szFileName = new TCHAR[strDestFile.GetLength()+1];
+				_tcscpy_s(dataInfo->szFileName,strDestFile.GetLength()+1,strDestFile);
+				dataInfo->ullOffset = ullCompleteSize;
+				dataInfo->dwDataSize = dwLen;
+				dataInfo->pData = pByte;
 				AddDataQueueList(dataInfo);
 
-				delete []dataInfo.szFileName;
+				delete []dataInfo->szFileName;
 
 				if (m_bComputeHash)
 				{
@@ -5186,15 +5188,16 @@ BOOL CDisk::ReadRemoteFiles()
 		delete []pByte;
 		pByte = NULL;
 		
-		DATA_INFO dataInfo = {0};
-		dataInfo.szFileName = new TCHAR[strDestFile.GetLength()+1];
-		_tcscpy_s(dataInfo.szFileName,strDestFile.GetLength()+1,strDestFile);
-		dataInfo.ullOffset = ullCompleteSize;
-		dataInfo.dwDataSize = dwFileLen;
-		dataInfo.pData = pFileData;
+		PDATA_INFO dataInfo = new DATA_INFO;
+		ZeroMemory(dataInfo,sizeof(DATA_INFO));
+		dataInfo->szFileName = new TCHAR[strDestFile.GetLength()+1];
+		_tcscpy_s(dataInfo->szFileName,strDestFile.GetLength()+1,strDestFile);
+		dataInfo->ullOffset = ullCompleteSize;
+		dataInfo->dwDataSize = dwFileLen;
+		dataInfo->pData = pFileData;
 		AddDataQueueList(dataInfo);
 
-		delete []dataInfo.szFileName;
+		delete []dataInfo->szFileName;
 
 		if (m_bComputeHash)
 		{
@@ -5401,14 +5404,14 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 			break;
 		}
 
-		DATA_INFO dataInfo = pDataQueue->GetHeadRemove();
+		PDATA_INFO dataInfo = pDataQueue->GetHeadRemove();
 
-		if (dataInfo.pData == NULL)
+		if (dataInfo == NULL)
 		{
 			continue;
 		}
 
-		strCurrentFileName = strVolume + CString(dataInfo.szFileName);
+		strCurrentFileName = strVolume + CString(dataInfo->szFileName);
 
 		CString strPath = CUtils::GetFilePathWithoutName(strCurrentFileName);
 
@@ -5439,7 +5442,7 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 		}
 
 		QueryPerformanceCounter(&t1);
-		if (!WriteFileAsyn(hFile,dataInfo.ullOffset,dataInfo.dwDataSize,dataInfo.pData,port->GetOverlapped(FALSE),&dwErrorCode))
+		if (!WriteFileAsyn(hFile,dataInfo->ullOffset,dataInfo->dwDataSize,dataInfo->pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
 
@@ -5457,10 +5460,10 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 
 			port->AppendUsedWaitTimeS(dbTimeWait);
 			port->AppendUsedNoWaitTimeS(dbTimeNoWait);
-			port->AppendCompleteSize(dataInfo.dwDataSize);
+			port->AppendCompleteSize(dataInfo->dwDataSize);
 
-			delete []dataInfo.pData;
-			delete []dataInfo.szFileName;
+			delete []dataInfo->pData;
+			delete []dataInfo->szFileName;
 		}
 
 	}
@@ -5851,11 +5854,12 @@ BOOL CDisk::ReadLocalImage()
 			break;
 		}
 
-		DATA_INFO dataInfo = {0};
-		dataInfo.ullOffset = ullOffset;
-		dataInfo.dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
-		dataInfo.pData = new BYTE[dataInfo.dwDataSize];
-		memcpy(dataInfo.pData,&pByte[PKG_HEADER_SIZE],dataInfo.dwDataSize);
+		PDATA_INFO dataInfo = new DATA_INFO;
+		ZeroMemory(dataInfo,sizeof(DATA_INFO));
+		dataInfo->ullOffset = ullOffset;
+		dataInfo->dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
+		dataInfo->pData = new BYTE[dataInfo->dwDataSize];
+		memcpy(dataInfo->pData,&pByte[PKG_HEADER_SIZE],dataInfo->dwDataSize);
 		m_CompressQueue.AddTail(dataInfo);
 		delete []pByte;
 
@@ -6116,10 +6120,11 @@ BOOL CDisk::ReadRemoteImage()
 		// 去除尾部标志
 		dwLen -= 1;
 
-		DATA_INFO dataInfo = {0};
-		dataInfo.dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
-		dataInfo.pData = new BYTE[dataInfo.dwDataSize];
-		memcpy(dataInfo.pData,&pByte[PKG_HEADER_SIZE],dataInfo.dwDataSize);
+		PDATA_INFO dataInfo = new DATA_INFO;
+		ZeroMemory(dataInfo,sizeof(DATA_INFO));
+		dataInfo->dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
+		dataInfo->pData = new BYTE[dataInfo->dwDataSize];
+		memcpy(dataInfo->pData,&pByte[PKG_HEADER_SIZE],dataInfo->dwDataSize);
 
 		m_CompressQueue.AddTail(dataInfo);
 
@@ -6301,20 +6306,20 @@ BOOL CDisk::Compress()
 		}
 
 		QueryPerformanceCounter(&t1);
-		DATA_INFO dataInfo = m_CompressQueue.GetHeadRemove();
-		if (dataInfo.pData == NULL)
+		PDATA_INFO dataInfo = m_CompressQueue.GetHeadRemove();
+		if (dataInfo == NULL)
 		{
 			continue;
 		}
 
-		DWORD dwSourceLen = sizeof(ULONGLONG) + sizeof(DWORD) + dataInfo.dwDataSize;
+		DWORD dwSourceLen = sizeof(ULONGLONG) + sizeof(DWORD) + dataInfo->dwDataSize;
 		BYTE *pBuffer = new BYTE[dwSourceLen];
 		ZeroMemory(pBuffer,dwSourceLen);
-		memcpy(pBuffer,&dataInfo.ullOffset,sizeof(ULONGLONG));
-		memcpy(pBuffer + sizeof(ULONGLONG),&dataInfo.dwDataSize,sizeof(DWORD));
-		memcpy(pBuffer + sizeof(ULONGLONG) + sizeof(DWORD),dataInfo.pData,dataInfo.dwDataSize);
+		memcpy(pBuffer,&dataInfo->ullOffset,sizeof(ULONGLONG));
+		memcpy(pBuffer + sizeof(ULONGLONG),&dataInfo->dwDataSize,sizeof(DWORD));
+		memcpy(pBuffer + sizeof(ULONGLONG) + sizeof(DWORD),dataInfo->pData,dataInfo->dwDataSize);
 
-		delete []dataInfo.pData;
+		delete []dataInfo->pData;
 
 		DWORD dwDestLen = MAX_COMPRESS_BUF;
 		BYTE *pDest = new BYTE[MAX_COMPRESS_BUF];
@@ -6324,19 +6329,21 @@ BOOL CDisk::Compress()
 
 		if (ret == Z_OK)
 		{
-			DATA_INFO compressData = {0};
-			compressData.dwDataSize = dwDestLen + sizeof(ULONGLONG) + sizeof(DWORD) + 1;
-			compressData.dwOldSize = dataInfo.dwDataSize;
-			compressData.pData = new BYTE[compressData.dwDataSize];
-			ZeroMemory(compressData.pData,compressData.dwDataSize);
+			PDATA_INFO compressData = new DATA_INFO;
+			ZeroMemory(compressData,sizeof(DATA_INFO));
 
-			compressData.pData[compressData.dwDataSize - 1] = 0xED; //结束标志
-			memcpy(compressData.pData + sizeof(ULONGLONG),&compressData.dwDataSize,sizeof(DWORD));
-			memcpy(compressData.pData + sizeof(ULONGLONG) + sizeof(DWORD),pDest,dwDestLen);
+			compressData->dwDataSize = dwDestLen + sizeof(ULONGLONG) + sizeof(DWORD) + 1;
+			compressData->dwOldSize = dataInfo->dwDataSize;
+			compressData->pData = new BYTE[compressData->dwDataSize];
+			ZeroMemory(compressData->pData,compressData->dwDataSize);
+
+			compressData->pData[compressData->dwDataSize - 1] = 0xED; //结束标志
+			memcpy(compressData->pData + sizeof(ULONGLONG),&compressData->dwDataSize,sizeof(DWORD));
+			memcpy(compressData->pData + sizeof(ULONGLONG) + sizeof(DWORD),pDest,dwDestLen);
 
 			AddDataQueueList(compressData);
 
-			delete []compressData.pData;
+			delete []compressData->pData;
 
 			QueryPerformanceCounter(&t2);
 
@@ -6425,9 +6432,9 @@ BOOL CDisk::Uncompress()
 		}
 
 		QueryPerformanceCounter(&t1);
-		DATA_INFO dataInfo = m_CompressQueue.GetHeadRemove();
+		PDATA_INFO dataInfo = m_CompressQueue.GetHeadRemove();
 
-		if (dataInfo.pData == NULL)
+		if (dataInfo == NULL)
 		{
 			continue;
 		}
@@ -6436,34 +6443,35 @@ BOOL CDisk::Uncompress()
 		BYTE *pDest = new BYTE[MAX_COMPRESS_BUF];
 		ZeroMemory(pDest,MAX_COMPRESS_BUF);
 
-		int ret = uncompress(pDest,&dwDestLen,dataInfo.pData,dataInfo.dwDataSize);
+		int ret = uncompress(pDest,&dwDestLen,dataInfo->pData,dataInfo->dwDataSize);
 
-		delete []dataInfo.pData;
+		delete []dataInfo->pData;
 
 		if (ret == Z_OK)
 		{
-			DATA_INFO uncompressData = {0};
-			uncompressData.ullOffset = *(PULONGLONG)pDest;
-			uncompressData.dwDataSize = *(PDWORD)(pDest + sizeof(ULONGLONG));
+			PDATA_INFO uncompressData = new DATA_INFO;
+			ZeroMemory(uncompressData,sizeof(DATA_INFO));
+			uncompressData->ullOffset = *(PULONGLONG)pDest;
+			uncompressData->dwDataSize = *(PDWORD)(pDest + sizeof(ULONGLONG));
 
-			uncompressData.pData = new BYTE[uncompressData.dwDataSize];
-			ZeroMemory(uncompressData.pData,uncompressData.dwDataSize);
-			memcpy(uncompressData.pData,pDest + sizeof(ULONGLONG) + sizeof(DWORD),uncompressData.dwDataSize);
+			uncompressData->pData = new BYTE[uncompressData->dwDataSize];
+			ZeroMemory(uncompressData->pData,uncompressData->dwDataSize);
+			memcpy(uncompressData->pData,pDest + sizeof(ULONGLONG) + sizeof(DWORD),uncompressData->dwDataSize);
 			
 			AddDataQueueList(uncompressData);
 
 			EFF_DATA effData;
-			effData.ullStartSector = uncompressData.ullOffset/BYTES_PER_SECTOR;
-			effData.ullSectors = uncompressData.dwDataSize/BYTES_PER_SECTOR;
+			effData.ullStartSector = uncompressData->ullOffset/BYTES_PER_SECTOR;
+			effData.ullSectors = uncompressData->dwDataSize/BYTES_PER_SECTOR;
 			effData.wBytesPerSector = BYTES_PER_SECTOR;
 			m_EffList.AddTail(effData);
 
 			if (m_bComputeHash)
 			{
-				m_pMasterHashMethod->update((void *)uncompressData.pData,uncompressData.dwDataSize);
+				m_pMasterHashMethod->update((void *)uncompressData->pData,uncompressData->dwDataSize);
 			}
 
-			delete []uncompressData.pData;
+			delete []uncompressData->pData;
 
 			QueryPerformanceCounter(&t2);
 
@@ -6600,20 +6608,20 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 			break;
 		}
 
-		DATA_INFO dataInfo = pDataQueue->GetHeadRemove();
+		PDATA_INFO dataInfo = pDataQueue->GetHeadRemove();
 
-		if (dataInfo.pData == NULL)
+		if (dataInfo == NULL)
 		{
 			continue;
 		}
-		*(PULONGLONG)dataInfo.pData = ullPkgIndex;
+		*(PULONGLONG)dataInfo->pData = ullPkgIndex;
 		ullPkgIndex++;
 
 		QueryPerformanceCounter(&t1);
 
-		dwLen = dataInfo.dwDataSize;
+		dwLen = dataInfo->dwDataSize;
 
-		if (!WriteFileAsyn(hFile,ullOffset,dwLen,dataInfo.pData,port->GetOverlapped(FALSE),&dwErrorCode))
+		if (!WriteFileAsyn(hFile,ullOffset,dwLen,dataInfo->pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
@@ -6635,9 +6643,9 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 		port->AppendUsedWaitTimeS(dbTimeNoWait);
 
 		// 压缩的数据比实际数据短，不能取压缩后的长度，要不压缩之前的长度
-		port->AppendCompleteSize(dataInfo.dwOldSize);
+		port->AppendCompleteSize(dataInfo->dwOldSize);
 
-		delete []dataInfo.pData;
+		delete []dataInfo->pData;
 
 	}
 
@@ -6786,18 +6794,18 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 			break;
 		}
 
-		DATA_INFO dataInfo = pDataQueue->GetHeadRemove();
+		PDATA_INFO dataInfo = pDataQueue->GetHeadRemove();
 
-		if (dataInfo.pData == NULL)
+		if (dataInfo == NULL)
 		{
 			continue;
 		}
-		*(PULONGLONG)dataInfo.pData = ullPkgIndex;
+		*(PULONGLONG)dataInfo->pData = ullPkgIndex;
 		ullPkgIndex++;
 
 		QueryPerformanceCounter(&t1);
 
-		dwLen = sizeof(CMD_IN) + strlen(fileName) + 2 + dataInfo.dwDataSize;
+		dwLen = sizeof(CMD_IN) + strlen(fileName) + 2 + dataInfo->dwDataSize;
 		
 		makeImageIn.dwSizeSend = dwLen;
 
@@ -6805,7 +6813,7 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		ZeroMemory(pByte,dwLen);
 		memcpy(pByte,&makeImageIn,sizeof(CMD_IN));
 		memcpy(pByte+sizeof(CMD_IN),fileName,strlen(fileName));
-		memcpy(pByte+sizeof(CMD_IN)+strlen(fileName)+1,dataInfo.pData,dataInfo.dwDataSize);
+		memcpy(pByte+sizeof(CMD_IN)+strlen(fileName)+1,dataInfo->pData,dataInfo->dwDataSize);
 
 		if (!Send(m_ClientSocket,(char *)pByte,dwLen,&olSend,&dwErrorCode))
 		{
@@ -6859,15 +6867,15 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 
 		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart;
 
-		ullOffset += dataInfo.dwDataSize;
+		ullOffset += dataInfo->dwDataSize;
 
 		port->AppendUsedNoWaitTimeS(dbTimeNoWait);
 		port->AppendUsedWaitTimeS(dbTimeNoWait);
 
 		// 压缩的数据比实际数据短，不能取压缩后的长度，要不压缩之前的长度
-		port->AppendCompleteSize(dataInfo.dwOldSize);
+		port->AppendCompleteSize(dataInfo->dwOldSize);
 
-		delete []dataInfo.pData;
+		delete []dataInfo->pData;
 
 	}
 
@@ -7624,7 +7632,7 @@ DWORD WINAPI CDisk::ComputeHashThreadProc(LPVOID lpParm)
 	return bResult;
 }
 
-void CDisk::AddDataQueueList( DATA_INFO dataInfo )
+void CDisk::AddDataQueueList( PDATA_INFO dataInfo )
 {
 	POSITION pos1 = m_DataQueueList.GetHeadPosition();
 	POSITION pos2 = m_TargetPorts->GetHeadPosition();
@@ -7636,19 +7644,20 @@ void CDisk::AddDataQueueList( DATA_INFO dataInfo )
 
 		if (port->GetResult())
 		{
-			DATA_INFO data = {0};
+			PDATA_INFO data = new DATA_INFO;
+			ZeroMemory(data,sizeof(DATA_INFO));
 
-			if (dataInfo.szFileName)
+			if (dataInfo->szFileName)
 			{
-				data.szFileName = new TCHAR[_tcslen(dataInfo.szFileName) + 1];
-				_tcscpy_s(data.szFileName,_tcslen(dataInfo.szFileName) + 1,dataInfo.szFileName);
+				data->szFileName = new TCHAR[_tcslen(dataInfo->szFileName) + 1];
+				_tcscpy_s(data->szFileName,_tcslen(dataInfo->szFileName) + 1,dataInfo->szFileName);
 			}
 			
-			data.dwDataSize = dataInfo.dwDataSize;
-			data.dwOldSize = dataInfo.dwOldSize;
-			data.ullOffset = dataInfo.ullOffset;
-			data.pData = new BYTE[dataInfo.dwDataSize];
-			memcpy(data.pData,dataInfo.pData,dataInfo.dwDataSize);
+			data->dwDataSize = dataInfo->dwDataSize;
+			data->dwOldSize = dataInfo->dwOldSize;
+			data->ullOffset = dataInfo->ullOffset;
+			data->pData = new BYTE[dataInfo->dwDataSize];
+			memcpy(data->pData,dataInfo->pData,dataInfo->dwDataSize);
 			dataQueue->AddTail(data);
 		}
 	}

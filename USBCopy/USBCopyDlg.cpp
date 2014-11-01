@@ -42,6 +42,7 @@
 #include <dbt.h>
 #include "EnumUSB.h"
 #include "EnumStorage.h"
+#include "WPDFunction.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -100,6 +101,8 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bStart = FALSE;
 	m_bLisence = FALSE;
 	m_bSockeConnected = FALSE;
+	m_bIsUSB = FALSE;
+	m_bIsMTP = TRUE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -2824,11 +2827,37 @@ void CUSBCopyDlg::EnumDevice()
 	
 }
 
+void CUSBCopyDlg::EnumMTPDevice()
+{
+	while (!m_bRunning)
+	{
+		if (!m_bRunning)
+		{
+			EnumWPD(&m_bRunning);
+		}
+
+		if (!m_bRunning)
+		{
+			MatchMTPDevice();
+		}
+
+		CleanupWPD();
+	}
+}
+
 DWORD CUSBCopyDlg::EnumDeviceThreadProc( LPVOID lpParm )
 {
 	CUSBCopyDlg *pDlg = (CUSBCopyDlg *)lpParm;
 
-	pDlg->EnumDevice();
+	if (pDlg->m_bIsMTP)
+	{
+		pDlg->EnumMTPDevice();
+	}
+	else
+	{
+		pDlg->EnumDevice();
+	}
+	
 
 	return 1;
 }
@@ -3133,6 +3162,117 @@ void CUSBCopyDlg::MatchDevice()
 				Sleep(500);
 				m_Command.Power(port->GetPortNum(),TRUE);
 			}
+		}
+	}
+}
+
+void CUSBCopyDlg::MatchMTPDevice()
+{
+	POSITION pos = m_TargetPorts.GetHeadPosition();
+	CString strPath;
+	int nConnectIndex = -1;
+	int nCount = 0;
+	CString strModel,strSN;
+	while (pos && !m_bRunning)
+	{
+		PUSBDEVICEINFO pUsbDeviceInfo = NULL;
+		PWPDDEVIEINFO pWPDDevInfo = NULL;
+		CPort *port;
+
+		if (nCount == 0)
+		{
+			port = &m_MasterPort;
+		}
+		else
+		{
+			port = m_TargetPorts.GetNext(pos);
+		}
+
+		nCount++;
+
+		strPath = port->GetPath1();
+		nConnectIndex = port->GetConnectIndex1();
+		pUsbDeviceInfo = GetHubPortDeviceInfo(strPath.GetBuffer(),nConnectIndex);
+
+		if (pUsbDeviceInfo == NULL)
+		{
+			strPath = port->GetPath2();
+			nConnectIndex = port->GetConnectIndex2();
+			pUsbDeviceInfo = GetHubPortDeviceInfo(strPath.GetBuffer(),nConnectIndex);
+		}
+
+		if (pUsbDeviceInfo)
+		{
+			pWPDDevInfo = MatchWPDDeivceID(pUsbDeviceInfo->DeviceID);
+
+			if (pWPDDevInfo)
+			{
+				if (!port->IsConnected())
+				{
+					DWORD dwErrorCode = 0;
+					CComPtr<IPortableDevice> pIPortableDevice;
+					HRESULT hr = OpenDevice(&pIPortableDevice,pWPDDevInfo->pszDevicePath);
+
+					if (SUCCEEDED(hr) && pIPortableDevice != NULL)
+					{
+						GetDeviceModelAndSerialNumber(pIPortableDevice,strModel.GetBuffer(MAX_PATH),strSN.GetBuffer(MAX_PATH));
+						strModel.ReleaseBuffer();
+						strSN.ReleaseBuffer();
+
+						LPWSTR *ppwszObjectIDs = NULL;
+						DWORD dwObjects = EnumStorageIDs(pIPortableDevice,&ppwszObjectIDs);
+
+						ULONGLONG ullTotalSize = 0,ullFreeSize = 0;
+						if (dwObjects > 0)
+						{
+							GetStorageFreeAndTotalCapacity(pIPortableDevice,ppwszObjectIDs[0],&ullFreeSize,&ullTotalSize);
+
+							for (DWORD index = 0; index < dwObjects;index++)
+							{
+								delete []ppwszObjectIDs[index];
+								ppwszObjectIDs[index] = NULL;
+							}
+
+							delete []ppwszObjectIDs;
+							ppwszObjectIDs = NULL;
+						}
+
+						strPath = _T("o1");
+						hr = CreateFolder(pIPortableDevice,_T("s10001"),_T("1234"),strPath.GetBuffer(MAX_PATH));
+						strPath.ReleaseBuffer();
+						
+
+						port->SetConnected(TRUE);
+						port->SetDevicePath(CString(pWPDDevInfo->pszDevicePath));
+						port->SetPortState(PortState_Online);
+						port->SetTotalSize(ullTotalSize);
+						port->SetCompleteSize(ullTotalSize - ullFreeSize);
+						port->SetSN(strSN);
+						port->SetModuleName(strModel);
+
+						CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,FreeSize=%I64d,ModelName=%s,SN=%s")
+							,port->GetPortName(),strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
+							,ullTotalSize,ullFreeSize,strModel,strSN);
+					}
+					else
+					{
+						port->Initial();
+					}
+				}
+
+				CleanWPDDeviceInfo(pWPDDevInfo);
+			}
+			else
+			{
+				port->Initial();
+			}
+
+			CleanupInfo(pUsbDeviceInfo);
+			pUsbDeviceInfo = NULL;
+		}
+		else
+		{
+			port->Initial();
 		}
 	}
 }

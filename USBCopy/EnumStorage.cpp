@@ -22,11 +22,12 @@ Administrator
 #include <setupapi.h>
 #include <cfgmgr32.h>
 #include <devguid.h>
-
+#include <Portabledevice.h>
 #include "EnumStorage.h"
 
 PDEVICELIST _pStorageListHead = NULL;
 PDEVICELIST _pVolumeListHead = NULL;
+PDEVICELIST _pWPDListHead = NULL;
 
 
 /******************************************************************************
@@ -51,14 +52,42 @@ BOOL
 	ulSize = 0;
 	if(CR_SUCCESS != CM_Get_Device_ID_Size(&ulSize,hDevParent,0))
 	{
-		return NULL;
+		return FALSE;
 	}
 
 	//Get parent Device DeviceID
 	if(CR_SUCCESS != CM_Get_Device_ID(hDevParent,pszDeviceID,ulSize + 1,0))
 	{
 		//DeviceID 获取失败，释放内存
-		return NULL;
+		return FALSE;
+	}
+
+	return TRUE;
+
+}
+
+/******************************************************************************
+* GetDeviceID
+*  获取设备的ID
+*  DWORD DevInst           DEVINST handle
+******************************************************************************/
+BOOL
+	GetDeviceID(DWORD DevInst,
+	PTSTR pszDeviceID)
+{
+	ULONG   ulSize = 0;
+
+	//Get Device ID String length
+	if(CR_SUCCESS != CM_Get_Device_ID_Size(&ulSize,DevInst,0))
+	{
+		return FALSE;
+	}
+
+	//Get parent Device DeviceID
+	if(CR_SUCCESS != CM_Get_Device_ID(DevInst,pszDeviceID,ulSize + 1,0))
+	{
+		//DeviceID 获取失败，释放内存
+		return FALSE;
 	}
 
 	return TRUE;
@@ -140,16 +169,19 @@ void Cleanup_StorageInfo(PDEVICELIST pDevList)
 		if(pStorageDevInfo->pszParentDeviceID)
 		{
 			FREE(pStorageDevInfo->pszParentDeviceID);
+			pStorageDevInfo->pszParentDeviceID = NULL;
 		}
 
 		if (pStorageDevInfo)
 		{
 			FREE(pStorageDevInfo);
+			pStorageDevInfo = NULL;
 		}
 	}
 
 
 	FREE(pDevList);
+	pDevList = NULL;
 }
 
 /******************************************************************************
@@ -167,16 +199,61 @@ void Cleanup_VolumeInfo(PDEVICELIST pDevList)
 		if(pVolumeDevInfo->pszVolumePath)
 		{
 			FREE(pVolumeDevInfo->pszVolumePath);
+			pVolumeDevInfo->pszVolumePath = NULL;
 		}
 
 		if (pVolumeDevInfo)
 		{
 			FREE(pVolumeDevInfo);
+			pVolumeDevInfo = NULL;
 		}
 	}
 
 
 	FREE(pDevList);
+	pDevList = NULL;
+}
+
+/******************************************************************************
+* Cleanup_WPDInfo
+******************************************************************************/
+void Cleanup_WPDInfo(PDEVICELIST pDevList)
+{
+	PWPDDEVIEINFO pWPDDevInfo;
+
+	if(pDevList->pDevInfo)
+	{
+		pWPDDevInfo = (PWPDDEVIEINFO)(pDevList->pDevInfo);
+
+		//FREE 所有的子项
+		if(pWPDDevInfo->pszDevicePath)
+		{
+			FREE(pWPDDevInfo->pszDevicePath);
+			pWPDDevInfo->pszDevicePath = NULL;
+		}
+
+		if (pWPDDevInfo->pszParentDeviceID)
+		{
+			FREE(pWPDDevInfo->pszParentDeviceID);
+			pWPDDevInfo->pszParentDeviceID = NULL;
+		}
+
+		if (pWPDDevInfo->pszDeviceID)
+		{
+			FREE(pWPDDevInfo->pszDeviceID);
+			pWPDDevInfo->pszDeviceID = NULL;
+		}
+
+		if (pWPDDevInfo)
+		{
+			FREE(pWPDDevInfo);
+			pWPDDevInfo = NULL;
+		}
+	}
+
+
+	FREE(pDevList);
+	pDevList = NULL;
 }
 
 /******************************************************************************
@@ -342,6 +419,7 @@ VOID EnumStorage(LPBOOL flag)
 	}
 
 	FREE(pspDevInterfaceDetail);
+	pspDevInterfaceDetail = NULL;
 	SetupDiDestroyDeviceInfoList (hDevInfo);
 
 }
@@ -444,6 +522,132 @@ VOID EnumVolume(LPBOOL flag)
 	FindVolumeClose(hFindVolume);
 }
 
+VOID EnumWPD(LPBOOL flag)
+{
+	HDEVINFO                            hDevInfo;
+	SP_DEVINFO_DATA                     spDevInfoData;
+	SP_DEVICE_INTERFACE_DATA            spDevInterfaceData = {0};
+	PSP_DEVICE_INTERFACE_DETAIL_DATA    pspDevInterfaceDetail = NULL;
+	PWPDDEVIEINFO                       pWPDDevInfo = NULL;
+
+	TCHAR                               szParentDeviceID[1024] = {NULL};
+	TCHAR                               szDeviceID[1024] = {NULL};
+
+	int     nIndex = 0;
+
+	//生成WPDList
+	if(_pWPDListHead == NULL)
+	{
+		//_pStorageListHead 不存在，申请一个新节点
+		_pWPDListHead = DevList_AllocNewNode();
+		if(NULL == _pWPDListHead)
+		{
+			return;
+		}
+	}
+	//如果_pWPDListHead 中已存在数据，需要销毁
+	CleanupWPDDeviceList(_pWPDListHead);
+
+	// 取得一个该GUID相关的设备信息集句柄
+	hDevInfo = SetupDiGetClassDevs((LPGUID)&GUID_DEVINTERFACE_WPD,             // class GUID
+		NULL,                                        // 无关键字
+		NULL,                                        // 不指定父窗口句柄
+		DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);      // 目前存在的设备
+
+	// 失败...
+	if (hDevInfo == INVALID_HANDLE_VALUE)
+	{
+		//::AfxMessageBox(_T("SetupDiGetClassDevs FAIL!"));
+		OutputDebugString(_T("EnumStorage - SetupDiGetClassDevs"));
+		return;
+	}
+
+	//扫描所有的设备，筛选出符合条件的
+	pspDevInterfaceDetail =(PSP_DEVICE_INTERFACE_DETAIL_DATA) ALLOC(INTERFACE_DETAIL_SIZE * sizeof(TCHAR));
+	pspDevInterfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+
+	while ( !*flag )
+	{
+		spDevInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+		spDevInfoData.cbSize = sizeof (SP_DEVINFO_DATA);
+		//获取DevInfoData
+		if(SetupDiEnumDeviceInfo(hDevInfo,nIndex,&spDevInfoData))
+		{
+			//获取InterfaceData
+			if (SetupDiEnumDeviceInterfaces(hDevInfo,                               // 设备信息集句柄
+				NULL,                                   // 不需额外的设备描述
+				(LPGUID)&GUID_DEVINTERFACE_WPD,        // GUID
+				(ULONG) nIndex,                         // 设备信息集里的设备序号
+				&spDevInterfaceData))                   // 设备接口信息)
+			{
+				//获取InterfaceDetail
+				if (SetupDiGetInterfaceDeviceDetail(hDevInfo,                       // 设备信息集句柄
+					&spDevInterfaceData,            // 设备接口信息
+					pspDevInterfaceDetail,          // 设备接口细节(设备路径)
+					INTERFACE_DETAIL_SIZE,          // 输出缓冲区大小
+					NULL,                           // 不需计算输出缓冲区大小(直接用设定值)
+					NULL))                          // 不需额外的设备描述
+				{
+
+					//获取父系设备的DeviceID
+					BOOL bOK = GetStorageParentID(spDevInfoData.DevInst,szParentDeviceID);
+					bOK |= GetDeviceID(spDevInfoData.DevInst,szDeviceID);
+					if(!bOK)
+					{
+						//ParentDeviceID 获取失败，继续下一组
+						nIndex += 1;
+						continue;
+					}
+
+					//申请内存空间，存在设备的ParentDeviceID和设备盘符
+					pWPDDevInfo = (PWPDDEVIEINFO)ALLOC(sizeof(WPDDEVIEINFO));
+					if(NULL == pWPDDevInfo)
+					{
+						//申请内测空间失败
+						break;
+					}
+					size_t szLen;
+
+					if (szParentDeviceID)
+					{
+						szLen = _tcslen(szParentDeviceID) + 1;
+						pWPDDevInfo->pszParentDeviceID = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+						_tcscpy_s(pWPDDevInfo->pszParentDeviceID,szLen,szParentDeviceID);
+					}
+					
+					if (szDeviceID)
+					{
+						szLen = _tcslen(szDeviceID) + 1;
+						pWPDDevInfo->pszDeviceID = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+						_tcscpy_s(pWPDDevInfo->pszDeviceID,szLen,szDeviceID);
+					}
+
+					szLen = _tcslen(pspDevInterfaceDetail->DevicePath) + 1;
+					pWPDDevInfo->pszDevicePath = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+					_tcscpy_s(pWPDDevInfo->pszDevicePath,szLen,pspDevInterfaceDetail->DevicePath);
+
+					//插入到StorageList
+					DevList_AddNode(_pWPDListHead,(PVOID)pWPDDevInfo);
+					
+				}
+
+			}
+
+			nIndex += 1;
+		}
+		else
+		{
+			OutputDebugString(_T("EnumStorage - SetupDiEnumDeviceInfo"));
+			break;
+		}
+
+	}
+
+	FREE(pspDevInterfaceDetail);
+	pspDevInterfaceDetail = NULL;
+	SetupDiDestroyDeviceInfoList (hDevInfo);
+}
+
 
 /******************************************************************************
 * MatchStorageDeivceID
@@ -468,7 +672,77 @@ PSTORAGEDEVIEINFO
 			if(0 == _tcscmp(((PSTORAGEDEVIEINFO)(pListNode->pDevInfo))->pszParentDeviceID,pszDeviceID))
 			{
 				//找到了匹配的字串
-				return (PSTORAGEDEVIEINFO)(pListNode->pDevInfo);
+				PSTORAGEDEVIEINFO pStorageDevInfo = (PSTORAGEDEVIEINFO)ALLOC(sizeof(STORAGEDEVIEINFO));
+				if(NULL == pStorageDevInfo)
+				{
+					//申请内测空间失败
+					break;
+				}
+				//申请内存空间，存在设备的ParentDeviceID和设备盘符
+				size_t szLen;
+				szLen = _tcslen(((PSTORAGEDEVIEINFO)(pListNode->pDevInfo))->pszParentDeviceID) + 1;
+				pStorageDevInfo->pszParentDeviceID = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+				_tcscpy_s(pStorageDevInfo->pszParentDeviceID,szLen,((PSTORAGEDEVIEINFO)(pListNode->pDevInfo))->pszParentDeviceID);
+				pStorageDevInfo->nDiskNum = ((PSTORAGEDEVIEINFO)(pListNode->pDevInfo))->nDiskNum;
+				return pStorageDevInfo;
+			}
+		}
+
+		pListNode = pListNode->pNext;
+	}
+
+
+	return NULL;
+}
+
+PWPDDEVIEINFO 
+	MatchWPDDeivceID(PTSTR pszDeviceID)
+{
+	OutputDebugString(_T("MatchWPDDeivceID"));
+	OutputDebugString(pszDeviceID);
+	if(NULL == pszDeviceID)
+	{
+		return NULL;
+	}
+
+	PDEVICELIST pListNode = _pWPDListHead->pNext;
+
+	while(pListNode)
+	{
+		if(pListNode->pDevInfo)
+		{
+			//设备节点存在
+			if(0 == _tcscmp(((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszParentDeviceID,pszDeviceID)
+				|| 0 == _tcscmp(((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID,pszDeviceID))
+			{
+				//找到了匹配的字串
+				PWPDDEVIEINFO pWPDDevInfo = (PWPDDEVIEINFO)ALLOC(sizeof(WPDDEVIEINFO));
+				if(NULL == pWPDDevInfo)
+				{
+					//申请内测空间失败
+					break;
+				}
+				//申请内存空间，存在设备的ParentDeviceID和设备盘符
+				size_t szLen;
+				if (((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszParentDeviceID != NULL)
+				{
+					szLen = _tcslen(((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszParentDeviceID) + 1;
+					pWPDDevInfo->pszParentDeviceID = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+					_tcscpy_s(pWPDDevInfo->pszParentDeviceID,szLen,((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszParentDeviceID);
+				}
+
+				if (((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID != NULL)
+				{
+					szLen = _tcslen(((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID) + 1;
+					pWPDDevInfo->pszDeviceID = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+					_tcscpy_s(pWPDDevInfo->pszDeviceID,szLen,((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID);
+				}
+				
+				szLen = _tcslen(((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszDevicePath) + 1;
+				pWPDDevInfo->pszDevicePath = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+				_tcscpy_s(pWPDDevInfo->pszDevicePath,szLen,((PWPDDEVIEINFO)(pListNode->pDevInfo))->pszDevicePath);
+
+				return pWPDDevInfo;
 			}
 		}
 
@@ -571,13 +845,15 @@ VOID CleanStorageDevieInfo( PSTORAGEDEVIEINFO pStoDevInfo )
 {
 	if (pStoDevInfo)
 	{
-		FREE(pStoDevInfo->pszParentDeviceID);
-		pStoDevInfo->pszParentDeviceID = NULL;
+		if (pStoDevInfo->pszParentDeviceID)
+		{
+			FREE(pStoDevInfo->pszParentDeviceID);
+			pStoDevInfo->pszParentDeviceID = NULL;
+		}
 
 		pStoDevInfo->nDiskNum = -1;
 
 		FREE(pStoDevInfo);
-
 		pStoDevInfo = NULL;
 	}
 }
@@ -643,13 +919,15 @@ VOID CleanVolumeDeviceInfo( PVOLUMEDEVICEINFO pVolumeDevInfo )
 {
 	if (pVolumeDevInfo)
 	{
-		FREE(pVolumeDevInfo->pszVolumePath);
-		pVolumeDevInfo->pszVolumePath = NULL;
+		if (pVolumeDevInfo->pszVolumePath)
+		{
+			FREE(pVolumeDevInfo->pszVolumePath);
+			pVolumeDevInfo->pszVolumePath = NULL;
+		}
 
 		pVolumeDevInfo->nDiskNum = -1;
 
 		FREE(pVolumeDevInfo);
-
 		pVolumeDevInfo = NULL;
 	}
 }
@@ -664,4 +942,48 @@ VOID CleanupVolume()
 
 		_pVolumeListHead->pNext = NULL;
 	}
+}
+
+VOID CleanWPDDeviceInfo(PWPDDEVIEINFO pWPDDevInfo)
+{
+	if (pWPDDevInfo)
+	{
+		if (pWPDDevInfo->pszDevicePath)
+		{
+			FREE(pWPDDevInfo->pszDevicePath);
+			pWPDDevInfo->pszDevicePath = NULL;
+		}
+		
+		if (pWPDDevInfo->pszParentDeviceID)
+		{
+			FREE(pWPDDevInfo->pszParentDeviceID);
+			pWPDDevInfo->pszParentDeviceID = NULL;
+		}
+
+		if (pWPDDevInfo->pszDeviceID)
+		{
+			FREE(pWPDDevInfo->pszDeviceID);
+			pWPDDevInfo->pszDeviceID = NULL;
+		}
+
+		FREE(pWPDDevInfo);
+		pWPDDevInfo = NULL;
+	}
+}
+
+VOID CleanupWPDDeviceList(PDEVICELIST pDevList)
+{
+	if (pDevList->pNext != NULL)
+	{
+		//已存在StorageList,销毁全部数据，重新生成
+		DevList_Walk(pDevList->pNext,
+			Cleanup_WPDInfo);
+
+		pDevList->pNext = NULL;
+	}
+}
+
+VOID CleanupWPD()
+{
+	CleanupWPDDeviceList(_pWPDListHead);
 }

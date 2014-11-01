@@ -170,7 +170,7 @@ private:
 	ULONGLONG GetValidSize();
 	bool IsAllFailed(ErrorType &errType,PDWORD pdwErrorCode);
 
-	void AddDataQueueList(DATA_INFO dataInfo);
+	void AddDataQueueList(PDATA_INFO dataInfo);
 	bool IsReachLimitQty(int limit);
 
 	int EnumFile(CString strSource);

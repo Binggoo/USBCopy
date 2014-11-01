@@ -68,7 +68,8 @@ typedef enum _ENUM_WORK_MODE
 	WorkMode_ImageMake,
 	WorkMode_DiskClean,
 	WorkMode_DiskCompare,
-	WorkMode_DiskFormat
+	WorkMode_DiskFormat,
+	WorkMode_MTPCopy
 }WorkMode;
 
 // ¶Ë¿Ú×´Ì¬

@@ -2,13 +2,14 @@
 
 typedef struct _STRUCT_DATA_INFO
 {
+	LPTSTR szParentObjectID;
 	LPTSTR szFileName;
 	ULONGLONG ullOffset;
 	DWORD     dwDataSize;
 	DWORD     dwOldSize;   // 用于记录压缩之前数据大小
 	LPBYTE    pData;
 }DATA_INFO,*PDATA_INFO;
-typedef CList<DATA_INFO,DATA_INFO&> DATA_QUEUE;
+typedef CList<PDATA_INFO,PDATA_INFO> DATA_QUEUE;
 #define MAX_LENGTH_OF_DATA_QUEUE  100
 
 class CDataQueue
@@ -18,9 +19,9 @@ public:
 	~CDataQueue(void);
 
 	int GetCount();
-	void AddTail(DATA_INFO dataInfo);
-	DATA_INFO GetHead();
-	DATA_INFO GetHeadRemove();
+	void AddTail(PDATA_INFO dataInfo);
+	PDATA_INFO GetHead();
+	PDATA_INFO GetHeadRemove();
 	void RemoveHead();
 	void Clear();
 

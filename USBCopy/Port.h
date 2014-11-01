@@ -29,6 +29,9 @@ private:
 	WorkMode m_WorkMode;
 	HashMethod m_HashMethod;
 	BOOL m_bKickOff; // 剔除标志
+
+	// 2014-10-30 MTP 新增
+	CString m_strDevicePath;
 	
 	// 映像
 	CString m_strFileName;
@@ -108,6 +111,10 @@ public:
 
 	BOOL IsKickOff();
 	void SetKickOff(BOOL bKickOff);
+
+	// 2014-10-30 MTP 新增
+	CString GetDevicePath();
+	void SetDevicePath(CString strDevicePath);
 
 	//映像
 	CString GetFileName();

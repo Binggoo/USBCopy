@@ -150,6 +150,7 @@ PTSTR WideStrToMultiStr (__in LPCWSTR WideStr)
 	if (nBytes == 0)
 	{
 		FREE(MultiStr);
+		MultiStr = NULL;
 		return NULL;
 	}
 	return MultiStr;
@@ -243,6 +244,7 @@ PTSTR GetDriverKeyName (
 	// converted driver key name
 	//
 	FREE(driverKeyNameW);
+	driverKeyNameW = NULL;
 
 	return driverKeyNameA;
 
@@ -407,6 +409,7 @@ PUSB_DESCRIPTOR_REQUEST
 	{
 		OOPS();
 		FREE(configDescReq);
+		configDescReq = NULL;
 		return NULL;
 	}
 
@@ -414,6 +417,7 @@ PUSB_DESCRIPTOR_REQUEST
 	{
 		OOPS();
 		FREE(configDescReq);
+		configDescReq = NULL;
 		return NULL;
 	}
 
@@ -421,6 +425,7 @@ PUSB_DESCRIPTOR_REQUEST
 	{
 		OOPS();
 		FREE(configDescReq);
+		configDescReq = NULL;
 		return NULL;
 	}
 
@@ -947,6 +952,7 @@ PTSTR DriverKeyNameToDeviceDesc (__in PCTSTR DriverName, BOOLEAN DeviceId)
 			else
 			{
 				FREE(buf);
+				buf = NULL;
 				return NULL;
 			}
 		}
@@ -1001,6 +1007,7 @@ PTSTR DriverKeyNameToDeviceDesc (__in PCTSTR DriverName, BOOLEAN DeviceId)
 	if(buf)
 	{
 		FREE(buf);
+		buf = NULL;
 	}
 
 	return NULL;
@@ -1135,6 +1142,7 @@ PUSBDEVICEINFO
 			sizeof(USB_PIPE_INFO) * 30);
 
 		FREE(connectionInfo);
+		connectionInfo = NULL;
 	}
 
 	// If there is a device connected, get the Device Description
@@ -1151,6 +1159,7 @@ PUSBDEVICEINFO
 			deviceId = DriverKeyNameToDeviceDesc(driverKeyName, TRUE);
 
 			FREE(driverKeyName);
+			driverKeyName = NULL;
 		}
 	}
 	else
@@ -1211,10 +1220,12 @@ PUSBDEVICEINFO
 EnumHubPortError:
 
 	FREE(connectionInfoEx);
+	connectionInfoEx = NULL;
 
 	if (configDesc)
 	{
 		FREE(configDesc);
+		configDesc = NULL;
 	}
 
 	if (stringDescs != NULL)
@@ -1236,11 +1247,13 @@ EnumHubPortError:
 	if(deviceDesc)
 	{
 		FREE(deviceDesc);
+		deviceDesc = NULL;
 	}
 
 	if(deviceId)
 	{
 		FREE(deviceId);
+		deviceId = NULL;
 	}
 
 	if (hHubDevice != INVALID_HANDLE_VALUE)
@@ -1286,6 +1299,7 @@ VOID
 		if (ConfigDesc)
 		{
 			FREE(ConfigDesc);
+			ConfigDesc = NULL;
 		}
 
 		if (StringDescs)
@@ -1306,20 +1320,24 @@ VOID
 		if (ConnectionInfoEx)
 		{
 			FREE(ConnectionInfoEx);
+			ConnectionInfoEx = NULL;
 		}
 
 		////2011.09.20 DeviceInfo中增加了DeviceDesc 和 DeviceID,需要销毁
 		if (DeviceDesc)
 		{
 			FREE(DeviceDesc);
+			DeviceDesc = NULL;
 		}
 
 		if (DeviceID)
 		{
 			FREE(DeviceID);
+			DeviceID = NULL;
 		}
 
 		FREE(info);
+		info = NULL;
 	}
 }
 

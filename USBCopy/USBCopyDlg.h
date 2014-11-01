@@ -89,6 +89,7 @@ private:
 	BOOL  m_bLisence;
 
 	BOOL  m_bIsUSB;
+	BOOL  m_bIsMTP;
 
 	enum
 	{
@@ -132,6 +133,9 @@ private:
 
 	void EnumDevice();
 	void MatchDevice();
+
+	void EnumMTPDevice();
+	void MatchMTPDevice();
 
 	void BackupLogfile(HANDLE hFile,DWORD dwFileSize);
 
