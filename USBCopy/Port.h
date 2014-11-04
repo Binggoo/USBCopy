@@ -32,6 +32,7 @@ private:
 
 	// 2014-10-30 MTP 新增
 	CString m_strDevicePath;
+	CString m_strUSBType;
 	
 	// 映像
 	CString m_strFileName;
@@ -115,6 +116,9 @@ public:
 	// 2014-10-30 MTP 新增
 	CString GetDevicePath();
 	void SetDevicePath(CString strDevicePath);
+
+	CString GetUsbType();
+	void SetUsbType(CString strUSBType);
 
 	//映像
 	CString GetFileName();

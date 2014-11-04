@@ -44,6 +44,8 @@ private:
 
 	UINT m_nCount;
 
+	CFont m_font;
+
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 
 	BOOL IsSlowest();

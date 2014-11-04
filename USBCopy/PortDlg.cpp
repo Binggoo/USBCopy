@@ -61,6 +61,10 @@ BOOL CPortDlg::OnInitDialog()
 	m_Tooltips.Create(this,TTS_ALWAYSTIP);
 	m_Tooltips.SetMaxTipWidth(200);
 	m_Tooltips.AddTool(&m_PictureCtrol,_T("Offline"));
+
+	m_font.CreatePointFont(85,_T("Arial"));
+
+	GetDlgItem(IDC_TEXT_SN)->SetFont(&m_font);
 	
 	Initial();
 
@@ -91,7 +95,7 @@ void CPortDlg::ChangeSize( CWnd *pWnd,int cx, int cy )
 		CRect rect;
 		pWnd->GetWindowRect(&rect);
 		ScreenToClient(&rect);
-		rect.left=rect.left*cx/m_Rect.Width();
+		//rect.left=rect.left*cx/m_Rect.Width();
 		rect.right=rect.right*cx/m_Rect.Width();
 		rect.top=rect.top*cy/m_Rect.Height();
 		rect.bottom=rect.bottom*cy/m_Rect.Height();
@@ -149,7 +153,8 @@ void CPortDlg::Initial()
 	m_Bitmap.LoadBitmap(nID);
 	m_PictureCtrol.SetBitmap(m_Bitmap);
 
-	SetDlgItemText(IDC_TEXT_SPEED,_T(""));
+	SetDlgItemText(IDC_TEXT_SPEED_R,_T(""));
+	SetDlgItemText(IDC_TEXT_SPEED_W,_T(""));
 	SetDlgItemText(IDC_TEXT_SIZE,_T(""));
 	SetDlgItemText(IDC_TEXT_SN,_T(""));
 
@@ -264,7 +269,7 @@ CPort * CPortDlg::GetPort()
 
 void CPortDlg::UpdateState()
 {
-	CString strSpeed,strSize,strSN,strTips;
+	CString strSpeed,strSize,strSN,strTips,strUSBType;
 	int iPercent = 0;
 	UINT nID  = IDB_GRAY;
 	switch (m_Port->GetPortState())
@@ -280,6 +285,7 @@ void CPortDlg::UpdateState()
 		strSize = _T("");
 		strSN = _T("");
 		strTips = _T("Offline");
+		strUSBType = _T("");
 		iPercent = 0;
 
 		if (m_bOnlineCommand)
@@ -303,6 +309,7 @@ void CPortDlg::UpdateState()
 		strSN = m_Port->GetSN();
 		strTips.Format(_T("Online\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
 		iPercent = 0;
+		strUSBType = m_Port->GetUsbType();
 
 		if (!m_bOnlineCommand)
 		{
@@ -337,6 +344,7 @@ void CPortDlg::UpdateState()
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
 		strSN = m_Port->GetSN();
 		iPercent = m_Port->GetPercent();
+		strUSBType = m_Port->GetUsbType();
 
 		strTips.Format(_T("Running\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
 
@@ -354,6 +362,7 @@ void CPortDlg::UpdateState()
 		strSize = CUtils::AdjustFileSize(m_Port->GetTotalSize());
 		strSN = m_Port->GetSN();
 		iPercent = 100;
+		strUSBType = m_Port->GetUsbType();
 
 		strTips.Format(_T("PASS\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
 
@@ -379,6 +388,7 @@ void CPortDlg::UpdateState()
 		strSN = m_Port->GetSN();
 		iPercent = m_Port->GetPercent();
 		strTips.Format(_T("FAIL\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
+		strUSBType = m_Port->GetUsbType();
 
 		if (!m_bStopCommand)
 		{
@@ -397,10 +407,24 @@ void CPortDlg::UpdateState()
 	m_Bitmap.LoadBitmap(nID);
 	m_PictureCtrol.SetBitmap(m_Bitmap);
 	SetDlgItemText(IDC_TEXT_SIZE,strSize);
-	SetDlgItemText(IDC_TEXT_SPEED,strSpeed);
+	SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
 	SetDlgItemText(IDC_TEXT_SN,strSN);
 	m_ProgressCtrl.SetPos(iPercent);
 
+	
+
+	if (!strUSBType.IsEmpty())
+	{
+		CString strGroupText;
+		strGroupText.Format(_T("%s                     %s"),m_Port->GetPortName(),strUSBType);
+
+		SetDlgItemText(IDC_GROUP_PORT,strGroupText);
+	}
+	else
+	{
+		SetDlgItemText(IDC_GROUP_PORT,m_Port->GetPortName());
+	}
+	
 	m_Tooltips.UpdateTipText(strTips,&m_PictureCtrol);
 }
 

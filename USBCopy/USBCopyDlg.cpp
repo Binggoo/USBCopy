@@ -943,20 +943,39 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 	case WorkMode_FileCopy:
 		{
 			CString strMsg;
-			if (m_MasterPort.IsConnected() && PathFileExists(MASTER_PATH))
+			if (m_MasterPort.IsConnected())
 			{
-				CFileCopySetting dlg;
-				dlg.SetConfig(&m_Config,&m_MasterPort);
-				dlg.DoModal();
-			}
-			else if (!m_MasterPort.IsConnected())
-			{
-				strMsg.LoadString(IDS_MSG_NO_MASTER);
-				MessageBox(strMsg);
+				CStringArray strVolumeArray;
+				m_MasterPort.GetVolumeArray(strVolumeArray);
+
+				if (strVolumeArray.GetCount() == 0)
+				{
+					strMsg.LoadString(IDS_MSG_MASTER_UNRECOGNIZED);
+					MessageBox(strMsg);
+				}
+				else
+				{
+					//给母盘分配盘符
+					CString strVolume = strVolumeArray.GetAt(0);
+					strVolume += _T("\\");
+					CDisk::ChangeLetter(strVolume,MASTER_PATH);
+
+					if (PathFileExists(MASTER_PATH))
+					{
+						CFileCopySetting dlg;
+						dlg.SetConfig(&m_Config,&m_MasterPort);
+						dlg.DoModal();
+					}
+					else
+					{
+						strMsg.LoadString(IDS_MSG_MASTER_UNRECOGNIZED);
+						MessageBox(strMsg);
+					}
+				}
 			}
 			else
 			{
-				strMsg.LoadString(IDS_MSG_MASTER_UNRECOGNIZED);
+				strMsg.LoadString(IDS_MSG_NO_MASTER);
 				MessageBox(strMsg);
 			}
 			
@@ -3059,212 +3078,224 @@ void CUSBCopyDlg::MatchDevice()
 					PSTORAGEDEVIEINFO pStorageDevInfo = (PSTORAGEDEVIEINFO)pListNode->pDevInfo;
 					if (pStorageDevInfo)
 					{
-						if (!port->IsConnected())
+						DWORD dwErrorCode = 0;
+						HANDLE hDevice = CDisk::GetHandleOnPhysicalDrive(pStorageDevInfo->nDiskNum,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+						if (hDevice != INVALID_HANDLE_VALUE)
 						{
-							DWORD dwErrorCode = 0;
-							HANDLE hDevice = CDisk::GetHandleOnPhysicalDrive(pStorageDevInfo->nDiskNum,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+							ULONGLONG ullSectorNums = 0;
+							DWORD dwBytesPerSector = 0;
+							MEDIA_TYPE type;
+							ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector,&type);
 
-							if (hDevice != INVALID_HANDLE_VALUE)
+							// 如果是母盘设置ReadOnly
+							if (port->GetPortNum() == 0)
 							{
-								ULONGLONG ullSectorNums = 0;
-								DWORD dwBytesPerSector = 0;
-								MEDIA_TYPE type;
-								ullSectorNums = CDisk::GetNumberOfSectors(hDevice,&dwBytesPerSector,&type);
-
-								// 如果是母盘设置ReadOnly
-								if (port->GetPortNum() == 0)
-								{
-									if (m_WorkMode == WorkMode_FileCopy)
-									{
-										CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
-									}
-									else
-									{
-										CDisk::SetDiskAtrribute(hDevice,TRUE,FALSE,&dwErrorCode);
-									}
-
-								}
-								else
+								if (m_WorkMode == WorkMode_FileCopy)
 								{
 									CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
 								}
-
-
-								if (ullSectorNums > 0)
-								{
-									// 一个磁盘中有几个volume
-									CStringArray strVolumeArray;
-									pVolumeList = MatchVolumeDeviceDiskNums(pStorageDevInfo->nDiskNum);
-
-									if (pVolumeList)
-									{
-										PDEVICELIST pVolumeNode = pVolumeList->pNext;
-										while (pVolumeNode)
-										{
-											PVOLUMEDEVICEINFO pVolumeInfo = (PVOLUMEDEVICEINFO)pVolumeNode->pDevInfo;
-											if (pVolumeInfo)
-											{
-												CString strVolume(pVolumeInfo->pszVolumePath);
-												strVolumeArray.Add(strVolume);
-
-												if (port->GetPortNum() == 0 && m_WorkMode == WorkMode_FileCopy)
-												{
-													//给母盘分配盘符
-													strVolume += _T("\\");
-													CDisk::ChangeLetter(strVolume,MASTER_PATH);
-												}
-											}
-
-											pVolumeNode = pVolumeNode->pNext;
-										}
-
-										CleanupVolumeDeviceList(pVolumeList);
-									}
-
-									if (!m_bIsUSB)
-									{
-										TCHAR szModelName[256] = {NULL};
-										TCHAR szSerialNumber[256] = {NULL};
-
-										CDisk::GetTSModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode);
-
-										strModel = CString(szModelName);
-										strSN = CString(szSerialNumber);
-
-										strModel.Trim();
-										strSN.Trim();
-									}
-									else
-									{
-
-										PSTORAGE_DEVICE_DESCRIPTOR DeviceDescriptor;
-										DeviceDescriptor=(PSTORAGE_DEVICE_DESCRIPTOR)new BYTE[sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1];
-										DeviceDescriptor->Size = sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1;
-
-										BOOL bOK = GetDriveProperty(hDevice,DeviceDescriptor);
-
-										dwErrorCode = GetLastError();
-
-										if (bOK)
-										{
-											LPCSTR vendorId = "";
-											LPCSTR productId = "";
-
-											//										LPCSTR serialNumber = "";
-
-											if ((DeviceDescriptor->ProductIdOffset != 0) &&
-												(DeviceDescriptor->ProductIdOffset != -1)) 
-											{
-												productId        = (LPCSTR)(DeviceDescriptor);
-												productId       += (ULONG_PTR)DeviceDescriptor->ProductIdOffset;
-											}
-
-											if ((DeviceDescriptor->VendorIdOffset != 0) &&
-												(DeviceDescriptor->VendorIdOffset != -1)) 
-											{
-												vendorId         = (LPCSTR)(DeviceDescriptor);
-												vendorId        += (ULONG_PTR)DeviceDescriptor->VendorIdOffset;
-											}
-
-											strModel = CString(vendorId) + CString(productId);
-
-											if (pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber)
-											{
-												PSTRING_DESCRIPTOR_NODE StringDescs = pUsbDeviceInfo->StringDescs;
-												UCHAR Index = pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber;
-												// Use an actual "int" here because it's passed as a printf * precision
-												int descChars;  
-
-												while (StringDescs)
-												{
-													if (StringDescs->DescriptorIndex == Index)
-													{
-
-														//
-														// bString from USB_STRING_DESCRIPTOR isn't NULL-terminated, so 
-														// calculate the number of characters.  
-														// 
-														// bLength is the length of the whole structure, not just the string.  
-														// 
-														// bLength is bytes, bString is WCHARs
-														// 
-														descChars = 
-															( (int) StringDescs->StringDescriptor->bLength - 
-															offsetof(USB_STRING_DESCRIPTOR, bString) ) /
-															sizeof(WCHAR);
-														//
-														// Use the * precision and pass the number of characters just caculated.
-														// bString is always WCHAR so specify widestring regardless of what TCHAR resolves to
-														// 
-														strSN.Format(_T("%.*ws"),
-															descChars,
-															StringDescs->StringDescriptor->bString);
-													}
-
-													StringDescs = StringDescs->Next;
-												}
-											}
-
-											strModel.Trim();
-											strSN.Trim();
-
-											// 判断是移动硬盘还是U盘，如果是移动硬盘可以获取SN和Model
-											if (type == FixedMedia && DeviceDescriptor->BusType == BusTypeUsb)
-											{
-												TCHAR szModelName[256] = {NULL};
-												TCHAR szSerialNumber[256] = {NULL};
-
-												if (CDisk::GetUsbHDDModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode))
-												{
-													CString strModelTemp = CString(szModelName);
-													CString strSNTemp = CString(szSerialNumber);
-
-													strModelTemp.Trim();
-													strSNTemp.Trim();
-
-													if (!strModelTemp.IsEmpty() && !strSNTemp.IsEmpty())
-													{
-														strModel = strModelTemp;
-														strSN = strSNTemp;
-													}
-												}
-
-											}
-
-										}
-
-										delete []DeviceDescriptor;
-
-									}
-
-									port->SetConnected(TRUE);
-									port->SetDiskNum(pStorageDevInfo->nDiskNum);
-									port->SetPortState(PortState_Online);
-									port->SetBytesPerSector(dwBytesPerSector);
-									port->SetTotalSize(ullSectorNums * dwBytesPerSector);
-									port->SetVolumeArray(strVolumeArray);
-									port->SetSN(strSN);
-									port->SetModuleName(strModel);
-
-									CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,ModelName=%s,SN=%s")
-										,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
-										,ullSectorNums * dwBytesPerSector,strModel,strSN);
-
-									break;
-								}
 								else
 								{
-									port->Initial();
-
+									CDisk::SetDiskAtrribute(hDevice,TRUE,FALSE,&dwErrorCode);
 								}
-
-								CloseHandle(hDevice);
 
 							}
 							else
 							{
+								CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
+							}
+
+
+							if (ullSectorNums > 0)
+							{
+
+								if (port->IsConnected())
+								{
+									CloseHandle(hDevice);
+									break;
+								}
+
+								// 一个磁盘中有几个volume
+								CStringArray strVolumeArray;
+								pVolumeList = MatchVolumeDeviceDiskNums(pStorageDevInfo->nDiskNum);
+
+								if (pVolumeList)
+								{
+									PDEVICELIST pVolumeNode = pVolumeList->pNext;
+									while (pVolumeNode)
+									{
+										PVOLUMEDEVICEINFO pVolumeInfo = (PVOLUMEDEVICEINFO)pVolumeNode->pDevInfo;
+										if (pVolumeInfo)
+										{
+											CString strVolume(pVolumeInfo->pszVolumePath);
+											strVolumeArray.Add(strVolume);
+
+											if (port->GetPortNum() == 0 && m_WorkMode == WorkMode_FileCopy)
+											{
+												//给母盘分配盘符
+												strVolume += _T("\\");
+												CDisk::ChangeLetter(strVolume,MASTER_PATH);
+											}
+										}
+
+										pVolumeNode = pVolumeNode->pNext;
+									}
+
+									CleanupVolumeDeviceList(pVolumeList);
+								}
+
+								if (!m_bIsUSB)
+								{
+									TCHAR szModelName[256] = {NULL};
+									TCHAR szSerialNumber[256] = {NULL};
+
+									CDisk::GetTSModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode);
+
+									strModel = CString(szModelName);
+									strSN = CString(szSerialNumber);
+
+									strModel.Trim();
+									strSN.Trim();
+								}
+								else
+								{
+
+									PSTORAGE_DEVICE_DESCRIPTOR DeviceDescriptor;
+									DeviceDescriptor=(PSTORAGE_DEVICE_DESCRIPTOR)new BYTE[sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1];
+									DeviceDescriptor->Size = sizeof(STORAGE_DEVICE_DESCRIPTOR) + 512 - 1;
+
+									BOOL bOK = GetDriveProperty(hDevice,DeviceDescriptor);
+
+									dwErrorCode = GetLastError();
+
+									if (bOK)
+									{
+										LPCSTR vendorId = "";
+										LPCSTR productId = "";
+
+										//										LPCSTR serialNumber = "";
+
+										if ((DeviceDescriptor->ProductIdOffset != 0) &&
+											(DeviceDescriptor->ProductIdOffset != -1)) 
+										{
+											productId        = (LPCSTR)(DeviceDescriptor);
+											productId       += (ULONG_PTR)DeviceDescriptor->ProductIdOffset;
+										}
+
+										if ((DeviceDescriptor->VendorIdOffset != 0) &&
+											(DeviceDescriptor->VendorIdOffset != -1)) 
+										{
+											vendorId         = (LPCSTR)(DeviceDescriptor);
+											vendorId        += (ULONG_PTR)DeviceDescriptor->VendorIdOffset;
+										}
+
+										strModel = CString(vendorId) + CString(productId);
+
+										if (pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber)
+										{
+											PSTRING_DESCRIPTOR_NODE StringDescs = pUsbDeviceInfo->StringDescs;
+											UCHAR Index = pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.iSerialNumber;
+											// Use an actual "int" here because it's passed as a printf * precision
+											int descChars;  
+
+											while (StringDescs)
+											{
+												if (StringDescs->DescriptorIndex == Index)
+												{
+
+													//
+													// bString from USB_STRING_DESCRIPTOR isn't NULL-terminated, so 
+													// calculate the number of characters.  
+													// 
+													// bLength is the length of the whole structure, not just the string.  
+													// 
+													// bLength is bytes, bString is WCHARs
+													// 
+													descChars = 
+														( (int) StringDescs->StringDescriptor->bLength - 
+														offsetof(USB_STRING_DESCRIPTOR, bString) ) /
+														sizeof(WCHAR);
+													//
+													// Use the * precision and pass the number of characters just caculated.
+													// bString is always WCHAR so specify widestring regardless of what TCHAR resolves to
+													// 
+													strSN.Format(_T("%.*ws"),
+														descChars,
+														StringDescs->StringDescriptor->bString);
+												}
+
+												StringDescs = StringDescs->Next;
+											}
+										}
+
+										strModel.Trim();
+										strSN.Trim();
+
+										// 判断是移动硬盘还是U盘，如果是移动硬盘可以获取SN和Model
+										if (type == FixedMedia && DeviceDescriptor->BusType == BusTypeUsb)
+										{
+											TCHAR szModelName[256] = {NULL};
+											TCHAR szSerialNumber[256] = {NULL};
+
+											if (CDisk::GetUsbHDDModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode))
+											{
+												CString strModelTemp = CString(szModelName);
+												CString strSNTemp = CString(szSerialNumber);
+
+												strModelTemp.Trim();
+												strSNTemp.Trim();
+
+												if (!strModelTemp.IsEmpty() && !strSNTemp.IsEmpty())
+												{
+													strModel = strModelTemp;
+													strSN = strSNTemp;
+												}
+											}
+
+										}
+
+									}
+
+									delete []DeviceDescriptor;
+
+								}
+
+								port->SetConnected(TRUE);
+								port->SetDiskNum(pStorageDevInfo->nDiskNum);
+								port->SetPortState(PortState_Online);
+								port->SetBytesPerSector(dwBytesPerSector);
+								port->SetTotalSize(ullSectorNums * dwBytesPerSector);
+								port->SetVolumeArray(strVolumeArray);
+								port->SetSN(strSN);
+								port->SetModuleName(strModel);
+
+								if ((pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB & 0x0300) == 0x0300)
+								{
+									port->SetUsbType(_T("3.0"));
+								}
+								else
+								{
+									port->SetUsbType(_T("2.0"));
+								}
+
+								CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,ModelName=%s,SN=%s")
+									,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
+									,ullSectorNums * dwBytesPerSector,strModel,strSN);
+
+								CloseHandle(hDevice);
+								break;
+							}
+							else
+							{
+								CloseHandle(hDevice);
 								port->Initial();
 							}
+
+						}
+						else
+						{
+							port->Initial();
 						}
 					}
 					else
@@ -3392,6 +3423,15 @@ void CUSBCopyDlg::MatchMTPDevice()
 						port->SetCompleteSize(ullTotalSize - ullFreeSize);
 						port->SetSN(strSN);
 						port->SetModuleName(strModel);
+
+						if ((pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB & 0x0300) == 0x0300)
+						{
+							port->SetUsbType(_T("3.0"));
+						}
+						else
+						{
+							port->SetUsbType(_T("2.0"));
+						}
 
 						CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,FreeSize=%I64d,ModelName=%s,SN=%s")
 							,port->GetPortName(),strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB

@@ -47,6 +47,7 @@ void CPort::Initial()
 	m_WorkMode = WorkMode_None;
 	m_bKickOff = FALSE;
 	m_strDevicePath = _T("");
+	m_strUSBType = _T("");
 
 	// Ó³Ïñ
 	m_strFileName = _T("");
@@ -606,5 +607,15 @@ CString CPort::GetDevicePath()
 void CPort::SetDevicePath( CString strDevicePath )
 {
 	m_strDevicePath = strDevicePath;
+}
+
+CString CPort::GetUsbType()
+{
+	return m_strUSBType;
+}
+
+void CPort::SetUsbType(CString strUSBType)
+{
+	m_strUSBType = strUSBType;
 }
 

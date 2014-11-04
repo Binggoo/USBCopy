@@ -450,15 +450,16 @@ void CScanningDlg::ScanningDevice()
 									,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
 									,ullSectorNums * dwBytesPerSector,strModel,strSN);
 
+								CloseHandle(hDevice);
 								break;
 							}
 							else
 							{
+								CloseHandle(hDevice);
 								port->Initial();
 								
 							}
-
-							CloseHandle(hDevice);
+							
 							
 						}
 						else
