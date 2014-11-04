@@ -9,6 +9,7 @@
 #include "EnumStorage.h"
 #include "Utils.h"
 #include "Disk.h"
+#include "WPDFunction.h"
 
 // CScanningDlg ¶Ô»°¿ò
 
@@ -106,7 +107,7 @@ void CScanningDlg::OnTimer(UINT_PTR nIDEvent)
 
 		m_dwOldTime = m_dwCurrentTime;
 
-		static BOOL bStop = FALSE;
+		BOOL bStop = FALSE;
 
 		if (m_nWaitTimeS < 0)
 		{
@@ -120,11 +121,20 @@ void CScanningDlg::OnTimer(UINT_PTR nIDEvent)
 		SetDlgItemText(IDC_TEXT_SCAN,strText);
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning disk......"));
 
-		EnumStorage(&bStop);
-		EnumVolume(&bStop);
-		ScanningDevice();
-		CleanupStorage();
-		CleanupVolume();
+		if (m_WorkMode == WorkMode_MTPCopy)
+		{
+			EnumWPD(&bStop);
+			ScanningMTPDevice();
+			CleanupWPD();
+		}
+		else
+		{
+			EnumStorage(&bStop);
+			EnumVolume(&bStop);
+			ScanningDevice();
+			CleanupStorage();
+			CleanupVolume();
+		}
 
 		if (IsAllConnected())
 		{
@@ -406,11 +416,17 @@ void CScanningDlg::ScanningDevice()
 
 											if (CDisk::GetUsbHDDModelNameAndSerialNumber(hDevice,szModelName,szSerialNumber,&dwErrorCode))
 											{
-												strModel = CString(szModelName);
-												strSN = CString(szSerialNumber);
+												CString strModelTemp = CString(szModelName);
+												CString strSNTemp = CString(szSerialNumber);
 
-												strModel.Trim();
-												strSN.Trim();
+												strModelTemp.Trim();
+												strSNTemp.Trim();
+
+												if (!strModelTemp.IsEmpty() && !strSNTemp.IsEmpty())
+												{
+													strModel = strModelTemp;
+													strSN = strSNTemp;
+												}
 											}
 
 										}
@@ -547,4 +563,108 @@ BOOL CScanningDlg::PreTranslateMessage(MSG* pMsg)
 	}
 
 	return CDialogEx::PreTranslateMessage(pMsg);
+}
+
+void CScanningDlg::ScanningMTPDevice()
+{
+	POSITION pos = m_pTargetPortList->GetHeadPosition();
+	CString strPath;
+	int nConnectIndex = -1;
+	int nCount = 0;
+	CString strModel,strSN;
+	while (pos)
+	{
+		PUSBDEVICEINFO pUsbDeviceInfo = NULL;
+		PWPDDEVIEINFO pWPDDevInfo = NULL;
+		CPort *port;
+
+		if (nCount == 0)
+		{
+			port = m_pMasterPort;
+		}
+		else
+		{
+			port = m_pTargetPortList->GetNext(pos);
+		}
+
+		nCount++;
+
+		strPath = port->GetPath1();
+		nConnectIndex = port->GetConnectIndex1();
+		pUsbDeviceInfo = GetHubPortDeviceInfo(strPath.GetBuffer(),nConnectIndex);
+
+		if (pUsbDeviceInfo == NULL)
+		{
+			strPath = port->GetPath2();
+			nConnectIndex = port->GetConnectIndex2();
+			pUsbDeviceInfo = GetHubPortDeviceInfo(strPath.GetBuffer(),nConnectIndex);
+		}
+
+		if (pUsbDeviceInfo)
+		{
+			pWPDDevInfo = MatchWPDDeivceID(pUsbDeviceInfo->DeviceID);
+
+			if (pWPDDevInfo)
+			{
+				DWORD dwErrorCode = 0;
+				CComPtr<IPortableDevice> pIPortableDevice;
+				HRESULT hr = OpenDevice(&pIPortableDevice,pWPDDevInfo->pszDevicePath);
+
+				if (SUCCEEDED(hr) && pIPortableDevice != NULL)
+				{
+					GetDeviceModelAndSerialNumber(pIPortableDevice,strModel.GetBuffer(MAX_PATH),strSN.GetBuffer(MAX_PATH));
+					strModel.ReleaseBuffer();
+					strSN.ReleaseBuffer();
+
+					LPWSTR *ppwszObjectIDs = NULL;
+					DWORD dwObjects = EnumStorageIDs(pIPortableDevice,&ppwszObjectIDs);
+
+					ULONGLONG ullTotalSize = 0,ullFreeSize = 0;
+					if (dwObjects > 0)
+					{
+						GetStorageFreeAndTotalCapacity(pIPortableDevice,ppwszObjectIDs[0],&ullFreeSize,&ullTotalSize);
+
+						for (DWORD index = 0; index < dwObjects;index++)
+						{
+							delete []ppwszObjectIDs[index];
+							ppwszObjectIDs[index] = NULL;
+						}
+
+						delete []ppwszObjectIDs;
+						ppwszObjectIDs = NULL;
+					}
+
+
+					port->SetConnected(TRUE);
+					port->SetDevicePath(CString(pWPDDevInfo->pszDevicePath));
+					port->SetPortState(PortState_Online);
+					port->SetTotalSize(ullTotalSize);
+					port->SetCompleteSize(ullTotalSize - ullFreeSize);
+					port->SetSN(strSN);
+					port->SetModuleName(strModel);
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,FreeSize=%I64d,ModelName=%s,SN=%s")
+						,port->GetPortName(),strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
+						,ullTotalSize,ullFreeSize,strModel,strSN);
+				}
+				else
+				{
+					port->Initial();
+				}
+
+				CleanWPDDeviceInfo(pWPDDevInfo);
+			}
+			else
+			{
+				port->Initial();
+			}
+
+			CleanupInfo(pUsbDeviceInfo);
+			pUsbDeviceInfo = NULL;
+		}
+		else
+		{
+			port->Initial();
+		}
+	}
 }

@@ -39,7 +39,7 @@ BEGIN_MESSAGE_MAP(CSystemMenu, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_SOFTWARE_UPDATE, &CSystemMenu::OnBnClickedButtonUpdate)
 	ON_COMMAND(ID_MOREFUNCTION_SOFTWARERECOVERY, &CSystemMenu::OnBnClickedButtonRestore)
 	ON_BN_CLICKED(IDC_BTN_GLOBAL_SETTING, &CSystemMenu::OnBnClickedButtonGlobal)
-	ON_BN_CLICKED(IDC_BTN_SYNCHRONIZE_IMAGE, &CSystemMenu::OnBnClickedButtonSynchImage)
+	//ON_BN_CLICKED(IDC_BTN_SYNCHRONIZE_IMAGE, &CSystemMenu::OnBnClickedButtonSynchImage)
 	ON_BN_CLICKED(IDC_BTN_IMAGE_MANAGER, &CSystemMenu::OnBnClickedButtonImageManager)
 	ON_COMMAND(ID_MOREFUNCTION_VIEWLOG, &CSystemMenu::OnBnClickedButtonViewLog)
 	ON_BN_CLICKED(IDC_BTN_EXPORT_LOG, &CSystemMenu::OnBnClickedButtonExportLog)
@@ -74,9 +74,9 @@ BOOL CSystemMenu::OnInitDialog()
 	m_BtnSetting.SetFlat(FALSE);
 	m_BtnSetting.SetBitmaps(IDB_SETTING,RGB(255,255,255));
 
-	m_BtnSyncImage.SubclassDlgItem(IDC_BTN_SYNCHRONIZE_IMAGE,this);
-	m_BtnSyncImage.SetFlat(FALSE);
-	m_BtnSyncImage.SetBitmaps(IDB_SYNC,RGB(255,255,255));
+// 	m_BtnSyncImage.SubclassDlgItem(IDC_BTN_SYNCHRONIZE_IMAGE,this);
+// 	m_BtnSyncImage.SetFlat(FALSE);
+// 	m_BtnSyncImage.SetBitmaps(IDB_SYNC,RGB(255,255,255));
 
 	m_BtnImageManager.SubclassDlgItem(IDC_BTN_IMAGE_MANAGER,this);
 	m_BtnImageManager.SetFlat(FALSE);
@@ -88,9 +88,9 @@ BOOL CSystemMenu::OnInitDialog()
 
 	m_BtnReturn.SubclassDlgItem(IDOK,this);
 	m_BtnReturn.SetBitmaps(IDB_RETURN,RGB(255,255,255));
-	m_BtnReturn.SetFlat(FALSE);
-// 	m_BtnReturn.DrawBorder(FALSE);
-// 	SetDlgItemText(IDOK,_T(""));
+	//m_BtnReturn.SetFlat(FALSE);
+	m_BtnReturn.DrawBorder(FALSE);
+	SetDlgItemText(IDOK,_T(""));
 
 	m_BtnMore.SubclassDlgItem(IDC_BTN_MORE,this);
 	m_BtnMore.SetFlat(FALSE);
@@ -99,6 +99,12 @@ BOOL CSystemMenu::OnInitDialog()
 	m_BtnPackage.SubclassDlgItem(IDC_BTN_PKG_MANAGER,this);
 	m_BtnPackage.SetFlat(FALSE);
 	m_BtnPackage.SetBitmaps(IDB_PACKAGE,RGB(255,255,255));
+
+	m_BtnShutDown.SubclassDlgItem(IDC_BTN_SHUTDOWN,this);
+	m_BtnShutDown.SetBitmaps(IDB_SHUTDOWN,RGB(255,255,255));
+	//m_BtnShutDown.SetFlat(FALSE);
+	m_BtnShutDown.DrawBorder(FALSE);
+	SetDlgItemText(IDC_BTN_SHUTDOWN,_T(""));
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -479,12 +485,13 @@ BOOL CSystemMenu::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		{
 		case IDC_BTN_SOFTWARE_UPDATE:
 		case IDC_BTN_GLOBAL_SETTING:
-		case IDC_BTN_SYNCHRONIZE_IMAGE:
+		//case IDC_BTN_SYNCHRONIZE_IMAGE:
 		case IDC_BTN_IMAGE_MANAGER:
 		case IDC_BTN_EXPORT_LOG:
 		case IDOK:
 		case IDC_BTN_MORE:
 		case IDC_BTN_PKG_MANAGER:
+		case IDC_BTN_SHUTDOWN:
 			if (pWnd->IsWindowEnabled())
 			{
 				SetCursor(LoadCursor(NULL,MAKEINTRESOURCE(IDC_HAND)));
@@ -524,5 +531,5 @@ void CSystemMenu::OnShowWindow(BOOL bShow, UINT nStatus)
 	GetParent()->GetClientRect(rectParent);
 	GetParent()->ClientToScreen(&rectParent);
 
-	MoveWindow(rectParent.left + 50,rect.top,rect.Width(),rect.Height());
+	MoveWindow(rectParent.left + 100,rect.top,rect.Width(),rect.Height());
 }

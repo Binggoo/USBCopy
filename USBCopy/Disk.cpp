@@ -22,6 +22,15 @@
 #define HIDE_SECTORS  0x800   // 1M
 #define COMPRESS_THREAD_COUNT 3
 
+typedef struct _STRUCT_LPVOID_PARM
+{
+	LPVOID lpVoid1;   //CDisk
+	LPVOID lpVoid2;   //CPort
+	LPVOID lpVoid3;   //CHashMethod or CDataQueue
+	LPVOID lpVoid4;   //Other
+}VOID_PARM,*LPVOID_PARM;
+
+
 CDisk::CDisk(void)
 {
 	m_hLogFile = INVALID_HANDLE_VALUE;
@@ -4244,6 +4253,7 @@ BOOL CDisk::ReadDisk()
 				{
 					AddDataQueueList(dataInfo);
 					delete []dataInfo->pData;
+					delete dataInfo;
 				}
 
 				if (m_bComputeHash)
@@ -4467,6 +4477,9 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		{
 			bResult = FALSE;
 
+			delete []dataInfo->pData;
+			delete dataInfo;
+
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,system errorcode=%ld,%s")
 				,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 			break;
@@ -4484,6 +4497,7 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 			port->AppendCompleteSize(dataInfo->dwDataSize);
 
 			delete []dataInfo->pData;
+			delete dataInfo;
 		}
 
 	}
@@ -4868,7 +4882,9 @@ BOOL CDisk::ReadLocalFiles()
 
 		ullCompleteSize = 0;
 		dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
-		while (bResult && !*m_lpCancel && ullCompleteSize < ullFileSize && m_MasterPort->GetPortState() == PortState_Active)
+
+		// 改成do{}while;为了使文件大小为0的文件也会被创建
+		do
 		{
 			QueryPerformanceCounter(&t0);
 			// 判断队列是否达到限制值
@@ -4921,6 +4937,7 @@ BOOL CDisk::ReadLocalFiles()
 				AddDataQueueList(dataInfo);
 
 				delete []dataInfo->szFileName;
+				delete []dataInfo;
 
 				if (m_bComputeHash)
 				{
@@ -4941,7 +4958,7 @@ BOOL CDisk::ReadLocalFiles()
 				m_MasterPort->AppendCompleteSize(dwLen);
 			}
 
-		}
+		}while (bResult && !*m_lpCancel && ullCompleteSize < ullFileSize && m_MasterPort->GetPortState() == PortState_Active);
 
 		CloseHandle(hFile);
 	}
@@ -5198,6 +5215,7 @@ BOOL CDisk::ReadRemoteFiles()
 		AddDataQueueList(dataInfo);
 
 		delete []dataInfo->szFileName;
+		delete []dataInfo;
 
 		if (m_bComputeHash)
 		{
@@ -5433,6 +5451,10 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 			{
 				bResult = FALSE;
 
+				delete []dataInfo->pData;
+				delete []dataInfo->szFileName;
+				delete dataInfo;
+
 				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateFile error,file name=%s,system errorcode=%ld,%s")
 					,port->GetPortName(),port->GetDiskNum(),strCurrentFileName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 				break;
@@ -5445,6 +5467,10 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 		if (!WriteFileAsyn(hFile,dataInfo->ullOffset,dataInfo->dwDataSize,dataInfo->pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
+
+			delete []dataInfo->pData;
+			delete []dataInfo->szFileName;
+			delete dataInfo;
 
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,system errorcode=%ld,%s")
 				,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
@@ -5464,6 +5490,7 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 
 			delete []dataInfo->pData;
 			delete []dataInfo->szFileName;
+			delete dataInfo;
 		}
 
 	}
@@ -5591,8 +5618,8 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 		ullCompleteSize = 0;
 		dwLen = m_nBlockSectors * BYTES_PER_SECTOR;
 
-		while (bResult && !*m_lpCancel && !port->IsKickOff()
-			&& ullCompleteSize < ullFileSize && port->GetPortState() == PortState_Active)
+		// 改成do{}while;为了读取文件长度为0的文件
+		do
 		{
 			QueryPerformanceCounter(&t0);
 
@@ -5638,7 +5665,8 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 				port->AppendCompleteSize(dwLen);
 			}
 
-		}
+		}while (bResult && !*m_lpCancel && !port->IsKickOff()
+			&& ullCompleteSize < ullFileSize && port->GetPortState() == PortState_Active);
 
 		CloseHandle(hFile);
 	}
@@ -6344,6 +6372,7 @@ BOOL CDisk::Compress()
 			AddDataQueueList(compressData);
 
 			delete []compressData->pData;
+			delete []compressData;
 
 			QueryPerformanceCounter(&t2);
 
@@ -6390,6 +6419,7 @@ BOOL CDisk::Compress()
 
 		delete []pBuffer;
 		delete []pDest;
+		delete dataInfo;
 	}
 
 	m_bCompressComplete = TRUE;
@@ -6472,6 +6502,7 @@ BOOL CDisk::Uncompress()
 			}
 
 			delete []uncompressData->pData;
+			delete uncompressData;
 
 			QueryPerformanceCounter(&t2);
 
@@ -6517,6 +6548,7 @@ BOOL CDisk::Uncompress()
 		}
 
 		delete []pDest;
+		delete dataInfo;
 	}
 
 	m_bCompressComplete = TRUE;
@@ -6624,6 +6656,10 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 		if (!WriteFileAsyn(hFile,ullOffset,dwLen,dataInfo->pData,port->GetOverlapped(FALSE),&dwErrorCode))
 		{
 			bResult = FALSE;
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
 				,port->GetFileName(),port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 
@@ -6646,6 +6682,7 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 		port->AppendCompleteSize(dataInfo->dwOldSize);
 
 		delete []dataInfo->pData;
+		delete dataInfo;
 
 	}
 
@@ -6819,6 +6856,10 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		{
 			delete []pByte;
 			bResult = FALSE;
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Send write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
 				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 
@@ -6833,6 +6874,10 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		if (!Recv(m_ClientSocket,(char *)&makeImageOut,dwLen,&olRecv,&dwErrorCode))
 		{
 			bResult = FALSE;
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
 				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 
@@ -6843,6 +6888,10 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		{
 			dwErrorCode = makeImageOut.dwErrorCode;
 			bResult = FALSE;
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,system errorcode=%ld,%s")
 				,strImageName,port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 
@@ -6854,6 +6903,10 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 			dwErrorCode = CustomError_Get_Data_From_Server_Error;
 			errType = ErrorType_Custom;
 			bResult = FALSE;
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Recv write image file error,filename=%s,Speed=%.2f,custom errorcode=0x%X,get data from server error")
 				,strImageName,port->GetRealSpeed(),dwErrorCode);
 
@@ -6876,6 +6929,7 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		port->AppendCompleteSize(dataInfo->dwOldSize);
 
 		delete []dataInfo->pData;
+		delete dataInfo;
 
 	}
 

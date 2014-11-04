@@ -34,12 +34,13 @@ private:
 
 	CButtonST m_BtnUpdate;
 	CButtonST m_BtnSetting;
-	CButtonST m_BtnSyncImage;
+	//CButtonST m_BtnSyncImage;
 	CButtonST m_BtnImageManager;
 	CButtonST m_BtnExport;
 	CButtonST m_BtnReturn;
 	CButtonST m_BtnMore;
 	CButtonST m_BtnPackage;
+	CButtonST m_BtnShutDown;
 
 public:
 	afx_msg void OnBnClickedButtonUpdate();

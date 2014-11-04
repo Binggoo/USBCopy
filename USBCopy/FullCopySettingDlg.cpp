@@ -95,7 +95,7 @@ void CFullCopySettingDlg::OnBnClickedCheckComputeHash()
 void CFullCopySettingDlg::OnBnClickedOk()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	UpdateData(FALSE);
+	UpdateData(TRUE);
 
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_ComputeHash"),m_bComputeHash);
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_Compare"),m_bCompare);

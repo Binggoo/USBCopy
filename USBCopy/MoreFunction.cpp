@@ -37,7 +37,7 @@ BEGIN_MESSAGE_MAP(CMoreFunction, CDialogEx)
 	ON_WM_ACTIVATE()
 	ON_BN_CLICKED(IDC_BTN_SOFTWARE_RECOVERY, &CMoreFunction::OnBnClickedBtnSoftwareRecovery)
 	ON_BN_CLICKED(IDC_BTN_VIEW_LOG, &CMoreFunction::OnBnClickedBtnViewLog)
-	ON_BN_CLICKED(IDC_BTN_BURN_IN, &CMoreFunction::OnBnClickedBtnBurnIn)
+	//ON_BN_CLICKED(IDC_BTN_BURN_IN, &CMoreFunction::OnBnClickedBtnBurnIn)
 	ON_BN_CLICKED(IDC_BTN_DEBUG, &CMoreFunction::OnBnClickedBtnDebug)
 END_MESSAGE_MAP()
 
@@ -58,9 +58,9 @@ BOOL CMoreFunction::OnInitDialog()
 	m_BtnViewLog.SetFlat(FALSE);
 	m_BtnViewLog.SetBitmaps(IDB_VIEW_LOG,RGB(255,255,255));
 
-	m_BtnBurnIn.SubclassDlgItem(IDC_BTN_BURN_IN,this);
-	m_BtnBurnIn.SetFlat(FALSE);
-	m_BtnBurnIn.SetBitmaps(IDB_BURN_IN,RGB(255,255,255));
+// 	m_BtnBurnIn.SubclassDlgItem(IDC_BTN_BURN_IN,this);
+// 	m_BtnBurnIn.SetFlat(FALSE);
+// 	m_BtnBurnIn.SetBitmaps(IDB_BURN_IN,RGB(255,255,255));
 
 	m_BtnDebug.SubclassDlgItem(IDC_BTN_DEBUG,this);
 	m_BtnDebug.SetFlat(FALSE);
@@ -80,7 +80,7 @@ BOOL CMoreFunction::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		{
 		case IDC_BTN_SOFTWARE_RECOVERY:
 		case IDC_BTN_VIEW_LOG:
-		case IDC_BTN_BURN_IN:
+		//case IDC_BTN_BURN_IN:
 		case IDC_BTN_DEBUG:
 			if (pWnd->IsWindowEnabled())
 			{

@@ -46,6 +46,7 @@ void CPort::Initial()
 	m_strModuleName = _T("");
 	m_WorkMode = WorkMode_None;
 	m_bKickOff = FALSE;
+	m_strDevicePath = _T("");
 
 	// Ó³Ïñ
 	m_strFileName = _T("");
@@ -95,6 +96,12 @@ void CPort::Active()
 	m_dbUsedWaitTimeS = 0.0;
 	m_dbUsedNoWaitTimeS = 0.0;
 	m_PortState = PortState_Active;
+
+	m_bResult = TRUE;
+	m_dwErrorCode = 0;
+	m_ErrorType = ErrorType_System;
+
+	m_bKickOff = FALSE;
 }
 
 void CPort::SetPortNum( int iPortNum )

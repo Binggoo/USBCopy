@@ -26,6 +26,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 
 	void ScanningDevice();
+	void ScanningMTPDevice();
 	BOOL IsAllConnected();
 
 private:

@@ -37,6 +37,7 @@ void CImageManager::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CImageManager, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_DELETE, &CImageManager::OnBnClickedButtonDelete)
+	ON_BN_CLICKED(IDC_BTN_SYNC, &CImageManager::OnBnClickedBtnSync)
 END_MESSAGE_MAP()
 
 
@@ -151,5 +152,27 @@ void CImageManager::OnBnClickedButtonDelete()
 			pos = m_ListImages.GetFirstSelectedItemPosition();
 		}
 		
+	}
+}
+
+
+void CImageManager::OnBnClickedBtnSync()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	ZeroMemory(&si,sizeof(STARTUPINFO));
+	si.cb = sizeof(STARTUPINFO);
+
+	CString strPath = CUtils::GetAppPath();
+
+	strPath = CUtils::GetFilePathWithoutName(strPath);
+
+	CString strCmd = _T("SynchImage.exe");
+	if (CreateProcess(NULL,strCmd.GetBuffer(),NULL,NULL,FALSE,0,NULL,strPath,&si,&pi))
+	{
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		CDialogEx::OnOK();
 	}
 }

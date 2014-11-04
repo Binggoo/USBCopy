@@ -35,4 +35,5 @@ private:
 	CString m_strTotalImages;
 public:
 	afx_msg void OnBnClickedButtonDelete();
+	afx_msg void OnBnClickedBtnSync();
 };

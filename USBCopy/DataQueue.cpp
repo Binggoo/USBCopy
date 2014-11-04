@@ -46,6 +46,7 @@ PDATA_INFO CDataQueue::GetHeadRemove()
 
 		if (dataInfo)
 		{
+			temp = new DATA_INFO;
 			temp->ullOffset = dataInfo->ullOffset;
 			temp->dwDataSize = dataInfo->dwDataSize;
 			temp->dwOldSize = dataInfo->dwOldSize;
@@ -59,15 +60,6 @@ PDATA_INFO CDataQueue::GetHeadRemove()
 
 				delete []dataInfo->szFileName;
 				dataInfo->szFileName = NULL;
-			}
-
-			if (dataInfo->szParentObjectID)
-			{
-				temp->szParentObjectID = new TCHAR[_tcslen(dataInfo->szParentObjectID)+1];
-				_tcscpy_s(temp->szParentObjectID,_tcslen(dataInfo->szParentObjectID)+1,dataInfo->szParentObjectID);
-
-				delete []dataInfo->szParentObjectID;
-				dataInfo->szParentObjectID = NULL;
 			}
 
 			if (dataInfo->pData)
@@ -112,12 +104,6 @@ void CDataQueue::RemoveHead()
 			dataInfo->szFileName = NULL;
 		}
 
-		if (dataInfo->szParentObjectID)
-		{
-			delete []dataInfo->szParentObjectID;
-			dataInfo->szParentObjectID = NULL;
-		}
-
 		delete dataInfo;
 		dataInfo = NULL;
 
@@ -146,12 +132,6 @@ void CDataQueue::Clear()
 			{
 				delete []dataInfo->szFileName;
 				dataInfo->szFileName = NULL;
-			}
-
-			if (dataInfo->szParentObjectID)
-			{
-				delete []dataInfo->szParentObjectID;
-				dataInfo->szParentObjectID = NULL;
 			}
 
 			delete dataInfo;

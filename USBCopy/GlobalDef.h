@@ -52,7 +52,16 @@ typedef enum _ENUM_CUSTOM_ERROR
 	CustomError_Format_Error,
 	CustomError_Get_Data_From_Server_Error,
 	CustomError_Image_Hash_Value_Changed,
-	CustomError_Enum_File_Failed
+	CustomError_Enum_File_Failed,
+
+	// MTP ERROR
+	CustomError_MTP_OpenDevice_Failed,
+	CustomError_MTP_EnumStorageID_Failed,
+	CustomError_MTP_CreateFolder_Failed,
+	CustomError_MTP_NO_ObjectID,
+	CustomError_MTP_CreateDataStream_Failed,
+	CustomError_MTP_WriteFile_Failed,
+	CustomError_MTP_ReadFile_Failed,
 
 }CustomError;
 

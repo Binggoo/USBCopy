@@ -260,12 +260,3 @@ private:
 
 	static DWORD DoIdentifyDeviceSat(HANDLE hDevice, BYTE target, IDENTIFY_DEVICE* data, COMMAND_TYPE type);
 };
-
-typedef struct _STRUCT_LPVOID_PARM
-{
-	LPVOID lpVoid1;   //CDisk
-	LPVOID lpVoid2;   //CPort
-	LPVOID lpVoid3;   //CHashMethod or CDataQueue
-	LPVOID lpVoid4;   //Other
-}VOID_PARM,*LPVOID_PARM;
-

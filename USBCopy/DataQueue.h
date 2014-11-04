@@ -2,8 +2,7 @@
 
 typedef struct _STRUCT_DATA_INFO
 {
-	LPTSTR szParentObjectID;
-	LPTSTR szFileName;
+	LPTSTR szFileName; //在WPD中记录的是ObjectID
 	ULONGLONG ullOffset;
 	DWORD     dwDataSize;
 	DWORD     dwOldSize;   // 用于记录压缩之前数据大小

@@ -37,6 +37,7 @@ private:
 	CButtonST m_BtnDiskClean;
 	CButtonST m_BtnReturn;
 	CButtonST m_BtnDiffCopy;
+	CButtonST m_BtnMTPCopy;
 
 public:
 	void SetConfig(CIni *pIni);
@@ -54,4 +55,5 @@ public:
 	afx_msg void OnBnClickedBtnReturn();
 	afx_msg void OnBnClickedBtnDifferenceCopy();
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
+	afx_msg void OnBnClickedBtnMtpCopy();
 };

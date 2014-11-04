@@ -22,6 +22,7 @@
 #define RECODE_FILE  _T("\\record.txt");
 #define LOGO_TS         _T("TF/SD DUPLICATOR")
 #define LOGO_USB         _T("USB DUPLICATOR")
+#define LOGO_MTP         _T("MTP DUPLICATOR")
 
 
 #define WM_UPDATE_STATISTIC (WM_USER + 1)

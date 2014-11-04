@@ -22,7 +22,7 @@ protected:
 private:
 	CButtonST m_BtnSoftwareRecovery;
 	CButtonST m_BtnViewLog;
-	CButtonST m_BtnBurnIn;
+	//CButtonST m_BtnBurnIn;
 	CButtonST m_BtnDebug;
 
 	HWND m_hParent;

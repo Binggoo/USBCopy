@@ -40,6 +40,7 @@ BEGIN_MESSAGE_MAP(CSelectCurModeDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_RETURN, &CSelectCurModeDlg::OnBnClickedBtnReturn)
 	ON_BN_CLICKED(IDC_BTN_DIFFERENCE_COPY, &CSelectCurModeDlg::OnBnClickedBtnDifferenceCopy)
 	ON_WM_SHOWWINDOW()
+	ON_BN_CLICKED(IDC_BTN_MTP_COPY, &CSelectCurModeDlg::OnBnClickedBtnMtpCopy)
 END_MESSAGE_MAP()
 
 
@@ -145,6 +146,10 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	case WorkMode_DifferenceCopy:
 		strResText.LoadString(IDS_WORK_MODE_DIFF_COPY);
 		break;
+
+	case WorkMode_MTPCopy:
+		strResText.LoadString(IDS_WORK_MODE_MTP_COPY);
+		break;
 	}
 
 	strMode.Format(_T(" - %s"),strResText);
@@ -166,6 +171,7 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	GetDlgItem(IDC_BTN_TOOLS)->SetFont(&m_font);
 	GetDlgItem(IDC_BTN_DIFFERENCE_COPY)->SetFont(&m_font);
 	GetDlgItem(IDC_BTN_RETURN)->SetFont(&m_font);
+	GetDlgItem(IDC_BTN_MTP_COPY)->SetFont(&m_font);
 
 	m_BtnFullCopy.SubclassDlgItem(IDC_BTN_FULL_COPY,this);
 	m_BtnFullCopy.SetFlat(FALSE);
@@ -201,13 +207,17 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 
 	m_BtnReturn.SubclassDlgItem(IDC_BTN_RETURN,this);
 	m_BtnReturn.SetBitmaps(IDB_RETURN,RGB(255,255,255));
-	m_BtnReturn.SetFlat(FALSE);
-	//m_BtnReturn.DrawBorder(FALSE);
-	//SetDlgItemText(IDC_BTN_RETURN,_T(""));
+	//m_BtnReturn.SetFlat(FALSE);
+	m_BtnReturn.DrawBorder(FALSE);
+	SetDlgItemText(IDC_BTN_RETURN,_T(""));
 
 	m_BtnDiffCopy.SubclassDlgItem(IDC_BTN_DIFFERENCE_COPY,this);
 	m_BtnDiffCopy.SetFlat(FALSE);
 	m_BtnDiffCopy.SetBitmaps(IDB_DIFF_COPY,RGB(255,255,255));
+
+	m_BtnMTPCopy.SubclassDlgItem(IDC_BTN_MTP_COPY,this);
+	m_BtnMTPCopy.SetFlat(FALSE);
+	m_BtnMTPCopy.SetBitmaps(IDB_MTP_COPY,RGB(255,255,255));
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -294,4 +304,12 @@ void CSelectCurModeDlg::OnShowWindow(BOOL bShow, UINT nStatus)
 	GetParent()->ClientToScreen(&rectParent);
 
 	MoveWindow(rectParent.left + 10,rectParent.top + 10,rect.Width(),rect.Height());
+}
+
+
+void CSelectCurModeDlg::OnBnClickedBtnMtpCopy()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	m_WorkMode = WorkMode_MTPCopy;
+	OnOK();
 }
