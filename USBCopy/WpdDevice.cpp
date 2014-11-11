@@ -759,14 +759,10 @@ BOOL CWpdDevice::WriteWpdFiles( CPort* port,CDataQueue *pDataQueue,CMapStringToS
 		{
 			if (pObject->level == 2)
 			{
-				strParentID = strStorageID;
-			}
-			else
-			{
-				pMap->Lookup(pObject->pwszObjectParentID,strParentID);
+				pMap->SetAt(pObject->pwszObjectParentID,strStorageID);
 			}
 
-			if (!strParentID.IsEmpty())
+			if (pMap->Lookup(pObject->pwszObjectParentID,strParentID))
 			{
 				hr = CreateFolder(pIPortableDevice,strParentID,pObject->pwszObjectOringalFileName,strNewID.GetBuffer(MAX_PATH));
 				strNewID.ReleaseBuffer();
@@ -786,6 +782,16 @@ BOOL CWpdDevice::WriteWpdFiles( CPort* port,CDataQueue *pDataQueue,CMapStringToS
 
 					return FALSE;
 				}
+			}
+			else
+			{
+				bResult = FALSE;
+				errType = ErrorType_Custom;
+				dwErrorCode = CustomError_MTP_NO_ObjectID;
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s - Not find the map parent id(%s),file name=%s,custom errorcode=0x%X")
+					,port->GetPortName(),pObject->pwszObjectParentID,pObject->pwszObjectOringalFileName,dwErrorCode);
+				
+				return FALSE;
 			}
 			
 		}

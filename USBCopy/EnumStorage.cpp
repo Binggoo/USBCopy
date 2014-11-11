@@ -61,7 +61,7 @@ BOOL
 		//DeviceID 获取失败，释放内存
 		return FALSE;
 	}
-
+	OutputDebugString(pszDeviceID);
 	return TRUE;
 
 }
@@ -89,7 +89,7 @@ BOOL
 		//DeviceID 获取失败，释放内存
 		return FALSE;
 	}
-
+	OutputDebugString(pszDeviceID);
 	return TRUE;
 
 }

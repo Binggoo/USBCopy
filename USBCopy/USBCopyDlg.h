@@ -194,4 +194,5 @@ public:
 	afx_msg void OnClose();
 protected:
 	afx_msg LRESULT OnUpdateFunction(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnSetBurnInText(WPARAM wParam, LPARAM lParam);
 };

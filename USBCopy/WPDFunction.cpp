@@ -117,7 +117,7 @@ HRESULT OpenDevice( IPortableDevice** ppDevice,LPCWSTR wszPnPDeviceID )
 	if (SUCCEEDED(hr))
 	{
 		// CoCreate an IPortableDevice interface
-		hr = CoCreateInstance(CLSID_PortableDeviceFTM,
+		hr = CoCreateInstance(CLSID_PortableDevice,//CLSID_PortableDeviceFTM (new) or CLSID_PortableDevice (old)
 			NULL,
 			CLSCTX_INPROC_SERVER,
 			IID_IPortableDevice,

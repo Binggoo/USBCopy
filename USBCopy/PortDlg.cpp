@@ -24,6 +24,8 @@ CPortDlg::CPortDlg(CWnd* pParent /*=NULL*/)
 
 	m_bIsUSB = FALSE;
 
+	m_nKickOffCount = 0;
+
 }
 
 CPortDlg::~CPortDlg()
@@ -162,7 +164,8 @@ void CPortDlg::Initial()
 
 	m_bOnlineCommand = FALSE;
 	m_bStopCommand = FALSE;
-	m_nCount = 0;
+
+	m_nKickOffCount = 0;
 
 	Invalidate(TRUE);
 }
@@ -193,6 +196,8 @@ BOOL CPortDlg::IsSlowest()
 
 	BOOL bCheckAbsoluteSpeed = m_pIni->GetBool(_T("Option"),_T("En_AbsoluteSpeed"),FALSE);
 	UINT nAbsolteSpeed = m_pIni->GetUInt(_T("Option"),_T("AbsoluteSpeed"),5);
+
+	UINT nKickOffTimes = m_pIni->GetUInt(_T("Option"),_T("KickOffTimeS"),5);
 
 	BOOL bSlow = TRUE;
 	double dbSpeed = m_Port->GetRealSpeed();
@@ -226,17 +231,19 @@ BOOL CPortDlg::IsSlowest()
 			double dbAvgSpeed = dbTotolSpeed / (nCount + 1);
 			if (dbSpeed < dbAvgSpeed * nRelativeSpeed / 100)
 			{
-				m_nCount++;
 
-				if (m_nCount >= 10)
+				m_nKickOffCount++;
+
+				if (m_nKickOffCount >= nKickOffTimes)
 				{
 					m_Port->SetKickOff(TRUE);
+					m_nKickOffCount = 0;
 				}
 				
 			}
 			else
 			{
-				m_nCount = 0;
+				m_nKickOffCount = 0;
 			}
 		}
 
@@ -244,17 +251,18 @@ BOOL CPortDlg::IsSlowest()
 		{
 			if (dbSpeed < nAbsolteSpeed)
 			{
-				m_nCount++;
+				m_nKickOffCount++;
 
-				if (m_nCount >= 10)
+				if (m_nKickOffCount >= nKickOffTimes)
 				{
 					m_Port->SetKickOff(TRUE);
+					m_nKickOffCount = 0;
 				}
 				
 			}
 			else
 			{
-				m_nCount = 0;
+				m_nKickOffCount = 0;
 			}
 		}
 	}

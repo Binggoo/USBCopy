@@ -1389,6 +1389,12 @@ BootSector CDisk::GetBootSectorType( const PBYTE pXBR )
 		return BootSector_UNKNOWN;
 	}
 
+	if (ReadOffset(pXBR,0,3) == 0x000000)
+	{
+		CUtils::WriteLogFile(m_hLogFile,FALSE,_T("GetBootSectorType=BootSector_MBR"));
+		return BootSector_MBR;
+	}
+
 	ULONGLONG ullStartSector = 0;
 	DWORD dwErrorCode = 0;
 	for (int i = 0;i < 4;i++)
@@ -1403,6 +1409,13 @@ BootSector CDisk::GetBootSectorType( const PBYTE pXBR )
 		{
 			CUtils::WriteLogFile(m_hLogFile,FALSE,_T("GetBootSectorType=BootSector_DBR"));
 			return BootSector_DBR;
+		}
+
+		if (mbr.Partition[i].StartLBA == 0x01 && mbr.Partition[i].TotalSector == 0xFFFFFFFF
+			&& mbr.Partition[i].PartitionType == 0xEE)
+		{
+			CUtils::WriteLogFile(m_hLogFile,FALSE,_T("GetBootSectorType=BootSector_MBR"));
+			return BootSector_MBR;
 		}
 
 		BYTE *pDBRTemp = new BYTE[m_dwBytesPerSector];
@@ -1444,16 +1457,36 @@ PartitionStyle CDisk::GetPartitionStyle( const PBYTE pByte,BootSector bootSector
 	PartitionStyle partitionStyle = PartitionStyle_UNKNOWN;
 	if (bootSector == BootSector_MBR)
 	{
-		if (ReadOffset(pByte,0x1C2,1) == 0xEE)
-		{
-			partitionStyle = PartitionStyle_GPT;
+		MASTER_BOOT_RECORD mbr;
+		ZeroMemory(&mbr,sizeof(MASTER_BOOT_RECORD));
+		memcpy(&mbr,pByte + 0x1BE,sizeof(MASTER_BOOT_RECORD));
 
-			CUtils::WriteLogFile(m_hLogFile,FALSE,_T("GetPartitionStyle=PartitionStyle_GPT"));
-		}
-		else
+		for (int i = 0;i < 4;i++)
 		{
+			if (mbr.Partition[i].StartLBA == 0)
+			{
+				continue;
+			}
+
+			if (mbr.Partition[i].StartLBA == 0x01 && mbr.Partition[i].TotalSector == 0xFFFFFFFF
+				&& mbr.Partition[i].PartitionType == 0xEE)
+			{
+				partitionStyle = PartitionStyle_GPT;
+				CUtils::WriteLogFile(m_hLogFile,FALSE,_T("GetPartitionStyle=PartitionStyle_GPT"));
+				break;
+			}
+
+			if (mbr.Partition[i].PartitionType == 0xEE)
+			{
+				partitionStyle = PartitionStyle_GPT;
+				CUtils::WriteLogFile(m_hLogFile,FALSE,_T("GetPartitionStyle=PartitionStyle_GPT"));
+				break;
+			}
+
 			partitionStyle = PartitionStyle_DOS;
 			CUtils::WriteLogFile(m_hLogFile,FALSE,_T("GetPartitionStyle=PartitionStyle_DOS"));
+			break;
+
 		}
 	}
 	else

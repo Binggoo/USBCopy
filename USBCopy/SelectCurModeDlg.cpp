@@ -5,7 +5,7 @@
 #include "USBCopy.h"
 #include "SelectCurModeDlg.h"
 #include "afxdialogex.h"
-
+#include "Tools.h"
 
 // CSelectCurModeDlg 对话框
 
@@ -41,6 +41,7 @@ BEGIN_MESSAGE_MAP(CSelectCurModeDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_DIFFERENCE_COPY, &CSelectCurModeDlg::OnBnClickedBtnDifferenceCopy)
 	ON_WM_SHOWWINDOW()
 	ON_BN_CLICKED(IDC_BTN_MTP_COPY, &CSelectCurModeDlg::OnBnClickedBtnMtpCopy)
+	ON_MESSAGE(WM_WORK_MODE_SELECT, &CSelectCurModeDlg::OnWorkModeSelect)
 END_MESSAGE_MAP()
 
 
@@ -150,6 +151,26 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 	case WorkMode_MTPCopy:
 		strResText.LoadString(IDS_WORK_MODE_MTP_COPY);
 		break;
+
+	case WorkMode_Full_RW_Test:
+		strResText.LoadString(IDS_WORK_MODE_FULL_RW_TEST);
+		break;
+
+	case WorkMode_Fade_Picker:
+		strResText.LoadString(IDS_WORK_MODE_FADE_PICKER);
+		break;
+
+	case WorkMode_Capacity_Check:
+		strResText.LoadString(IDS_WORK_MODE_CAP_CHECK);
+		break;
+
+	case WorkMode_Speed_Check:
+		strResText.LoadString(IDS_WORK_MODE_SPEED_CHECK);
+		break;
+
+	case WorkMode_Burnin_Test:
+		strResText.LoadString(IDS_WORK_MODE_BURN_IN);
+		break;
 	}
 
 	strMode.Format(_T(" - %s"),strResText);
@@ -203,7 +224,7 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 
 	m_BtnTools.SubclassDlgItem(IDC_BTN_TOOLS,this);
 	m_BtnTools.SetFlat(FALSE);
-	m_BtnTools.SetBitmaps(IDB_DISK_FORMAT,RGB(255,255,255));
+	m_BtnTools.SetBitmaps(IDB_TOOLS,RGB(255,255,255));
 
 	m_BtnReturn.SubclassDlgItem(IDC_BTN_RETURN,this);
 	m_BtnReturn.SetBitmaps(IDB_RETURN,RGB(255,255,255));
@@ -273,8 +294,15 @@ BOOL CSelectCurModeDlg::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 void CSelectCurModeDlg::OnBnClickedBtnTools()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	m_WorkMode = WorkMode_DiskFormat;
-	OnOK();
+	CRect rectBtn,rectDlg;
+	GetDlgItem(IDC_BTN_TOOLS)->GetWindowRect(rectBtn);
+
+	CTools *tools = new CTools(this);
+	tools->Create(IDD_DIALOG_TOOLS);
+	tools->GetWindowRect(&rectDlg);
+
+	tools->MoveWindow(rectBtn.right,rectBtn.top - rectDlg.Height() / 2,rectDlg.Width(),rectDlg.Height());
+	tools->ShowWindow(SW_SHOW);
 }
 
 
@@ -312,4 +340,14 @@ void CSelectCurModeDlg::OnBnClickedBtnMtpCopy()
 	// TODO: 在此添加控件通知处理程序代码
 	m_WorkMode = WorkMode_MTPCopy;
 	OnOK();
+}
+
+
+afx_msg LRESULT CSelectCurModeDlg::OnWorkModeSelect(WPARAM wParam, LPARAM lParam)
+{
+	m_WorkMode = (WorkMode)wParam;
+
+	OnOK();
+
+	return 0;
 }

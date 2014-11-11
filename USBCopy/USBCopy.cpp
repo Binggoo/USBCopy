@@ -43,7 +43,11 @@ BOOL CUSBCopyApp::InitInstance()
 
 	AfxEnableControlContainer();
 
-	CoInitializeEx(NULL, COINIT_MULTITHREADED);
+	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+	if (FAILED(hr))
+	{
+		DbgPrint((_T("! Failed to CoInitializeEx, hr=0x%lx"),hr));
+	}
 
 	// Create the shell manager, in case the dialog contains
 	// any shell tree view or shell list view controls.

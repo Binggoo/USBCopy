@@ -36,6 +36,8 @@
 #define WM_VERIFY_START (WM_USER + 9)
 #define WM_SOCKET_MSG   (WM_USER + 10)
 #define WM_UPDATE_FUNCTION (WM_USER + 11)
+#define WM_WORK_MODE_SELECT (WM_USER + 12)
+#define WM_SET_BURN_IN_TEXT (WM_USER + 13)
 
 class CUSBCopyApp : public CWinApp
 {

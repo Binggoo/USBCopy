@@ -13,7 +13,11 @@
 //                            2.当鼠标移动到SD卡上时，显示此卡的信息
 //V1.0.4.0 2014-10-15 Binggoo 1.增加差异拷贝功能
 //                            2.可以通过配置文件来配置程序显示语言，不配置时由系统语言决定
-//V1.0.5.0 2014-10-27 Binggoo 1.当开启剔除功能后，累计10s都低于设置速度时才剔除。
+//V1.0.3.1 2014-10-30 Binggoo 1.修改判断第一个扇区是MBR或者DBR的方式。
+//                            2.增加剔除间隔时间。
+//V1.0.5.0 2014-11-04 Binggoo 1.新增MTP拷贝模式
+//                            2.新增工具箱功能
+//                            3.新增关机功能
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -45,6 +49,7 @@
 #include "WPDFunction.h"
 #include "MTPCopySetting.h"
 #include "WpdDevice.h"
+#include "BurnIn.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -139,6 +144,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_SOCKET_MSG, &CUSBCopyDlg::OnSocketMsg)
 	ON_WM_CLOSE()
 	ON_MESSAGE(WM_UPDATE_FUNCTION, &CUSBCopyDlg::OnUpdateFunction)
+	ON_MESSAGE(WM_SET_BURN_IN_TEXT, &CUSBCopyDlg::OnSetBurnInText)
 END_MESSAGE_MAP()
 
 
@@ -763,6 +769,46 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 			m_bIsMTP = TRUE;
 		}
 		break;
+
+	case WorkMode_Full_RW_Test:
+		{
+			nBitMap = IDB_FULL_SCAN;
+			strResText1.LoadString(IDS_WORK_MODE_FULL_RW_TEST);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+
+	case WorkMode_Fade_Picker:
+		{
+			nBitMap = IDB_FAKE_PICKER;
+			strResText1.LoadString(IDS_WORK_MODE_FADE_PICKER);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+
+	case WorkMode_Capacity_Check:
+		{
+			nBitMap = IDB_CAP_CHECK;
+			strResText1.LoadString(IDS_WORK_MODE_CAP_CHECK);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+
+	case WorkMode_Speed_Check:
+		{
+			nBitMap = IDB_SPEED_TEST;
+			strResText1.LoadString(IDS_WORK_MODE_SPEED_CHECK);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+
+	case WorkMode_Burnin_Test:
+		{
+			nBitMap = IDB_BURN_IN;
+			strResText1.LoadString(IDS_WORK_MODE_BURN_IN);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
 	}
 
 	SetDlgItemText(IDC_BTN_WORK_SELECT,strWorkMode);
@@ -1005,6 +1051,14 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 			dlg.DoModal();
 		}
 		break;
+
+	case WorkMode_Burnin_Test:
+		{
+			CBurnIn burnIn;
+			burnIn.SetConfig(&m_Config);
+			burnIn.DoModal();
+		}
+		break;
 	}
 
 	InitialCurrentWorkMode();
@@ -1089,6 +1143,10 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 				}
 			}
 			break;
+
+		case WorkMode_Burnin_Test:
+			PostMessage(WM_BURN_IN_TEST);
+			return;
 		}
 
 		m_bCancel = FALSE;
@@ -3725,7 +3783,13 @@ void CUSBCopyDlg::InitialBurnInTest()
 		break;
 	}
 
-	SetDlgItemText(IDC_GROUP_WORK_MODE,strWorkModeParm);
+	CString strBurnIn;
+	strBurnIn.LoadString(IDS_WORK_MODE_BURN_IN);
+
+	strBurnIn += _T("  ---  ");
+	strBurnIn += strWorkModeParm;
+
+	SetDlgItemText(IDC_GROUP_WORK_MODE,strBurnIn);
 }
 
 void CUSBCopyDlg::BurnInTest()
@@ -3734,12 +3798,6 @@ void CUSBCopyDlg::BurnInTest()
 	m_bResult = TRUE;
 	UINT nCycleCount = m_Config.GetUInt(_T("BurnIn"),_T("CycleCount"),1);
 	UINT nFunctionNum = m_Config.GetUInt(_T("BurnIn"),_T("FunctionNum"),0);
-
-	CString strResText;
-	strResText.LoadString(IDS_BURN_IN_TEST);
-	SetDlgItemText(IDC_BTN_WORK_SELECT,strResText);
-
-	m_BtnWorkMode.SetBitmaps(IDB_BURN_IN,RGB(255,255,255));
 
 	for (UINT cycle = 0;cycle < nCycleCount && m_bResult;cycle++)
 	{
@@ -3760,7 +3818,7 @@ void CUSBCopyDlg::BurnInTest()
 			CUtils::WriteLogFile(m_hLogFile,FALSE,_T(""));
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Burn In Test - cycle %d - %s"),cycle+1,GetWorkModeString(m_WorkMode));
 
-			InitialBurnInTest();
+			SendMessage(WM_SET_BURN_IN_TEXT);
 
 			SendMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd);
 
@@ -3768,7 +3826,7 @@ void CUSBCopyDlg::BurnInTest()
 	}
 
 	WaitForSingleObject(m_hEvent,INFINITE);
-
+	CString strResText;
 	strResText.LoadString(IDS_MSG_BURNIN_TEST_COMPLETED);
 	MessageBox(strResText);
 
@@ -4315,5 +4373,12 @@ afx_msg LRESULT CUSBCopyDlg::OnUpdateFunction(WPARAM wParam, LPARAM lParam)
 	{
 		SetDlgItemText(IDC_TEXT_FUNCTION2,CString(function));
 	}
+	return 0;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnSetBurnInText(WPARAM wParam, LPARAM lParam)
+{
+	InitialBurnInTest();
 	return 0;
 }

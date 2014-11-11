@@ -38,6 +38,7 @@ void CGlobalSetting::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_COMBO_SCAN_DISK_TIME, m_ComboBoxScanTime);
 	DDX_Control(pDX, IDC_COMBO_BLOCK_SIZE, m_ComboBoxBlockSectors);
+	DDX_Control(pDX, IDC_COMBO_KICK_OFF_TIME_INTERVAL, m_ComboBoxKickOffTimeInterval);
 	DDX_Check(pDX, IDC_CHECK_RELATIVE_SPEED, m_bCheckRelativeSpeed);
 	DDX_Text(pDX, IDC_EDIT_RELATIVE_SPEED, m_nRelativeSpeed);
 	DDX_Check(pDX, IDC_CHECK_ABSOLUTE_SPEED, m_bCheckAbsoluteSpeed);
@@ -55,8 +56,8 @@ void CGlobalSetting::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CGlobalSetting, CDialogEx)
 	ON_BN_CLICKED(IDOK, &CGlobalSetting::OnBnClickedOk)
 	ON_CBN_EDITCHANGE(IDC_COMBO_SCAN_DISK_TIME, &CGlobalSetting::OnCbnEditchangeComboScanDiskTime)
-	ON_CBN_EDITCHANGE(IDC_COMBO_DELAY_OFF_TIME, &CGlobalSetting::OnCbnEditchangeComboDelayOffTime)
 	ON_BN_CLICKED(IDC_BTN_CONNECT, &CGlobalSetting::OnBnClickedBtnConnect)
+	ON_CBN_EDITCHANGE(IDC_COMBO_KICK_OFF_TIME_INTERVAL, &CGlobalSetting::OnCbnEditchangeComboKickOffTimeInterval)
 END_MESSAGE_MAP()
 
 
@@ -82,9 +83,15 @@ BOOL CGlobalSetting::OnInitDialog()
 	m_ComboBoxBlockSectors.AddString(_T("256")); //128KB
 	m_ComboBoxBlockSectors.AddString(_T("128")); //64KB
 
+	m_ComboBoxKickOffTimeInterval.AddString(_T("5"));
+	m_ComboBoxKickOffTimeInterval.AddString(_T("10"));
+	m_ComboBoxKickOffTimeInterval.AddString(_T("30"));
+
 	CString strScanTime = m_pIni->GetString(_T("Option"),_T("ScanDiskTimeS"),_T("30"));
 	CString strBlockSectors = m_pIni->GetString(_T("Option"),_T("BlockSectors"),_T("1024"));
+	CString strKickOffTimeInterval =  m_pIni->GetString(_T("Option"),_T("KickOffTimeS"),_T("5"));
 	m_ComboBoxScanTime.SetWindowText(strScanTime);
+	m_ComboBoxKickOffTimeInterval.SetWindowText(strKickOffTimeInterval);
 
 	int nBlockSectorCount = m_ComboBoxBlockSectors.GetCount();
 	int nSelectIndex = 1;
@@ -149,9 +156,10 @@ void CGlobalSetting::OnBnClickedOk()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 
-	CString strScanTime,strBlockSize;
+	CString strScanTime,strBlockSize,strKickOffTimeInterval;
 	m_ComboBoxScanTime.GetWindowText(strScanTime);
 	m_ComboBoxBlockSectors.GetWindowText(strBlockSize);
+	m_ComboBoxKickOffTimeInterval.GetWindowText(strKickOffTimeInterval);
 
 	m_pIni->WriteString(_T("Option"),_T("ScanDiskTimeS"),strScanTime);
 	m_pIni->WriteString(_T("Option"),_T("BlockSectors"),strBlockSize);
@@ -172,6 +180,8 @@ void CGlobalSetting::OnBnClickedOk()
 
 	m_pIni->WriteBool(_T("Option"),_T("En_AbsoluteSpeed"),m_bCheckAbsoluteSpeed);
 	m_pIni->WriteUInt(_T("Option"),_T("AbsoluteSpeed"),m_nAbsolteSpeed);
+
+	m_pIni->WriteString(_T("Option"),_T("KickOffTimeS"),strKickOffTimeInterval);
 
 	m_pIni->WriteBool(_T("Option"),_T("En_UploadLogAuto"),m_bCheckUploadLog);
 	m_pIni->WriteString(_T("RemoteServer"),_T("ServerIP"),m_strEditServerIP);
@@ -267,4 +277,22 @@ void CGlobalSetting::OnBnClickedBtnConnect()
 	SetDlgItemText(IDC_BTN_CONNECT,strResText);
 
 	GetDlgItem(IDC_BTN_CONNECT)->EnableWindow(TRUE);
+}
+
+void CGlobalSetting::OnCbnEditchangeComboKickOffTimeInterval()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CString strText;
+	m_ComboBoxKickOffTimeInterval.GetWindowText(strText);
+
+	if (strText.IsEmpty())
+	{
+		return;
+	}
+
+	TCHAR ch = strText.GetAt(strText.GetLength()-1);
+	if (!_istdigit(ch))
+	{
+		m_ComboBoxKickOffTimeInterval.SetWindowText(_T(""));
+	}
 }

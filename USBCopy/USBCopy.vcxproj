@@ -41,11 +41,11 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetName>MTPCopy</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetName>MTPCopy</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -109,14 +109,17 @@
   <ItemGroup>
     <None Include="ReadMe.txt" />
     <None Include="res\burnin.bmp" />
+    <None Include="res\capcheck.bmp" />
     <None Include="res\debug.bmp" />
     <None Include="res\diffcopy.bmp" />
     <None Include="res\diskclean.bmp" />
     <None Include="res\diskcompare.bmp" />
     <None Include="res\diskformat.bmp" />
     <None Include="res\export.bmp" />
+    <None Include="res\FakePicker.bmp" />
     <None Include="res\filecopy.bmp" />
     <None Include="res\fullcopy.bmp" />
+    <None Include="res\fullscan.bmp" />
     <None Include="res\imagecopy.bmp" />
     <None Include="res\lock.bmp" />
     <None Include="res\makeimage.bmp" />
@@ -134,10 +137,12 @@
     <None Include="res\SD_yellow.bmp" />
     <None Include="res\setting.bmp" />
     <None Include="res\shutdown.bmp" />
+    <None Include="res\speed.bmp" />
     <None Include="res\start.bmp" />
     <None Include="res\stop.bmp" />
     <None Include="res\sync.bmp" />
     <None Include="res\tablet.bmp" />
+    <None Include="res\tools.bmp" />
     <None Include="res\unlock.bmp" />
     <None Include="res\update.bmp" />
     <None Include="res\USBCopy.ico" />
@@ -148,6 +153,7 @@
     <None Include="res\USB_red.bmp" />
     <None Include="res\USB_yellow.bmp" />
     <None Include="res\viewlog.bmp" />
+    <None Include="res\warning.bmp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.h" />
@@ -185,6 +191,7 @@
     <ClInclude Include="MD5.h" />
     <ClInclude Include="MoreFunction.h" />
     <ClInclude Include="MTPCopySetting.h" />
+    <ClInclude Include="MyMessageBox.h" />
     <ClInclude Include="PackageName.h" />
     <ClInclude Include="Password.h" />
     <ClInclude Include="Port.h" />
@@ -244,6 +251,7 @@
     <ClCompile Include="MD5.cpp" />
     <ClCompile Include="MoreFunction.cpp" />
     <ClCompile Include="MTPCopySetting.cpp" />
+    <ClCompile Include="MyMessageBox.cpp" />
     <ClCompile Include="PackageName.cpp" />
     <ClCompile Include="Password.cpp" />
     <ClCompile Include="Port.cpp" />

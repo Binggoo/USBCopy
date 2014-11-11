@@ -12,6 +12,7 @@
 #include "SoftwareRecovery.h"
 #include "MoreFunction.h"
 #include "ExportLog.h"
+#include "MyMessageBox.h"
 
 // CSystemMenu 对话框
 
@@ -48,6 +49,7 @@ BEGIN_MESSAGE_MAP(CSystemMenu, CDialogEx)
 	ON_WM_SETCURSOR()
 	ON_BN_CLICKED(IDC_BTN_MORE, &CSystemMenu::OnBnClickedBtnMore)
 	ON_WM_SHOWWINDOW()
+	ON_BN_CLICKED(IDC_BTN_SHUTDOWN, &CSystemMenu::OnBnClickedBtnShutdown)
 END_MESSAGE_MAP()
 
 
@@ -532,4 +534,35 @@ void CSystemMenu::OnShowWindow(BOOL bShow, UINT nStatus)
 	GetParent()->ClientToScreen(&rectParent);
 
 	MoveWindow(rectParent.left + 100,rect.top,rect.Width(),rect.Height());
+}
+
+
+void CSystemMenu::OnBnClickedBtnShutdown()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CMyMessageBox msg;
+	msg.SetTitle(IDS_MSG_WARNING);
+	msg.SetText(IDS_MSG_SHUT_DOWN);
+	msg.SetFont(160);
+	msg.SetTextColor(RGB(255,0,0));
+
+	if (IDOK == msg.DoModal())
+	{
+		STARTUPINFO si;
+		PROCESS_INFORMATION pi;
+		ZeroMemory(&si,sizeof(STARTUPINFO));
+		si.cb = sizeof(STARTUPINFO);
+		si.dwFlags = STARTF_USESHOWWINDOW;
+		si.wShowWindow = SW_HIDE;
+		CString strCmd = _T("shutdown.exe /s /f /t 0");
+		if (CreateProcess(NULL,strCmd.GetBuffer(),NULL,NULL,FALSE,0,NULL,NULL,&si,&pi))
+		{
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
+
+			PostQuitMessage(WM_CLOSE);
+		}
+		
+	}
+	CDialogEx::OnOK();
 }

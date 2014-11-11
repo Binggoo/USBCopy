@@ -260,9 +260,6 @@ void CBurnIn::OnBnClickedOk()
 
 		m_pIni->WriteUInt(_T("BurnIn"),strKey,mode);
 	}
-
-	
-	::PostMessage(GetParent()->GetParent()->GetSafeHwnd(),WM_BURN_IN_TEST,0,0);
 	
 
 	CDialogEx::OnOK();

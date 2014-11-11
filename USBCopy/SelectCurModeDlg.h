@@ -56,4 +56,6 @@ public:
 	afx_msg void OnBnClickedBtnDifferenceCopy();
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 	afx_msg void OnBnClickedBtnMtpCopy();
+protected:
+	afx_msg LRESULT OnWorkModeSelect(WPARAM wParam, LPARAM lParam);
 };

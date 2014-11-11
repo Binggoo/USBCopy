@@ -27,6 +27,7 @@ public:
 private:
 	CComboBox m_ComboBoxScanTime;
 	CComboBox m_ComboBoxBlockSectors;
+	CComboBox m_ComboBoxKickOffTimeInterval;
 	BOOL m_bCheckRelativeSpeed;
 	UINT m_nRelativeSpeed;
 	BOOL m_bCheckAbsoluteSpeed;
@@ -47,4 +48,5 @@ public:
 	afx_msg void OnCbnEditchangeComboScanDiskTime();
 	afx_msg void OnCbnEditchangeComboDelayOffTime();
 	afx_msg void OnBnClickedBtnConnect();
+	afx_msg void OnCbnEditchangeComboKickOffTimeInterval();
 };

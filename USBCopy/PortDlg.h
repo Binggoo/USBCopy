@@ -39,10 +39,9 @@ private:
 	CIni *m_pIni;
 	HANDLE m_hLogFile;
 	volatile BOOL m_bEnableKickOff;
+	UINT m_nKickOffCount;
 
 	CToolTipCtrl m_Tooltips;
-
-	UINT m_nCount;
 
 	CFont m_font;
 

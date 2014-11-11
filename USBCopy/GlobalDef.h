@@ -78,7 +78,12 @@ typedef enum _ENUM_WORK_MODE
 	WorkMode_DiskClean,
 	WorkMode_DiskCompare,
 	WorkMode_DiskFormat,
-	WorkMode_MTPCopy
+	WorkMode_MTPCopy,
+	WorkMode_Full_RW_Test,
+	WorkMode_Fade_Picker,
+	WorkMode_Capacity_Check,
+	WorkMode_Speed_Check,
+	WorkMode_Burnin_Test
 }WorkMode;
 
 // ¶Ë¿Ú×´Ì¬
