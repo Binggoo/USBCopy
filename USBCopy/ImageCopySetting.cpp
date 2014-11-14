@@ -16,6 +16,8 @@ CImageCopySetting::CImageCopySetting(CWnd* pParent /*=NULL*/)
 	, m_nRadioPriorityIndex(0)
 	, m_bCheckCompare(FALSE)
 	, m_nRadioImageTypeIndex(0)
+	, m_bCleanDiskFirst(FALSE)
+	, m_strFillValues(_T(""))
 {
 	m_pIni = NULL;
 }
@@ -30,11 +32,18 @@ void CImageCopySetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Radio(pDX, IDC_RADIO_LOCAL_FIRST, m_nRadioPriorityIndex);
 	DDX_Check(pDX, IDC_CHECK_COMPARE, m_bCheckCompare);
 	DDX_Radio(pDX, IDC_RADIO_DISK_IMAGE, m_nRadioImageTypeIndex);
+	DDX_Check(pDX, IDC_CHECK_CLEAN_DISK_FIRST, m_bCleanDiskFirst);
+	DDX_Control(pDX, IDC_COMBO_CLEAN_TIMES, m_ComboBoxCleanTimes);
+	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
 }
 
 
 BEGIN_MESSAGE_MAP(CImageCopySetting, CDialogEx)
 	ON_BN_CLICKED(IDOK, &CImageCopySetting::OnBnClickedOk)
+	ON_BN_CLICKED(IDC_RADIO_DISK_IMAGE, &CImageCopySetting::OnBnClickedRadioDiskImage)
+	ON_BN_CLICKED(IDC_RADIO_MTP_IMAGE, &CImageCopySetting::OnBnClickedRadioMtpImage)
+	ON_BN_CLICKED(IDC_CHECK_CLEAN_DISK_FIRST, &CImageCopySetting::OnBnClickedCheckCleanDisk)
+	ON_CBN_SELCHANGE(IDC_COMBO_CLEAN_TIMES, &CImageCopySetting::OnCbnSelchangeComboCleanTimes)
 END_MESSAGE_MAP()
 
 
@@ -51,6 +60,35 @@ BOOL CImageCopySetting::OnInitDialog()
 	m_nRadioPriorityIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("PathType"),0);
 	m_bCheckCompare = m_pIni->GetBool(_T("ImageCopy"),_T("En_Compare"),FALSE);
 	m_nRadioImageTypeIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("ImageType"),0);
+
+	m_bCleanDiskFirst = m_pIni->GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE);
+
+	m_ComboBoxCleanTimes.AddString(_T("1"));
+	m_ComboBoxCleanTimes.AddString(_T("2"));
+	m_ComboBoxCleanTimes.AddString(_T("3"));
+
+	// MTP 映像
+	if (m_nRadioImageTypeIndex == 1)
+	{
+		GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(FALSE);
+		GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(FALSE);
+	}
+	else
+	{
+		GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
+		GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	}
+
+	m_strFillValues = m_pIni->GetString(_T("ImageCopy"),_T("FillValues"));
+	UINT nCleanTimes = m_pIni->GetUInt(_T("ImageCopy"),_T("CleanTimes"),1);
+
+	if (nCleanTimes < 1 || nCleanTimes > 3)
+	{
+		nCleanTimes = 1;
+	}
+
+	m_ComboBoxCleanTimes.SetCurSel(nCleanTimes - 1);
 
 	UpdateData(FALSE);
 
@@ -72,6 +110,65 @@ void CImageCopySetting::OnBnClickedOk()
 	m_pIni->WriteUInt(_T("ImageCopy"),_T("PathType"),m_nRadioPriorityIndex);
 	m_pIni->WriteBool(_T("ImageCopy"),_T("En_Compare"),m_bCheckCompare);
 	m_pIni->WriteUInt(_T("ImageCopy"),_T("ImageType"),m_nRadioImageTypeIndex);
+	m_pIni->WriteBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),m_bCleanDiskFirst);
+	m_pIni->WriteString(_T("ImageCopy"),_T("FillValues"),m_strFillValues);
+	m_pIni->WriteUInt(_T("ImageCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
 
 	CDialogEx::OnOK();
+}
+
+
+void CImageCopySetting::OnBnClickedRadioDiskImage()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+	GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(TRUE);
+
+	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	m_ComboBoxCleanTimes.EnableWindow(m_bCleanDiskFirst);
+}
+
+
+void CImageCopySetting::OnBnClickedRadioMtpImage()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+	GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(FALSE);
+
+	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(FALSE);
+	m_ComboBoxCleanTimes.EnableWindow(FALSE);
+}
+
+
+void CImageCopySetting::OnBnClickedCheckCleanDisk()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+
+	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	m_ComboBoxCleanTimes.EnableWindow(m_bCleanDiskFirst);
+}
+
+
+void CImageCopySetting::OnCbnSelchangeComboCleanTimes()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	int nSelectIndex = m_ComboBoxCleanTimes.GetCurSel();
+
+	switch (nSelectIndex)
+	{
+	case 0:
+		m_strFillValues = _T("00");
+		break;
+
+	case 1:
+		m_strFillValues = _T("FF;00");
+		break;
+
+	case 2:
+		m_strFillValues = _T("00;FF;XX");
+		break;
+	}
+
+	UpdateData(FALSE);
 }

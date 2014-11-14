@@ -22,6 +22,9 @@
 //                            2.Full Copy和Quick Copy中加入拷贝之前先全盘擦除参数
 //                            3.Image Make和Image Copy中加入Image类型/模式参数
 
+//V1.0.6.1 2014-11-14 Binggoo 1.Image Copy中加入拷贝之前先全盘擦除参数。
+//                            2.拷贝过程中屏蔽回车键和空格键。
+
 #include "stdafx.h"
 #include "USBCopy.h"
 #include "USBCopyDlg.h"
@@ -686,6 +689,13 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 			{
 				m_bIsMTP = TRUE;
 				strWorkModeParm += _T(" - MTP Image");
+			}
+			else
+			{
+				if (m_Config.GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE))
+				{
+					strWorkModeParm += _T(" + Clean Disk");
+				}
 			}
 		}
 		break;
@@ -2251,6 +2261,40 @@ void CUSBCopyDlg::OnStart()
 		{
 			BOOL bCompare = m_Config.GetBool(_T("ImageCopy"),_T("En_Compare"),FALSE);
 			UINT nImageType = m_Config.GetBool(_T("ImageCopy"),_T("ImageType"),0);
+			BOOL bCleanDiskFirst = m_Config.GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE);
+			UINT nCleanTimes = m_Config.GetUInt(_T("FullCopy"),_T("CleanTimes"),1);
+			CString strFillValues = m_Config.GetString(_T("FullCopy"),_T("FillValues"));
+
+			if (nCleanTimes < 0 || nCleanTimes > 3)
+			{
+				nCleanTimes = 1;
+			}
+
+			int *pCleanFillValues = new int[nCleanTimes];
+			memset(pCleanFillValues,0,nCleanTimes * sizeof(int));
+
+			if (bCleanDiskFirst)
+			{
+				int nCurPos = 0;
+
+				CString strToken;
+				UINT nCount = 0;
+
+				strToken = strFillValues.Tokenize(_T(";"),nCurPos);
+				while (nCurPos != -1 && nCount < nCleanTimes)
+				{
+					int nFillValue = _tcstoul(strToken, NULL, 16);
+
+					if (nFillValue == 0 && strToken.GetAt(0) != _T('0'))
+					{
+						nFillValue = RANDOM_VALUE;
+					}
+
+					pCleanFillValues[nCount++] = nFillValue;
+
+					strToken = strFillValues.Tokenize(_T(";"),nCurPos);
+				}
+			}
 
 			// 设置端口状态
 			CString strImagePath = m_Config.GetString(_T("ImagePath"),_T("ImagePath"),_T("d:\\image"));
@@ -2295,6 +2339,8 @@ void CUSBCopyDlg::OnStart()
 			disk.SetTargetPorts(&m_TargetPorts);
 			disk.SetHashMethod(TRUE,bCompare,hashMethod);
 			disk.SetSocket(m_ClientSocket,m_bServerFirst);
+			disk.SetCleanDiskFirst(bCleanDiskFirst,nCleanTimes,pCleanFillValues);
+			delete []pCleanFillValues;
 
 			bResult = disk.Start();
 
@@ -3977,7 +4023,9 @@ BOOL CUSBCopyDlg::PreTranslateMessage(MSG* pMsg)
 	// TODO: 在此添加专用代码和/或调用基类
 	if (pMsg->message == WM_KEYDOWN)
 	{
-		if (pMsg->wParam == VK_ESCAPE)
+		if (pMsg->wParam == VK_ESCAPE 
+			|| (pMsg->wParam == VK_RETURN && m_bStart)
+			|| (pMsg->wParam == VK_SPACE && m_bStart))
 		{
 			return TRUE;
 		}

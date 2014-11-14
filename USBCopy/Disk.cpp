@@ -3067,6 +3067,74 @@ BOOL CDisk::OnCopyImage()
 	BOOL bResult = FALSE;
 	DWORD dwReadId,dwWriteId,dwVerifyId,dwUncompressId;
 
+	m_bEnd = TRUE;
+
+	// 是否要执行全盘擦除
+	if (m_bCleanDiskFirst)
+	{
+		m_CleanMode = CleanMode_Full;
+
+		char function[255] = {NULL};
+
+		m_bEnd = FALSE;
+
+		//子盘写线程
+		HANDLE *hWriteThreads = new HANDLE[m_nCurrentTargetCount];
+
+		for (int i = 0; i < m_nCleanTimes;i++)
+		{
+			sprintf_s(function,"DISK CLEAN %d/%d",i+1,m_nCleanTimes);
+			::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+			m_nFillValue = m_pCleanValues[i];
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Disk Copy - DISK CLEAN %d/%d,fill value %d"),i+1,m_nCleanTimes,m_nFillValue);
+
+			UINT nCount = 0;
+			POSITION pos = m_TargetPorts->GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts->GetNext(pos);
+				if (port->IsConnected() && port->GetResult())
+				{
+					LPVOID_PARM lpVoid = new VOID_PARM;
+					lpVoid->lpVoid1 = this;
+					lpVoid->lpVoid2 = port;
+
+					hWriteThreads[nCount] = CreateThread(NULL,0,CleanDiskThreadProc,lpVoid,0,&dwWriteId);
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateCleanDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
+						,port->GetPortName(),port->GetDiskNum(),dwWriteId,hWriteThreads[nCount]);
+
+					nCount++;
+				}
+			}
+
+			//等待线程结束
+			WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
+			for (UINT i = 0; i < nCount;i++)
+			{
+				GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
+				bResult |= dwErrorCode;
+				CloseHandle(hWriteThreads[i]);
+				hWriteThreads[i] = NULL;
+			}
+
+			if (!bResult)
+			{
+				delete []hWriteThreads;
+				return FALSE;
+			}
+		}
+
+		delete []hWriteThreads;
+
+		strcpy_s(function,"IMAGE COPY");
+
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+	}
+
 	HANDLE hReadThread = CreateThread(NULL,0,ReadImageThreadProc,this,0,&dwReadId);
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Copy Image(%s) - CreateReadImageThread,ThreadId=0x%04X,HANDLE=0x%04X")

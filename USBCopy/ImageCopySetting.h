@@ -24,8 +24,16 @@ private:
 	BOOL m_bCheckCompare;
 	CIni *m_pIni;
 	int m_nRadioImageTypeIndex;
+	BOOL m_bCleanDiskFirst;
+	CComboBox m_ComboBoxCleanTimes;
+	CString m_strFillValues;
+
 public:
 	virtual BOOL OnInitDialog();
 	void SetConfig(CIni *pIni);
 	afx_msg void OnBnClickedOk();
+	afx_msg void OnBnClickedRadioDiskImage();
+	afx_msg void OnBnClickedRadioMtpImage();
+	afx_msg void OnBnClickedCheckCleanDisk();
+	afx_msg void OnCbnSelchangeComboCleanTimes();
 };

@@ -348,8 +348,8 @@ typedef struct _STRUCT_IMAGE_HEADER
 	char	  szZipVer[APP_VER_LENGTH]; //16
 	ULONGLONG ullPkgCount; //8
 	ULONGLONG ullValidSize; //8
-	DWORD dwHashLen; //4
-	DWORD	  dwHashType; //8
+	DWORD     dwHashLen; //4
+	DWORD	  dwHashType; //4
 	BYTE	  byImageDigest[LEN_DIGEST]; // 64
 	char      szDescription[SIZEOF_IMAGE_DISCRP]; //256
 	BYTE      byReserved[SIZEOF_IMAGE_HEADER-8*5-4*5-APP_VER_LENGTH*2-LEN_DIGEST-SIZEOF_IMAGE_DISCRP-1];
