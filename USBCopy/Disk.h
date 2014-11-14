@@ -41,7 +41,9 @@ public:
 	void SetCompareMode(CompareMode compareMode);
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
 	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
-	void SetMakeImageParm(int compressLevel);
+	void SetMakeImageParm(BOOL bQuickImage,int compressLevel);
+	void SetFullCopyParm(BOOL bAllowCapGap,UINT nPercent);
+	void SetCleanDiskFirst(BOOL bCleanDiskFist,int times,int *values);
 	BOOL Start();
 
 	void SetSocket(SOCKET sClient,BOOL bServerFirst);
@@ -62,18 +64,29 @@ private:
 	DWORD     m_dwBytesPerSector;
 	ULONGLONG m_ullValidSize;
 
+	// 相同参数
 	BOOL m_bComputeHash;
 	BOOL m_bHashVerify;
 	HashMethod m_HashMethod;
 	CHashMethod *m_pMasterHashMethod;
 	BYTE m_ImageHash[LEN_DIGEST];
 	CString m_strMasterHash;
-
 	WorkMode m_WorkMode;
 
+	// 拷贝之前擦除
+	BOOL m_bCleanDiskFirst;
+	int  m_nCleanTimes;
+	int  *m_pCleanValues;
+
+	//全盘拷贝参数
+	BOOL m_bAllowCapGap;
+	UINT m_nCapGapPercent;
+
+	// 磁盘擦除参数
 	CleanMode m_CleanMode;
 	int       m_nFillValue;
 
+	// 磁盘比较参数
 	CompareMode m_CompareMode;
 
 	EFF_LIST  m_EffList;
@@ -88,6 +101,7 @@ private:
 
 	CMapStringToULL m_MapCopyFiles;
 
+	// 格式化参数
 	BOOL m_bQuickFormat;
 	FileSystem m_FileSystem;
 	DWORD m_dwClusterSize;
@@ -97,12 +111,18 @@ private:
 
 	BOOL m_bCompressComplete; //压缩线程和解压线程是否结束
 
+	//映像拷贝参数
 	SOCKET m_ClientSocket;
 	BOOL   m_bServerFirst;
 
+	//映像制作参数
+	BOOL m_bQuickImage;
 	int m_iCompressLevel;
 
 	UINT m_nBlockSectors;
+
+	// 记录是否显示结果
+	BOOL m_bEnd;
 
 	// 20140-10-14 新增增量拷贝
 	CMapPortStringArray m_MapPortStringArray;
@@ -176,6 +196,7 @@ private:
 	int EnumFile(CString strSource);
 
 	BOOL QuickClean(CPort *port,PDWORD pdwErrorCode);
+	BOOL QuickClean(HANDLE hDisk,CPort *port,PDWORD pdwErrorCode);
 
 	// 线程
 	static DWORD WINAPI ReadDiskThreadProc(LPVOID lpParm);
@@ -186,6 +207,7 @@ private:
 	static DWORD WINAPI CompressThreadProc(LPVOID lpParm);
 	static DWORD WINAPI UnCompressThreadProc(LPVOID lpParm);
 	static DWORD WINAPI CleanDiskThreadProc(LPVOID lpParm);
+	static DWORD WINAPI VerifySectorThreadProc(LPVOID lpParm);
 
 	static DWORD WINAPI ReadFilesThreadProc(LPVOID lpParm);
 	static DWORD WINAPI WriteFilesThreadProc(LPVOID lpParm);
@@ -213,7 +235,8 @@ private:
 	BOOL ReadImage();
 	BOOL WriteDisk(CPort *port,CDataQueue *pDataQueue);
 	BOOL WriteImage(CPort *port,CDataQueue *pDataQueue);
-	BOOL Verify(CPort *port,CHashMethod *pHashMethod);
+	BOOL VerifyDisk(CPort *port,CHashMethod *pHashMethod);
+	BOOL VerifyDisk(CPort *port,CDataQueue *pDataQueue);
 	BOOL Compress();
 	BOOL Uncompress();
 	BOOL CleanDisk(CPort *port);

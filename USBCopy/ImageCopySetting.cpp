@@ -13,8 +13,9 @@ IMPLEMENT_DYNAMIC(CImageCopySetting, CDialogEx)
 
 CImageCopySetting::CImageCopySetting(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CImageCopySetting::IDD, pParent)
-	, m_nRadioSelectIndex(0)
+	, m_nRadioPriorityIndex(0)
 	, m_bCheckCompare(FALSE)
+	, m_nRadioImageTypeIndex(0)
 {
 	m_pIni = NULL;
 }
@@ -26,8 +27,9 @@ CImageCopySetting::~CImageCopySetting()
 void CImageCopySetting::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
-	DDX_Radio(pDX, IDC_RADIO_LOCAL_FIRST, m_nRadioSelectIndex);
+	DDX_Radio(pDX, IDC_RADIO_LOCAL_FIRST, m_nRadioPriorityIndex);
 	DDX_Check(pDX, IDC_CHECK_COMPARE, m_bCheckCompare);
+	DDX_Radio(pDX, IDC_RADIO_DISK_IMAGE, m_nRadioImageTypeIndex);
 }
 
 
@@ -46,8 +48,9 @@ BOOL CImageCopySetting::OnInitDialog()
 	// TODO:  在此添加额外的初始化
 	ASSERT(m_pIni);
 
-	m_nRadioSelectIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("PathType"),0);
+	m_nRadioPriorityIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("PathType"),0);
 	m_bCheckCompare = m_pIni->GetBool(_T("ImageCopy"),_T("En_Compare"),FALSE);
+	m_nRadioImageTypeIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("ImageType"),0);
 
 	UpdateData(FALSE);
 
@@ -66,8 +69,9 @@ void CImageCopySetting::OnBnClickedOk()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 
-	m_pIni->WriteUInt(_T("ImageCopy"),_T("PathType"),m_nRadioSelectIndex);
+	m_pIni->WriteUInt(_T("ImageCopy"),_T("PathType"),m_nRadioPriorityIndex);
 	m_pIni->WriteBool(_T("ImageCopy"),_T("En_Compare"),m_bCheckCompare);
+	m_pIni->WriteUInt(_T("ImageCopy"),_T("ImageType"),m_nRadioImageTypeIndex);
 
 	CDialogEx::OnOK();
 }

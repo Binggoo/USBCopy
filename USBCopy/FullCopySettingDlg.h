@@ -23,6 +23,11 @@ protected:
 private:
 	BOOL m_bComputeHash;
 	BOOL m_bCompare;
+	BOOL m_bAllowCapGap;
+	BOOL m_bCleanDiskFirst;
+	CComboBox m_ComboBoxCapGap;
+	CComboBox m_ComboBoxCleanTimes;
+	CString m_strFillValues;
 
 	CIni *m_pIni;
 
@@ -31,4 +36,8 @@ public:
 	afx_msg void OnBnClickedCheckCompare();
 	afx_msg void OnBnClickedCheckComputeHash();
 	afx_msg void OnBnClickedOk();
+	afx_msg void OnCbnEditchangeComboCapGap();
+	afx_msg void OnBnClickedCheckCapaGap();
+	afx_msg void OnBnClickedCheckCleanDisk();
+	afx_msg void OnCbnSelchangeComboCleanTimes();
 };

@@ -24,6 +24,9 @@ private:
 	BOOL m_bEnCompare;
 	BOOL m_bEnMutiMBRSupported;
 	CComboBox m_ComboBox;
+	BOOL m_bCleanDiskFirst;
+	CComboBox m_ComboBoxCleanTimes;
+	CString m_strFillValues;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV Ö§³Ö
@@ -40,4 +43,6 @@ public:
 	
 	afx_msg void OnBnClickedCheckQsComputeHash();
 	afx_msg void OnBnClickedCheckCompare();
+	afx_msg void OnBnClickedCheckCleanDisk();
+	afx_msg void OnCbnSelchangeComboCleanTimes();
 };

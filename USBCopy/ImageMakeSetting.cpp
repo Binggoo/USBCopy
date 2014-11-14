@@ -15,6 +15,7 @@ CImageMakeSetting::CImageMakeSetting(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CImageMakeSetting::IDD, pParent)
 	, m_nRadioSelectIndex(0)
 	, m_bCheckSupportMutiMBR(FALSE)
+	, m_nRadioSaveModeIndex(0)
 {
 	m_pIni = NULL;
 }
@@ -29,6 +30,7 @@ void CImageMakeSetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_CHECK_MUTI_MBR, m_bCheckSupportMutiMBR);
 	DDX_Control(pDX, IDC_COMBO_MUTI_MBR, m_ComboBoxMBRLBA);
 	DDX_Radio(pDX, IDC_RADIO_LOCAL, m_nRadioSelectIndex);
+	DDX_Radio(pDX, IDC_RADIO_FULL, m_nRadioSaveModeIndex);
 }
 
 
@@ -49,6 +51,7 @@ BOOL CImageMakeSetting::OnInitDialog()
 	ASSERT(m_pIni);
 
 	m_nRadioSelectIndex = m_pIni->GetUInt(_T("ImageMake"),_T("SavePath"),0);
+	m_nRadioSaveModeIndex = m_pIni->GetUInt(_T("ImageMake"),_T("SaveMode"),0);
 
 #ifndef SD_TF
 	m_bCheckSupportMutiMBR = m_pIni->GetBool(_T("ImageMake"),_T("En_MutiMBR"),FALSE);
@@ -94,6 +97,7 @@ void CImageMakeSetting::OnBnClickedOk()
 	UpdateData(TRUE);
 
 	m_pIni->WriteUInt(_T("ImageMake"),_T("SavePath"),m_nRadioSelectIndex);
+	m_pIni->WriteUInt(_T("ImageMake"),_T("SaveMode"),m_nRadioSaveModeIndex);
 
 #ifndef SD_TF
 	UINT nMBRLastLBA = GetDlgItemInt(IDC_COMBO_MUTI_MBR);

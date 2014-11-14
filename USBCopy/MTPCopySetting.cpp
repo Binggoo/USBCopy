@@ -35,6 +35,7 @@ BEGIN_MESSAGE_MAP(CMTPCopySetting, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_COMPUTE_HASH, &CMTPCopySetting::OnBnClickedCheckComputeHash)
 	ON_BN_CLICKED(IDC_CHECK_COMPARE, &CMTPCopySetting::OnBnClickedCheckCompare)
 	ON_BN_CLICKED(IDOK, &CMTPCopySetting::OnBnClickedOk)
+	ON_WM_CTLCOLOR()
 END_MESSAGE_MAP()
 
 
@@ -102,4 +103,19 @@ void CMTPCopySetting::OnBnClickedOk()
 	m_pIni->WriteBool(_T("MTPCopy"),_T("En_Compare"),m_bCompare);
 
 	CDialogEx::OnOK();
+}
+
+
+HBRUSH CMTPCopySetting::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+	HBRUSH hbr = CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
+
+	// TODO:  在此更改 DC 的任何特性
+	if (pWnd->GetDlgCtrlID() == IDC_STATIC)
+	{
+		pDC->SetTextColor(RGB(255,0,0));
+	}
+
+	// TODO:  如果默认的不是所需画笔，则返回另一个画笔
+	return hbr;
 }

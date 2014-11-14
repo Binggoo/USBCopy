@@ -20,9 +20,10 @@ protected:
 
 	DECLARE_MESSAGE_MAP()
 private:
-	int m_nRadioSelectIndex;
+	int m_nRadioPriorityIndex;
 	BOOL m_bCheckCompare;
 	CIni *m_pIni;
+	int m_nRadioImageTypeIndex;
 public:
 	virtual BOOL OnInitDialog();
 	void SetConfig(CIni *pIni);

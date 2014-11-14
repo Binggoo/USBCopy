@@ -234,7 +234,8 @@ BOOL CWpdDevice::OnCopyWpdFiles()
 
 	if (bResult && m_bHashVerify)
 	{
-		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
+		char function[1024] = "VERIFY";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,WPARAM(function),0);
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -682,8 +683,6 @@ BOOL CWpdDevice::WriteWpdFiles( CPort* port,CDataQueue *pDataQueue,CMapStringToS
 	ErrorType errType = ErrorType_System;
 
 	port->Active();
-
-	port->SetStartTime(CTime::GetCurrentTime());
 
 	CComPtr<IPortableDevice> pIPortableDevice;
 	HRESULT hr = OpenDevice(&pIPortableDevice,port->GetDevicePath());

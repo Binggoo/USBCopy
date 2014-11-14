@@ -16,6 +16,8 @@ CQuickCopySettingDlg::CQuickCopySettingDlg(CWnd* pParent /*=NULL*/)
 	, m_bEnCompare(FALSE)
 	, m_bEnMutiMBRSupported(FALSE)
 	, m_bComputeHash(FALSE)
+	, m_bCleanDiskFirst(FALSE)
+	, m_strFillValues(_T(""))
 {
 	m_pIni = NULL;
 }
@@ -31,6 +33,9 @@ void CQuickCopySettingDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_CHECK_MUTI_MBR, m_bEnMutiMBRSupported);
 	DDX_Control(pDX, IDC_COMBO_MUTI_MBR, m_ComboBox);
 	DDX_Check(pDX, IDC_CHECK_COMPUTE_HASH, m_bComputeHash);
+	DDX_Check(pDX, IDC_CHECK_CLEAN_DISK, m_bCleanDiskFirst);
+	DDX_Control(pDX, IDC_COMBO_CLEAN_TIMES, m_ComboBoxCleanTimes);
+	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
 }
 
 
@@ -39,6 +44,8 @@ BEGIN_MESSAGE_MAP(CQuickCopySettingDlg, CDialogEx)
 	ON_BN_CLICKED(IDOK, &CQuickCopySettingDlg::OnBnClickedOk)
 	ON_BN_CLICKED(IDC_CHECK_COMPUTE_HASH, &CQuickCopySettingDlg::OnBnClickedCheckQsComputeHash)
 	ON_BN_CLICKED(IDC_CHECK_COMPARE, &CQuickCopySettingDlg::OnBnClickedCheckCompare)
+	ON_BN_CLICKED(IDC_CHECK_CLEAN_DISK, &CQuickCopySettingDlg::OnBnClickedCheckCleanDisk)
+	ON_CBN_SELCHANGE(IDC_COMBO_CLEAN_TIMES, &CQuickCopySettingDlg::OnCbnSelchangeComboCleanTimes)
 END_MESSAGE_MAP()
 
 
@@ -58,6 +65,25 @@ BOOL CQuickCopySettingDlg::OnInitDialog()
 	{
 		m_bEnCompare = FALSE;
 	}
+
+	m_bCleanDiskFirst = m_pIni->GetBool(_T("QuickCopy"),_T("En_CleanDiskFirst"),FALSE);
+
+	m_ComboBoxCleanTimes.AddString(_T("1"));
+	m_ComboBoxCleanTimes.AddString(_T("2"));
+	m_ComboBoxCleanTimes.AddString(_T("3"));
+
+	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+
+	m_strFillValues = m_pIni->GetString(_T("QuickCopy"),_T("FillValues"));
+	UINT nCleanTimes = m_pIni->GetUInt(_T("QuickCopy"),_T("CleanTimes"),1);
+
+	if (nCleanTimes < 1 || nCleanTimes > 3)
+	{
+		nCleanTimes = 1;
+	}
+
+	m_ComboBoxCleanTimes.SetCurSel(nCleanTimes - 1);
 
 #ifndef SD_TF
 	m_bEnMutiMBRSupported = m_pIni->GetBool(_T("QuickCopy"),_T("En_MutiMBR"),FALSE);
@@ -105,6 +131,9 @@ void CQuickCopySettingDlg::OnBnClickedOk()
 
 	m_pIni->WriteBool(_T("QuickCopy"),_T("En_ComputeHash"),m_bComputeHash);
 	m_pIni->WriteBool(_T("QuickCopy"),_T("En_Compare"),m_bEnCompare);
+	m_pIni->WriteBool(_T("QuickCopy"),_T("En_CleanDiskFirst"),m_bCleanDiskFirst);
+	m_pIni->WriteUInt(_T("QuickCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
+	m_pIni->WriteString(_T("QuickCopy"),_T("FillValues"),m_strFillValues);
 	
 	CDialogEx::OnOK();
 }
@@ -138,4 +167,37 @@ void CQuickCopySettingDlg::OnBnClickedCheckCompare()
 		m_bComputeHash = TRUE;
 		UpdateData(FALSE);
 	}
+}
+
+
+void CQuickCopySettingDlg::OnBnClickedCheckCleanDisk()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+}
+
+
+void CQuickCopySettingDlg::OnCbnSelchangeComboCleanTimes()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	int nSelectIndex = m_ComboBoxCleanTimes.GetCurSel();
+
+	switch (nSelectIndex)
+	{
+	case 0:
+		m_strFillValues = _T("00");
+		break;
+
+	case 1:
+		m_strFillValues = _T("FF;00");
+		break;
+
+	case 2:
+		m_strFillValues = _T("00;FF;XX");
+		break;
+	}
+
+	UpdateData(FALSE);
 }

@@ -112,7 +112,7 @@ typedef enum _ENUM_CLEAN_MODE
 {
 	CleanMode_Full = 0,
 	CleanMode_Quick,
-	CleanMode_Safe
+	CleanMode_Safe,
 }CleanMode;
 
 typedef enum _ENUM_COMPARE_MODE
@@ -191,6 +191,13 @@ typedef enum _ENUM_FILE_SYSTEM
 	FileSystem_EXT_X,
 	FileSystem_EFI_PART
 }FileSystem;
+
+typedef enum _ENUM_IMAGE_TYPE
+{
+	FULL_IMAGE,
+	QUICK_IMAGE,
+	MTP_IMAGE
+}ImageType;
 
 #pragma pack(push,1)
 /****************************************************************************
@@ -323,7 +330,6 @@ typedef struct _STRUCT_RANGE_FROM_TO
 #define IMAGE_FLAG "PY-IMG"
 #define END_FLAG 0xED
 #define START_FLAG 0xBE
-#define IMAGE_VERSION 0x01
 #define APP_VER_LENGTH						(16)	// this is the length of the FILE_HANDLER_VER
 #define PKG_HEADER_SIZE  12
 #define ZIP_VERSION   "1.28"
@@ -335,7 +341,7 @@ typedef struct _STRUCT_IMAGE_HEADER
 	char      szImageFlag[8];  //8
 	ULONGLONG ullImageSize;    //8
 	char	  szAppVersion[APP_VER_LENGTH]; //16
-	DWORD	  dwImageVersion;  //4
+	DWORD	  dwImageType;  //4
 	DWORD	  dwMaxSizeOfPackage; //4
 	ULONGLONG ullCapacitySize; //8
 	DWORD     dwBytesPerSector; //4

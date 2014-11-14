@@ -34,4 +34,5 @@ public:
 	afx_msg void OnBnClickedCheckComputeHash();
 	afx_msg void OnBnClickedCheckCompare();
 	afx_msg void OnBnClickedOk();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 };

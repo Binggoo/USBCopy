@@ -65,6 +65,16 @@ CDisk::CDisk(void)
 	m_nCompareRule = 0;
 	m_bIncludeSubDir = FALSE;
 	m_bUploadUserLog = FALSE;
+
+	// 2014-11-12 新增
+	m_bAllowCapGap = FALSE;
+	m_nCapGapPercent = 0;
+	m_bQuickImage = TRUE;
+	m_bCleanDiskFirst = FALSE;
+	m_nCleanTimes = 0;
+	m_pCleanValues = NULL;
+
+	m_bEnd = TRUE;
 }
 
 
@@ -82,10 +92,16 @@ CDisk::~CDisk(void)
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(pos);
 		delete dataQueue;
 	}
+	m_DataQueueList.RemoveAll();
 
 	if (m_pMasterHashMethod != NULL)
 	{
 		delete m_pMasterHashMethod;
+	}
+
+	if (m_pCleanValues)
+	{
+		delete []m_pCleanValues;
 	}
 }
 
@@ -1359,7 +1375,7 @@ void CDisk::SetHashMethod( BOOL bComputeHash,BOOL bHashVerify,HashMethod hashMet
 	}
 }
 
-void CDisk::SetWorkMode( WorkMode workMode )
+void CDisk::SetWorkMode( WorkMode workMode)
 {
 	m_WorkMode = workMode;
 }
@@ -1582,8 +1598,6 @@ FileSystem CDisk::GetFileSystem( const PBYTE pDBR,ULONGLONG ullStartSector )
 BOOL CDisk::BriefAnalyze()
 {
 	DWORD dwErrorCode = 0;
-
-	m_MasterPort->SetStartTime(CTime::GetCurrentTime());
 
 	BYTE *pXBR = new BYTE[m_dwBytesPerSector];
 	ZeroMemory(pXBR,m_dwBytesPerSector);
@@ -2661,6 +2675,80 @@ BOOL CDisk::OnCopyDisk()
 	BOOL bResult = FALSE;
 	DWORD dwReadId,dwWriteId,dwVerifyId,dwErrorCode;
 
+	m_bEnd = TRUE;
+
+	// 是否要执行全盘擦除
+	if (m_bCleanDiskFirst)
+	{
+		m_CleanMode = CleanMode_Full;
+
+		char function[255] = {NULL};
+
+		m_bEnd = FALSE;
+
+		//子盘写线程
+		HANDLE *hWriteThreads = new HANDLE[m_nCurrentTargetCount];
+
+		for (int i = 0; i < m_nCleanTimes;i++)
+		{
+			sprintf_s(function,"DISK CLEAN %d/%d",i+1,m_nCleanTimes);
+			::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+			m_nFillValue = m_pCleanValues[i];
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Disk Copy - DISK CLEAN %d/%d,fill value %d"),i+1,m_nCleanTimes,m_nFillValue);
+
+			UINT nCount = 0;
+			POSITION pos = m_TargetPorts->GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts->GetNext(pos);
+				if (port->IsConnected() && port->GetResult())
+				{
+					LPVOID_PARM lpVoid = new VOID_PARM;
+					lpVoid->lpVoid1 = this;
+					lpVoid->lpVoid2 = port;
+
+					hWriteThreads[nCount] = CreateThread(NULL,0,CleanDiskThreadProc,lpVoid,0,&dwWriteId);
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateCleanDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
+						,port->GetPortName(),port->GetDiskNum(),dwWriteId,hWriteThreads[nCount]);
+
+					nCount++;
+				}
+			}
+
+			//等待线程结束
+			WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
+			for (UINT i = 0; i < nCount;i++)
+			{
+				GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
+				bResult |= dwErrorCode;
+				CloseHandle(hWriteThreads[i]);
+				hWriteThreads[i] = NULL;
+			}
+
+			if (!bResult)
+			{
+				delete []hWriteThreads;
+				return FALSE;
+			}
+		}
+
+		delete []hWriteThreads;
+		
+		if (m_WorkMode == WorkMode_FullCopy)
+		{
+			strcpy_s(function,"FULL COPY");
+		}
+		else
+		{
+			strcpy_s(function,"QUICK COPY");
+		}
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+	}
+
 	HANDLE hReadThread = CreateThread(NULL,0,ReadDiskThreadProc,this,0,&dwReadId);
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Disk Copy(Master) - CreateReadDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
@@ -2675,6 +2763,7 @@ BOOL CDisk::OnCopyDisk()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
+		dataQueue->Clear();
 		if (port->IsConnected())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -2698,6 +2787,7 @@ BOOL CDisk::OnCopyDisk()
 		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
 		bResult |= dwErrorCode;
 		CloseHandle(hWriteThreads[i]);
+		hWriteThreads[i] = NULL;
 	}
 	delete []hWriteThreads;
 
@@ -2709,7 +2799,10 @@ BOOL CDisk::OnCopyDisk()
 
 	if (bResult && m_bHashVerify)
 	{
-		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
+		char function[255] = "VERIFY";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
+
+		m_bEnd = TRUE;
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -2728,55 +2821,110 @@ BOOL CDisk::OnCopyDisk()
 
 		HANDLE *hVerifyThreads = new HANDLE[nCount];
 
-		nCount = 0;
-		pos = m_TargetPorts->GetHeadPosition();
-		while (pos)
+		// 如果允许容量误差，并且设置的误差不是0，则需要安装Sector by Sector的方式进行比较
+		if (m_bAllowCapGap && m_nCapGapPercent != 0)
 		{
-			CPort *port = m_TargetPorts->GetNext(pos);
-			if (port->IsConnected() && port->GetResult())
+			m_bComputeHash = FALSE;
+
+			hReadThread = CreateThread(NULL,0,ReadDiskThreadProc,this,0,&dwReadId);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read Disk(Master) - CreateReadDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
+				,dwReadId,hReadThread);
+
+			nCount = 0;
+			pos = m_TargetPorts->GetHeadPosition();
+			posQueue = m_DataQueueList.GetHeadPosition();
+			while (pos && posQueue)
 			{
-				CHashMethod *pHashMethod;
-
-				switch (port->GetHashMethod())
+				CPort *port = m_TargetPorts->GetNext(pos);
+				CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
+				dataQueue->Clear();
+				if (port->IsConnected())
 				{
-				case HashMethod_CHECKSUM32:
-					pHashMethod = new CChecksum32();
-					break;
+					LPVOID_PARM lpVoid = new VOID_PARM;
+					lpVoid->lpVoid1 = this;
+					lpVoid->lpVoid2 = port;
+					lpVoid->lpVoid3 = dataQueue;
 
-				case HashMethod_CRC32:
-					pHashMethod = new CCRC32();
-					break;
+					hVerifyThreads[nCount] = CreateThread(NULL,0,VerifySectorThreadProc,lpVoid,0,&dwVerifyId);
 
-				case HashMethod_MD5:
-					pHashMethod = new MD5();
-					break;
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateVerifyDiskSectorThread,ThreadId=0x%04X,HANDLE=0x%04X")
+						,port->GetPortName(),port->GetDiskNum(),dwVerifyId,hVerifyThreads[nCount]);
+
+					nCount++;
 				}
-
-				LPVOID_PARM lpVoid = new VOID_PARM;
-				lpVoid->lpVoid1 = this;
-				lpVoid->lpVoid2 = port;
-				lpVoid->lpVoid3 = pHashMethod;
-
-				hVerifyThreads[nCount] = CreateThread(NULL,0,VerifyThreadProc,lpVoid,0,&dwVerifyId);
-
-				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateVerifyDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
-					,port->GetPortName(),port->GetDiskNum(),dwVerifyId,hVerifyThreads[nCount]);
-
-				nCount++;
 			}
+
+			//等待校验线程结束
+			WaitForMultipleObjects(nCount,hVerifyThreads,TRUE,INFINITE);
+
+			bResult = FALSE;
+			for (UINT i = 0; i < nCount;i++)
+			{
+				GetExitCodeThread(hVerifyThreads[i],&dwErrorCode);
+				bResult |= dwErrorCode;
+				CloseHandle(hVerifyThreads[i]);
+			}
+			delete []hVerifyThreads;
+
+			//等待读磁盘线程结束
+			WaitForSingleObject(hReadThread,INFINITE);
+			GetExitCodeThread(hReadThread,&dwErrorCode);
+			bResult &= dwErrorCode;
+			CloseHandle(hReadThread);
 		}
-
-		//等待校验线程结束
-		WaitForMultipleObjects(nCount,hVerifyThreads,TRUE,INFINITE);
-
-		bResult = FALSE;
-		for (UINT i = 0; i < nCount;i++)
+		else
 		{
-			GetExitCodeThread(hVerifyThreads[i],&dwErrorCode);
-			bResult |= dwErrorCode;
-			CloseHandle(hVerifyThreads[i]);
+			nCount = 0;
+			pos = m_TargetPorts->GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts->GetNext(pos);
+				if (port->IsConnected() && port->GetResult())
+				{
+					CHashMethod *pHashMethod;
+
+					switch (port->GetHashMethod())
+					{
+					case HashMethod_CHECKSUM32:
+						pHashMethod = new CChecksum32();
+						break;
+
+					case HashMethod_CRC32:
+						pHashMethod = new CCRC32();
+						break;
+
+					case HashMethod_MD5:
+						pHashMethod = new MD5();
+						break;
+					}
+
+					LPVOID_PARM lpVoid = new VOID_PARM;
+					lpVoid->lpVoid1 = this;
+					lpVoid->lpVoid2 = port;
+					lpVoid->lpVoid3 = pHashMethod;
+
+					hVerifyThreads[nCount] = CreateThread(NULL,0,VerifyThreadProc,lpVoid,0,&dwVerifyId);
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateVerifyDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
+						,port->GetPortName(),port->GetDiskNum(),dwVerifyId,hVerifyThreads[nCount]);
+
+					nCount++;
+				}
+			}
+
+			//等待校验线程结束
+			WaitForMultipleObjects(nCount,hVerifyThreads,TRUE,INFINITE);
+
+			bResult = FALSE;
+			for (UINT i = 0; i < nCount;i++)
+			{
+				GetExitCodeThread(hVerifyThreads[i],&dwErrorCode);
+				bResult |= dwErrorCode;
+				CloseHandle(hVerifyThreads[i]);
+			}
+			delete []hVerifyThreads;
 		}
-		delete []hVerifyThreads;
 
 		if (!bResult)
 		{
@@ -2938,6 +3086,7 @@ BOOL CDisk::OnCopyImage()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
+		dataQueue->Clear();
 		if (port->IsConnected())
 		{
 			port->SetHashMethod(hashMethod);
@@ -2963,6 +3112,7 @@ BOOL CDisk::OnCopyImage()
 		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
 		bResult |= dwErrorCode;
 		CloseHandle(hWriteThreads[i]);
+		hWriteThreads[i] = NULL;
 	}
 	delete []hWriteThreads;
 
@@ -2978,7 +3128,8 @@ BOOL CDisk::OnCopyImage()
 
 	if (bResult && m_bHashVerify)
 	{
-		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
+		char function[255] = "VERIFY";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -3075,16 +3226,31 @@ BOOL CDisk::OnCopyImage()
 
 BOOL CDisk::OnMakeImage()
 {
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze start......"));
-	if (!BriefAnalyze())
+	if (m_bQuickImage)
 	{
-		return FALSE;
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze start......"));
+		if (!BriefAnalyze())
+		{
+			return FALSE;
+		}
+
+		m_ullValidSize = GetValidSize();
+		SetValidSize(m_ullValidSize);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze end, valid data size=%I64d"),m_ullValidSize);
 	}
+	else
+	{
+		EFF_DATA effData;
+		effData.ullStartSector = 0;
+		effData.ullSectors = m_ullSectorNums;
+		effData.wBytesPerSector = (WORD)m_dwBytesPerSector;
 
-	m_ullValidSize = GetValidSize();
-	SetValidSize(m_ullValidSize);
+		m_EffList.AddTail(effData);
 
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze end, valid data size=%I64d"),m_ullValidSize);
+		m_ullValidSize = GetValidSize();
+		SetValidSize(m_ullValidSize);
+	}
 
 	CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Valid Data List:"));
 	CString strList;
@@ -3119,6 +3285,7 @@ BOOL CDisk::OnMakeImage()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
+		dataQueue->Clear();
 		if (port->IsConnected())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -3142,6 +3309,7 @@ BOOL CDisk::OnMakeImage()
 		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
 		bResult |= dwErrorCode;
 		CloseHandle(hWriteThreads[i]);
+		hWriteThreads[i] = NULL;
 	}
 	delete []hWriteThreads;
 
@@ -3304,36 +3472,108 @@ BOOL CDisk::OnCleanDisk()
 
 	//子盘写线程
 	HANDLE *hWriteThreads = new HANDLE[m_nCurrentTargetCount];
-	UINT nCount = 0;
-	POSITION pos = m_TargetPorts->GetHeadPosition();
-	while (pos)
+
+	if (m_CleanMode == CleanMode_Safe)
 	{
-		CPort *port = m_TargetPorts->GetNext(pos);
-		if (port->IsConnected() && port->GetResult())
+		m_CleanMode = CleanMode_Full;
+
+		m_nCleanTimes = 7;
+		m_pCleanValues = new int[7];
+		m_pCleanValues[0] = 0;
+		m_pCleanValues[1] = 0xFF;
+		m_pCleanValues[2] = RANDOM_VALUE;
+		m_pCleanValues[3] = 0x96;
+		m_pCleanValues[4] = 0;
+		m_pCleanValues[5] = 0xFF;
+		m_pCleanValues[6] = RANDOM_VALUE;
+
+		char function[255] = {NULL};
+		m_bEnd = FALSE;
+		for (int i = 0; i < m_nCleanTimes;i++)
 		{
-			LPVOID_PARM lpVoid = new VOID_PARM;
-			lpVoid->lpVoid1 = this;
-			lpVoid->lpVoid2 = port;
+			sprintf_s(function,"DISK CLEAN %d/%d",i+1,m_nCleanTimes);
+			::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
-			hWriteThreads[nCount] = CreateThread(NULL,0,CleanDiskThreadProc,lpVoid,0,&dwWriteId);
+			 if (i == m_nCleanTimes - 1)
+			{
+				m_bEnd = TRUE;
+			}
 
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateCleanDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
-				,port->GetPortName(),port->GetDiskNum(),dwWriteId,hWriteThreads[nCount]);
+			m_nFillValue = m_pCleanValues[i];
 
-			nCount++;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("DISK CLEAN %d/%d,fill value %d"),i+1,m_nCleanTimes,m_nFillValue);
+
+			UINT nCount = 0;
+			POSITION pos = m_TargetPorts->GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts->GetNext(pos);
+				if (port->IsConnected() && port->GetResult())
+				{
+					LPVOID_PARM lpVoid = new VOID_PARM;
+					lpVoid->lpVoid1 = this;
+					lpVoid->lpVoid2 = port;
+
+					hWriteThreads[nCount] = CreateThread(NULL,0,CleanDiskThreadProc,lpVoid,0,&dwWriteId);
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateCleanDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
+						,port->GetPortName(),port->GetDiskNum(),dwWriteId,hWriteThreads[nCount]);
+
+					nCount++;
+				}
+			}
+
+			//等待线程结束
+			WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
+			for (UINT i = 0; i < nCount;i++)
+			{
+				GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
+				bResult |= dwErrorCode;
+				CloseHandle(hWriteThreads[i]);
+				hWriteThreads[i] = NULL;
+			}
+
+			if (!bResult)
+			{
+				delete []hWriteThreads;
+				return FALSE;
+			}
+	}
+	}
+	else
+	{
+		UINT nCount = 0;
+		POSITION pos = m_TargetPorts->GetHeadPosition();
+		while (pos)
+		{
+			CPort *port = m_TargetPorts->GetNext(pos);
+			if (port->IsConnected() && port->GetResult())
+			{
+				LPVOID_PARM lpVoid = new VOID_PARM;
+				lpVoid->lpVoid1 = this;
+				lpVoid->lpVoid2 = port;
+
+				hWriteThreads[nCount] = CreateThread(NULL,0,CleanDiskThreadProc,lpVoid,0,&dwWriteId);
+
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - CreateCleanDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
+					,port->GetPortName(),port->GetDiskNum(),dwWriteId,hWriteThreads[nCount]);
+
+				nCount++;
+			}
+		}
+
+		//等待线程结束
+		WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
+		for (UINT i = 0; i < nCount;i++)
+		{
+			GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
+			bResult |= dwErrorCode;
+			CloseHandle(hWriteThreads[i]);
+			hWriteThreads[i] = NULL;
 		}
 	}
 
-	//等待线程结束
-	WaitForMultipleObjects(nCount,hWriteThreads,TRUE,INFINITE);
-	for (UINT i = 0; i < nCount;i++)
-	{
-		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
-		bResult |= dwErrorCode;
-		CloseHandle(hWriteThreads[i]);
-	}
 	delete []hWriteThreads;
-
 	return bResult;
 }
 
@@ -3408,6 +3648,7 @@ BOOL CDisk::OnCopyFiles()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
+		dataQueue->Clear();
 		if (port->IsConnected())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -3431,6 +3672,7 @@ BOOL CDisk::OnCopyFiles()
 		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
 		bResult |= dwErrorCode;
 		CloseHandle(hWriteThreads[i]);
+		hWriteThreads[i] = NULL;
 	}
 	delete []hWriteThreads;
 
@@ -3442,7 +3684,8 @@ BOOL CDisk::OnCopyFiles()
 
 	if (bResult && m_bHashVerify)
 	{
-		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
+		char function[255] = "VERIFY";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -3569,6 +3812,7 @@ BOOL CDisk::OnFormatDisk()
 		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
 		bResult |= dwErrorCode;
 		CloseHandle(hWriteThreads[i]);
+		hWriteThreads[i] = NULL;
 	}
 	delete []hWriteThreads;
 
@@ -3596,7 +3840,7 @@ BOOL CDisk::OnDiffCopy()
 
 	if (m_bUploadUserLog)
 	{
-		char function[1024] = "USER LOG";
+		char function[255] = "USER LOG";
 		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Search user log..."));
@@ -3783,7 +4027,7 @@ BOOL CDisk::OnDiffCopy()
 	else
 	{
 		//第一步，遍历母盘和任一子盘中的文件
-		char function[1024] = "COMPARE";
+		char function[255] = "COMPARE";
 		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Enum files start..."));
@@ -4006,7 +4250,7 @@ BOOL CDisk::OnDiffCopy()
 		
 
 		// 创建删除文件线程
-		char function[1024] = "DELETE";
+		char function[255] = "DELETE";
 		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
 		DWORD dwDelThreadId = 0;
@@ -4065,6 +4309,7 @@ BOOL CDisk::OnDiffCopy()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
+		dataQueue->Clear();
 		if (port->IsConnected())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -4088,6 +4333,7 @@ BOOL CDisk::OnDiffCopy()
 		GetExitCodeThread(hWriteThreads[i],&dwErrorCode);
 		bResult |= dwErrorCode;
 		CloseHandle(hWriteThreads[i]);
+		hWriteThreads[i] = NULL;
 	}
 	delete []hWriteThreads;
 
@@ -4099,7 +4345,8 @@ BOOL CDisk::OnDiffCopy()
 
 	if (bResult && m_bHashVerify)
 	{
-		PostMessage(m_hWnd,WM_VERIFY_START,0,0);
+		char function[255] = "VERIFY";
+		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
 		nCount = 0;
 		pos = m_TargetPorts->GetHeadPosition();
@@ -4202,6 +4449,8 @@ BOOL CDisk::ReadDisk()
 	// 计算精确速度
 	LARGE_INTEGER freq,t0,t1,t2;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	// 如果要先擦除，此时需要等待擦除结束
 
 	QueryPerformanceFrequency(&freq);
 
@@ -4348,8 +4597,8 @@ BOOL CDisk::ReadDisk()
 		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
 	}
 
-	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 	m_MasterPort->SetResult(bResult);
+	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -4388,19 +4637,21 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 
 	port->Active();
 
-	port->SetStartTime(CTime::GetCurrentTime());
-
 	// 判断容量
 	if (port->GetTotalSize() < m_ullValidSize)
 	{
-		port->SetEndTime(CTime::GetCurrentTime());
-		port->SetResult(FALSE);
-		port->SetErrorCode(ErrorType_Custom,CustomError_Target_Small);
-		port->SetPortState(PortState_Fail);
-		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop copy,custom errorcode=0x%X,target is small")
-			,port->GetPortName(),port->GetDiskNum(),CustomError_Target_Small);
+		// 比允许的误差还要小
+		if (!m_bAllowCapGap || port->GetTotalSize() < m_ullValidSize * (100-m_nCapGapPercent)/100)
+		{
+			port->SetEndTime(CTime::GetCurrentTime());
+			port->SetResult(FALSE);
+			port->SetErrorCode(ErrorType_Custom,CustomError_Target_Small);
+			port->SetPortState(PortState_Fail);
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop copy,custom errorcode=0x%X,target is small")
+				,port->GetPortName(),port->GetDiskNum(),CustomError_Target_Small);
 
-		return FALSE;
+			return FALSE;
+		}	
 	}
 	else
 	{
@@ -4424,8 +4675,6 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		}
 	}
 
-	QuickClean(port,&dwErrorCode);
-
 	HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
 
 	if (hDisk == INVALID_HANDLE_VALUE)
@@ -4440,6 +4689,8 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		return FALSE;
 	}
 
+	SetDiskAtrribute(hDisk,FALSE,TRUE,&dwErrorCode);
+
 	// 计算精确速度
 	LARGE_INTEGER freq,t0,t1,t2;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
@@ -4447,6 +4698,14 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 	DWORD dwBytesPerSector = port->GetBytesPerSector();
 
 	QueryPerformanceFrequency(&freq);
+
+	// 是否需要先执行全盘擦除
+	if (!m_bCleanDiskFirst)
+	{
+		QuickClean(hDisk,port,&dwErrorCode);
+	}
+
+	port->Active();
 
 	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
@@ -4500,6 +4759,19 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		if (dataInfo == NULL)
 		{
 			continue;
+		}
+
+		// 如果子盘的容量小于有效资料的大小，并且已经达到允许误差了，不用继续拷贝，但是母口还在继续丢资料，所以要continue
+		if (port->GetTotalSize() < m_ullValidSize)
+		{
+			if (m_bAllowCapGap && dataInfo->ullOffset >= m_ullValidSize * (100 - m_nCapGapPercent)/100)
+			{
+				//为了保证进度条显示正确，实际完成资料量要继续添加
+				port->AppendCompleteSize(dataInfo->dwDataSize);
+				delete []dataInfo->pData;
+				delete dataInfo;
+				continue;
+			}
 		}
 
 		ULONGLONG ullStartSectors = dataInfo->ullOffset / dwBytesPerSector;
@@ -4569,8 +4841,9 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		bResult = FALSE;
 	}
 
-	port->SetEndTime(CTime::GetCurrentTime());
+	
 	port->SetResult(bResult);
+	port->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -4650,7 +4923,33 @@ BOOL CDisk::QuickClean(CPort *port,PDWORD pdwErrorCode )
 	return bResult;
 }
 
-BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
+BOOL CDisk::QuickClean( HANDLE hDisk,CPort *port,PDWORD pdwErrorCode )
+{
+	BOOL bResult = TRUE;
+	BYTE *pByte = new BYTE[CLEAN_LENGTH];
+	ZeroMemory(pByte,CLEAN_LENGTH);
+
+	DWORD dwBytesPerSector = 0;
+	ULONGLONG ullSectorNums = GetNumberOfSectors(hDisk,&dwBytesPerSector,NULL);
+	DWORD dwSectors = CLEAN_LENGTH/dwBytesPerSector;
+	DWORD dwSize = 0;
+
+	if (!WriteSectors(hDisk,0,dwSectors,dwBytesPerSector,pByte,port->GetOverlapped(FALSE),pdwErrorCode))
+	{
+		bResult = FALSE;
+	}
+
+	if (!WriteSectors(hDisk,ullSectorNums-dwSectors,dwSectors,dwBytesPerSector,pByte,port->GetOverlapped(FALSE),pdwErrorCode))
+	{
+		bResult = FALSE;
+	}
+
+	delete []pByte;
+
+	return bResult;
+}
+
+BOOL CDisk::VerifyDisk( CPort *port,CHashMethod *pHashMethod )
 {
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
@@ -4665,7 +4964,43 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 
 	if (m_WorkMode == WorkMode_DiskCompare)
 	{
-		port->SetStartTime(CTime::GetCurrentTime());
+
+		if (port->GetPortType() == PortType_TARGET_DISK)
+		{
+			// 判断容量
+			if (port->GetTotalSize() < m_ullValidSize)
+			{
+				port->SetEndTime(CTime::GetCurrentTime());
+				port->SetResult(FALSE);
+				port->SetErrorCode(ErrorType_Custom,CustomError_Target_Small);
+				port->SetPortState(PortState_Fail);
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop compare,custom errorcode=0x%X,target is small")
+					,port->GetPortName(),port->GetDiskNum(),CustomError_Target_Small);
+
+				return FALSE;	
+			}
+			else
+			{
+				//有效资料的最大扇区有没有超过子盘容量
+				POSITION pos = m_EffList.GetHeadPosition();
+				while (pos)
+				{
+					EFF_DATA effData = m_EffList.GetNext(pos);
+
+					if ( (effData.ullStartSector + effData.ullSectors) * effData.wBytesPerSector > port->GetTotalSize() )
+					{
+						port->SetEndTime(CTime::GetCurrentTime());
+						port->SetResult(FALSE);
+						port->SetErrorCode(ErrorType_Custom,CustomError_Target_Small);
+						port->SetPortState(PortState_Fail);
+						CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop compare,custom errorcode=0x%X,target is small")
+							,port->GetPortName(),port->GetDiskNum(),CustomError_Target_Small);
+
+						return FALSE;
+					}
+				}
+			}
+		}
 	}
 
 	HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
@@ -4807,17 +5142,16 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - %s,HashValue=%s")
 				,port->GetPortName(),port->GetDiskNum(),strHashMethod,strVerifyHash);
 
+			port->SetEndTime(CTime::GetCurrentTime());
 			if (0 == m_strMasterHash.CompareNoCase(strVerifyHash))
 			{
 				bResult = TRUE;
-				port->SetEndTime(CTime::GetCurrentTime());
 				port->SetResult(TRUE);
 				port->SetPortState(PortState_Pass);
 			}
 			else
 			{
 				bResult = FALSE;
-				port->SetEndTime(CTime::GetCurrentTime());
 				port->SetResult(FALSE);
 				port->SetPortState(PortState_Fail);
 				port->SetErrorCode(ErrorType_Custom,CustomError_Compare_Failed);
@@ -4841,8 +5175,8 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 				,port->GetPortName(),port->GetDiskNum(),strHashMethod,m_strMasterHash);
 
 			bResult = TRUE;
-			port->SetEndTime(CTime::GetCurrentTime());
 			port->SetResult(TRUE);
+			port->SetEndTime(CTime::GetCurrentTime());
 			port->SetPortState(PortState_Pass);
 		}
 		
@@ -4853,6 +5187,210 @@ BOOL CDisk::Verify( CPort *port,CHashMethod *pHashMethod )
 		bResult = FALSE;
 		port->SetEndTime(CTime::GetCurrentTime());
 		port->SetResult(FALSE);
+		port->SetPortState(PortState_Fail);
+		port->SetErrorCode(errType,dwErrorCode);
+	}
+
+	return bResult;
+}
+
+BOOL CDisk::VerifyDisk( CPort *port,CDataQueue *pDataQueue )
+{
+	BOOL bResult = TRUE;
+	DWORD dwErrorCode = 0;
+	ErrorType errType = ErrorType_System;
+
+	port->Active();
+
+	HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+	if (hDisk == INVALID_HANDLE_VALUE)
+	{
+		port->SetEndTime(CTime::GetCurrentTime());
+		port->SetResult(FALSE);
+		port->SetErrorCode(ErrorType_System,dwErrorCode);
+		port->SetPortState(PortState_Fail);
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - OpenDisk error,system errorcode=%ld,%s")
+			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return FALSE;
+	}
+
+	// 计算精确速度
+	LARGE_INTEGER freq,t0,t1,t2;
+	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	DWORD dwBytesPerSector = port->GetBytesPerSector();
+
+	QueryPerformanceFrequency(&freq);
+
+	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
+	{
+		QueryPerformanceCounter(&t0);
+		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
+			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
+			&& port->GetResult() && !port->IsKickOff())
+		{
+			Sleep(5);
+		}
+
+		if (!m_MasterPort->GetResult())
+		{
+			errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+			bResult = FALSE;
+			break;
+		}
+
+		if (!port->GetResult())
+		{
+			errType = port->GetErrorCode(&dwErrorCode);
+			bResult = FALSE;
+			break;
+		}
+
+		if (port->IsKickOff())
+		{
+			bResult = FALSE;
+			dwErrorCode = CustomError_Speed_Too_Slow;
+			errType = ErrorType_Custom;
+			break;
+		}
+
+		if (*m_lpCancel)
+		{
+			dwErrorCode = CustomError_Cancel;
+			errType = ErrorType_Custom;
+			bResult = FALSE;
+			break;
+		}
+
+		if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active && m_bCompressComplete)
+		{
+			dwErrorCode = 0;
+			bResult = TRUE;
+			break;
+		}
+
+		PDATA_INFO dataInfo = pDataQueue->GetHeadRemove();
+
+		if (dataInfo == NULL)
+		{
+			continue;
+		}
+
+		// 已经读到子盘末尾了，不用继续比较，但是母口还在继续丢资料，所以要continue
+		if (dataInfo->ullOffset >= port->GetTotalSize())
+		{
+			port->AppendCompleteSize(dataInfo->dwDataSize);
+			delete []dataInfo->pData;
+			delete dataInfo;
+			continue;
+		}
+
+		ULONGLONG ullStartSectors = dataInfo->ullOffset / dwBytesPerSector;
+		DWORD dwSectors = dataInfo->dwDataSize / dwBytesPerSector;
+
+		PBYTE pByte = new BYTE[dataInfo->dwDataSize];
+		ZeroMemory(pByte,dataInfo->dwDataSize);
+
+		QueryPerformanceCounter(&t1);
+		if (!ReadSectors(hDisk,ullStartSectors,dwSectors,dwBytesPerSector,pByte,port->GetOverlapped(TRUE),&dwErrorCode))
+		{
+			bResult = FALSE;
+
+			delete []pByte;
+			delete []dataInfo->pData;
+			delete dataInfo;
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,system errorcode=%ld,%s")
+				,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+			break;
+		}
+		else
+		{
+
+			// 比较
+			for (DWORD i = 0; i < dataInfo->dwDataSize;i++)
+			{
+				if (pByte[i] != dataInfo->pData[i])
+				{
+					//比较出错
+					bResult = FALSE;
+					errType = ErrorType_Custom;
+					dwErrorCode = CustomError_Compare_Failed;
+
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Compare failed(%02X:%02X),location=sector %I64d, offset %d")
+						,port->GetPortName(),port->GetDiskNum(),pByte[i],dataInfo->pData[i],ullStartSectors + i / dwBytesPerSector,i % dwBytesPerSector);
+
+					break;
+				}
+			}
+
+			QueryPerformanceCounter(&t2);
+
+			dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
+
+			dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart;
+
+			port->AppendUsedWaitTimeS(dbTimeWait);
+			port->AppendUsedNoWaitTimeS(dbTimeNoWait);
+			port->AppendCompleteSize(dataInfo->dwDataSize);
+
+			delete []pByte;
+			delete []dataInfo->pData;
+			delete dataInfo;
+
+			if (!bResult)
+			{
+				break;
+			}
+		}
+
+	}
+
+	CloseHandle(hDisk);
+
+	if (*m_lpCancel)
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Cancel;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port=%s,Disk %d,Speed=%.2f,custom errorcode=0x%X,user cancelled.")
+			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode);
+	}
+
+	if (port->IsKickOff())
+	{
+		bResult = FALSE;
+		dwErrorCode = CustomError_Speed_Too_Slow;
+		errType = ErrorType_Custom;
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
+			,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
+	}
+
+	if (!m_MasterPort->GetResult())
+	{
+		bResult = FALSE;
+		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
+	}
+
+	if (!port->GetResult())
+	{
+		errType = port->GetErrorCode(&dwErrorCode);
+		bResult = FALSE;
+	}
+
+	port->SetResult(bResult);
+	port->SetEndTime(CTime::GetCurrentTime());
+
+	if (bResult)
+	{
+		port->SetPortState(PortState_Pass);
+	}
+	else
+	{
 		port->SetPortState(PortState_Fail);
 		port->SetErrorCode(errType,dwErrorCode);
 	}
@@ -5041,8 +5579,8 @@ BOOL CDisk::ReadLocalFiles()
 		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
 	}
 
-	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 	m_MasterPort->SetResult(bResult);
+	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -5339,8 +5877,8 @@ BOOL CDisk::ReadRemoteFiles()
 		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
 	}
 
-	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 	m_MasterPort->SetResult(bResult);
+	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -5388,8 +5926,6 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 	QueryPerformanceFrequency(&freq);
 
 	port->Active();
-
-	port->SetStartTime(CTime::GetCurrentTime());
 
 	CStringArray volumeArray;
 	port->GetVolumeArray(volumeArray);
@@ -5566,8 +6102,8 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 		bResult = FALSE;
 	}
 
-	port->SetEndTime(CTime::GetCurrentTime());
 	port->SetResult(bResult);
+	port->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -5741,17 +6277,16 @@ BOOL CDisk::VerifyFiles(CPort *port,CHashMethod *pHashMethod)
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - %s,HashValue=%s")
 			,port->GetPortName(),port->GetDiskNum(),strHashMethod,strVerifyHash);
 
+		port->SetEndTime(CTime::GetCurrentTime());
 		if (0 == m_strMasterHash.CompareNoCase(strVerifyHash))
 		{
 			bResult = TRUE;
-			port->SetEndTime(CTime::GetCurrentTime());
 			port->SetResult(TRUE);
 			port->SetPortState(PortState_Pass);
 		}
 		else
 		{
 			bResult = FALSE;
-			port->SetEndTime(CTime::GetCurrentTime());
 			port->SetResult(FALSE);
 			port->SetPortState(PortState_Fail);
 			port->SetErrorCode(ErrorType_Custom,CustomError_Compare_Failed);
@@ -5973,9 +6508,9 @@ BOOL CDisk::ReadLocalImage()
 		errType = m_MasterPort->GetErrorCode(&dwErrorCode);
 	}
 
-	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 
 	m_MasterPort->SetResult(bResult);
+	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -6273,7 +6808,6 @@ BOOL CDisk::ReadRemoteImage()
 	}
 
 	m_MasterPort->SetEndTime(CTime::GetCurrentTime());
-
 
 	if (bResult)
 	{
@@ -6611,7 +7145,6 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 	DWORD dwLen = 0;
 
 	port->Active();
-	port->SetStartTime(CTime::GetCurrentTime());
 
 	HANDLE hFile = GetHandleOnFile(port->GetFileName(),CREATE_ALWAYS,FILE_FLAG_OVERLAPPED,&dwErrorCode);
 
@@ -6753,7 +7286,16 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 		memcpy(imgHead.szImageFlag,IMAGE_FLAG,strlen(IMAGE_FLAG));
 		imgHead.ullImageSize = liSize.QuadPart;
 		memcpy(imgHead.szAppVersion,APP_VERSION,strlen(APP_VERSION));
-		imgHead.dwImageVersion = IMAGE_VERSION;
+
+		if (m_bQuickImage)
+		{
+			imgHead.dwImageType = QUICK_IMAGE;
+		}
+		else
+		{
+			imgHead.dwImageType = FULL_IMAGE;
+		}
+		
 		imgHead.dwMaxSizeOfPackage = MAX_COMPRESS_BUF;
 		imgHead.ullCapacitySize = m_MasterPort->GetTotalSize();
 		imgHead.dwBytesPerSector = m_MasterPort->GetBytesPerSector();
@@ -6775,8 +7317,8 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 
 	CloseHandle(hFile);
 
-	port->SetEndTime(CTime::GetCurrentTime());
 	port->SetResult(bResult);
+	port->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -6801,7 +7343,6 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 	DWORD dwLen = 0;
 
 	port->Active();
-	port->SetStartTime(CTime::GetCurrentTime());
 
 	CString strImageName = CUtils::GetFileName(port->GetFileName());
 
@@ -6997,7 +7538,16 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		memcpy(imgHead.szImageFlag,IMAGE_FLAG,strlen(IMAGE_FLAG));
 		imgHead.ullImageSize = ullOffset;
 		memcpy(imgHead.szAppVersion,APP_VERSION,strlen(APP_VERSION));
-		imgHead.dwImageVersion = IMAGE_VERSION;
+		
+		if (m_bQuickImage)
+		{
+			imgHead.dwImageType = QUICK_IMAGE;
+		}
+		else
+		{
+			imgHead.dwImageType = FULL_IMAGE;
+		}
+
 		imgHead.dwMaxSizeOfPackage = MAX_COMPRESS_BUF;
 		imgHead.ullCapacitySize = m_MasterPort->GetTotalSize();
 		imgHead.dwBytesPerSector = m_MasterPort->GetBytesPerSector();
@@ -7070,8 +7620,8 @@ END:
 	WSACloseEvent(olSend.hEvent);
 	WSACloseEvent(olRecv.hEvent);
 
-	port->SetEndTime(CTime::GetCurrentTime());
 	port->SetResult(bResult);
+	port->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -7088,25 +7638,45 @@ END:
 
 BOOL CDisk::CleanDisk( CPort *port )
 {
+	BOOL bResult = TRUE;
+	DWORD dwErrorCode = 0;
+	ErrorType errType = ErrorType_System;
 	DWORD dwBytePerSector = port->GetBytesPerSector();
 	ULONGLONG ullSectorNums = port->GetTotalSize() / dwBytePerSector;
 
 	port->Active();
 
+	HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
+
+	if (hDisk == INVALID_HANDLE_VALUE)
+	{
+		port->SetEndTime(CTime::GetCurrentTime());
+		port->SetResult(FALSE);
+		port->SetErrorCode(ErrorType_System,dwErrorCode);
+		port->SetPortState(PortState_Fail);
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - OpenDisk error,system errorcode=%ld,%s")
+			,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		return FALSE;
+	}
+
+	SetDiskAtrribute(hDisk,FALSE,TRUE,&dwErrorCode);
+
+	// 计算精确速度
+	LARGE_INTEGER freq,t0,t1,t2;
+	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	QueryPerformanceFrequency(&freq);
+
+	port->SetValidSize(port->GetTotalSize());
+	
+
 	switch(m_CleanMode)
 	{
 	case CleanMode_Quick:
 		{
-			port->SetStartTime(CTime::GetCurrentTime());
-			port->SetValidSize(port->GetTotalSize());
-			DWORD dwErrorCode = 0;
-
-			// 计算精确速度
-			LARGE_INTEGER freq,t0,t1;
-			double dbTimeNoWait = 0.0;
-			QueryPerformanceFrequency(&freq);
 			QueryPerformanceCounter(&t0);
-			BOOL bResult = QuickClean(port,&dwErrorCode);
+			BOOL bResult = QuickClean(hDisk,port,&dwErrorCode);
 			QueryPerformanceCounter(&t1);
 
 			dbTimeNoWait = (double)(t1.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
@@ -7114,57 +7684,16 @@ BOOL CDisk::CleanDisk( CPort *port )
 			port->SetUsedNoWaitTimeS(dbTimeNoWait);
 			port->SetUsedWaitTimeS(dbTimeNoWait);
 			port->SetCompleteSize(port->GetTotalSize());
-			port->SetEndTime(CTime::GetCurrentTime());
-			port->SetResult(bResult);
-
-			if (bResult)
-			{
-				port->SetPortState(PortState_Pass);
-			}
-			else
-			{
-				port->SetPortState(PortState_Pass);
-				port->SetErrorCode(ErrorType_System,dwErrorCode);
-			}
-			
-			return bResult;
 		}
+		break;
 		
 	case CleanMode_Full:
 		{
-			BOOL bResult = TRUE;
-			DWORD dwErrorCode = 0;
-			ErrorType errType = ErrorType_System;
-
 			ULONGLONG ullStartSectors = 0;
 			DWORD dwSectors = m_nBlockSectors;
 			DWORD dwLen = m_nBlockSectors * dwBytePerSector;
 
-			port->SetStartTime(CTime::GetCurrentTime());
-
-			HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
-
-			if (hDisk == INVALID_HANDLE_VALUE)
-			{
-				port->SetEndTime(CTime::GetCurrentTime());
-				port->SetResult(FALSE);
-				port->SetErrorCode(ErrorType_System,dwErrorCode);
-				port->SetPortState(PortState_Fail);
-				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - OpenDisk error,system errorcode=%ld,%s")
-					,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-
-				return FALSE;
-			}
-
-			SetDiskAtrribute(hDisk,FALSE,TRUE,&dwErrorCode);
-
-			// 计算精确速度
-			LARGE_INTEGER freq,t0,t1,t2;
-			double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
-
-			QueryPerformanceFrequency(&freq);
-
-			port->SetValidSize(port->GetTotalSize());
+			BYTE *pFillByte = new BYTE[dwLen];
 
 			while (!*m_lpCancel && ullStartSectors < ullSectorNums && !port->IsKickOff())
 			{
@@ -7175,8 +7704,6 @@ BOOL CDisk::CleanDisk( CPort *port )
 					dwSectors = (DWORD)(ullSectorNums - ullStartSectors);
 					dwLen = dwSectors * dwBytePerSector;
 				}
-
-				BYTE *pFillByte = new BYTE[dwLen];
 
 				if (m_nFillValue != RANDOM_VALUE)
 				{
@@ -7197,7 +7724,6 @@ BOOL CDisk::CleanDisk( CPort *port )
 				if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytePerSector,pFillByte,port->GetOverlapped(FALSE),&dwErrorCode))
 				{
 					bResult = FALSE;
-					delete []pFillByte;
 
 					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,system errorcode=%ld,%s")
 						,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
@@ -7220,9 +7746,9 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 				}
 
-				delete []pFillByte;
-
 			}
+
+			delete []pFillByte;
 
 			if (*m_lpCancel)
 			{
@@ -7243,60 +7769,18 @@ BOOL CDisk::CleanDisk( CPort *port )
 				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Speed=%.2f,custom errorcode=0x%X,speed too slow.")
 					,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),CustomError_Speed_Too_Slow);
 			}
-
-			port->SetEndTime(CTime::GetCurrentTime());
-			port->SetResult(bResult);
-
-			if (bResult)
-			{
-				port->SetPortState(PortState_Pass);
-			}
-			else
-			{
-				port->SetPortState(PortState_Fail);
-				port->SetErrorCode(errType,dwErrorCode);
-			}
-			
-			return bResult;
 		}
+		break;
 
 	case CleanMode_Safe:
 		{
-			BOOL bResult = TRUE;
-			DWORD dwErrorCode = 0;
-			ErrorType errType = ErrorType_System;
-
-			port->SetStartTime(CTime::GetCurrentTime());
-
-			HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
-
-			if (hDisk == INVALID_HANDLE_VALUE)
-			{
-				port->SetEndTime(CTime::GetCurrentTime());
-				port->SetResult(FALSE);
-				port->SetErrorCode(ErrorType_System,dwErrorCode);
-				port->SetPortState(PortState_Fail);
-				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - OpenDisk error,system errorcode=%ld,%s")
-					,port->GetPortName(),port->GetDiskNum(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-
-				return FALSE;
-			}
-
-			SetDiskAtrribute(hDisk,FALSE,TRUE,&dwErrorCode);
-
-			// 计算精确速度
-			LARGE_INTEGER freq,t0,t1,t2;
-			double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
-
-			QueryPerformanceFrequency(&freq);
-
-			port->SetValidSize(port->GetTotalSize());
-
 			for (int i = 0; i < 7;i++)
 			{
 				ULONGLONG ullStartSectors = 0;
 				DWORD dwSectors = m_nBlockSectors;
 				DWORD dwLen = m_nBlockSectors * dwBytePerSector;
+
+				BYTE *pFillByte = new BYTE[dwLen];
 
 				port->SetCompleteSize(0);
 				port->SetUsedNoWaitTimeS(0);
@@ -7311,8 +7795,6 @@ BOOL CDisk::CleanDisk( CPort *port )
 						dwSectors = (DWORD)(ullSectorNums - ullStartSectors);
 						dwLen = dwSectors * dwBytePerSector;
 					}
-
-					BYTE *pFillByte = new BYTE[dwLen];
 
 					// The write head passes over each sector seven times (0x00, 0xFF, Random,
 					// 0x96, 0x00, 0xFF, Random).
@@ -7348,7 +7830,6 @@ BOOL CDisk::CleanDisk( CPort *port )
 					if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytePerSector,pFillByte,port->GetOverlapped(FALSE),&dwErrorCode))
 					{
 						bResult = FALSE;
-						delete []pFillByte;
 
 						CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port=%s,Disk %d,Speed=%.2f,system errorcode=%ld,%s")
 							,port->GetPortName(),port->GetDiskNum(),port->GetRealSpeed(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
@@ -7371,9 +7852,9 @@ BOOL CDisk::CleanDisk( CPort *port )
 						
 					}
 
-					delete []pFillByte;
-
 				}
+
+				delete []pFillByte;
 
 				if (*m_lpCancel)
 				{
@@ -7397,34 +7878,35 @@ BOOL CDisk::CleanDisk( CPort *port )
 
 					break;
 				}
-			}
-
-			port->SetEndTime(CTime::GetCurrentTime());
-			port->SetResult(bResult);
-
-			if (bResult)
-			{
-				port->SetPortState(PortState_Pass);
-			}
-			else
-			{
-				port->SetPortState(PortState_Fail);
-				port->SetErrorCode(errType,dwErrorCode);
-			}
-			
-			return bResult;
+			}			
 		}
-
+		break;
 	}
 
-	return TRUE;
+	CloseHandle(hDisk);
+	port->SetResult(bResult);
+	port->SetEndTime(CTime::GetCurrentTime());
+
+	if (bResult)
+	{
+		if (m_bEnd)
+		{
+			port->SetPortState(PortState_Pass);
+		}
+	}
+	else
+	{
+		port->SetPortState(PortState_Fail);
+		port->SetErrorCode(errType,dwErrorCode);
+	}
+
+	return bResult;
 }
 
 BOOL CDisk::FormatDisk(CPort *port)
 {
 	BOOL bResult = TRUE;
 	DWORD dwErrorCode = 0;
-	port->SetStartTime(CTime::GetCurrentTime());
 	port->SetValidSize(port->GetTotalSize());
 
 	QuickClean(port,&dwErrorCode);
@@ -7504,8 +7986,8 @@ FORMAT_END:
 	}
 	
 	port->SetCompleteSize(port->GetTotalSize());
-	port->SetEndTime(CTime::GetCurrentTime());
 	port->SetResult(bResult);
+	port->SetEndTime(CTime::GetCurrentTime());
 
 	if (bResult)
 	{
@@ -7576,7 +8058,21 @@ DWORD WINAPI CDisk::VerifyThreadProc( LPVOID lpParm )
 	CPort *port = (CPort *)parm->lpVoid2;
 	CHashMethod *pHashMethod = (CHashMethod *)parm->lpVoid3;
 
-	BOOL bResult = disk->Verify(port,pHashMethod);
+	BOOL bResult = disk->VerifyDisk(port,pHashMethod);
+
+	delete parm;
+
+	return bResult;
+}
+
+DWORD WINAPI CDisk::VerifySectorThreadProc( LPVOID lpParm )
+{
+	LPVOID_PARM parm = (LPVOID_PARM)lpParm;
+	CDisk *disk = (CDisk *)parm->lpVoid1;
+	CPort *port = (CPort *)parm->lpVoid2;
+	CDataQueue *pDataQueue = (CDataQueue *)parm->lpVoid3;
+
+	BOOL bResult = disk->VerifyDisk(port,pDataQueue);
 
 	delete parm;
 
@@ -7729,7 +8225,7 @@ void CDisk::AddDataQueueList( PDATA_INFO dataInfo )
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(pos1);
 		CPort *port = m_TargetPorts->GetNext(pos2);
 
-		if (port->GetResult())
+		if (port->GetResult() && port->GetPortState() == PortState_Active)
 		{
 			PDATA_INFO data = new DATA_INFO;
 			ZeroMemory(data,sizeof(DATA_INFO));
@@ -7885,9 +8381,16 @@ void CDisk::SetSocket( SOCKET sClient,BOOL bServerFirst )
 	m_bServerFirst = bServerFirst;
 }
 
-void CDisk::SetMakeImageParm( int compressLevel /*= Z_BEST_SPEED*/ )
+void CDisk::SetMakeImageParm(BOOL bQuickImage, int compressLevel /*= Z_BEST_SPEED*/ )
 {
 	m_iCompressLevel = compressLevel;
+	m_bQuickImage = bQuickImage;
+}
+
+void CDisk::SetFullCopyParm(BOOL bAllowCapGap,UINT nPercent)
+{
+	m_bAllowCapGap = bAllowCapGap;
+	m_nCapGapPercent = nPercent;
 }
 
 BOOL CDisk::SearchUserLog( CPort *port )
@@ -8700,6 +9203,23 @@ void CDisk::CompareHashValue()
 
 			m_MapCopyFiles.SetAt(strSourceFileWithVolume,ullSourceFileSize);
 			m_ullValidSize += ullSourceFileSize;
+		}
+	}
+}
+
+void CDisk::SetCleanDiskFirst( BOOL bCleanDiskFist,int times,int *values )
+{
+	m_bCleanDiskFirst = bCleanDiskFist;
+
+	if (m_bCleanDiskFirst)
+	{
+		m_nCleanTimes = times;
+
+		m_pCleanValues = new int[times];
+
+		for (int i = 0; i < times;i++)
+		{
+			m_pCleanValues[i] = values[i];
 		}
 	}
 }

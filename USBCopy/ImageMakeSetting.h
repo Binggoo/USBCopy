@@ -24,6 +24,7 @@ private:
 	BOOL m_bCheckSupportMutiMBR;
 	CComboBox m_ComboBoxMBRLBA;
 	CIni *m_pIni;
+	int m_nRadioSaveModeIndex;
 public:
 	virtual BOOL OnInitDialog();
 

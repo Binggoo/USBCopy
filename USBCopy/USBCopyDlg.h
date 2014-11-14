@@ -65,13 +65,13 @@ private:
 	CPortCommand  m_Command;
 
 	CTime         m_StartTime;
+	CTime         m_StartTimeTemp;
 
 	CFont         m_font;
 	CFont         m_LogoFont;
 
 	CString       m_strMsg;
 	BOOL          m_bResult;
-	BOOL          m_bVerify;
 	BOOL          m_bRunning;
 	BOOL          m_bUpdate;
 
@@ -167,9 +167,6 @@ protected:
 	afx_msg LRESULT OnUpdateStatistic(WPARAM wParam, LPARAM lParam);
 public:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
-protected:
-	afx_msg LRESULT OnSendVerifyStart(WPARAM wParam, LPARAM lParam);
-public:
 	virtual BOOL DestroyWindow();
 protected:
 	afx_msg LRESULT OnComReceive(WPARAM wParam, LPARAM lParam);
