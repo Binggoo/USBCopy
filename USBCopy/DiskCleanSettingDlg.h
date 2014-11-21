@@ -25,6 +25,7 @@ private:
 	CIni *m_pIni;
 	CComboBox m_ComboBoxFullCleanValue;
 	int m_nRadioSelectIndex;
+	BOOL m_bCompareClean;
 public:
 	virtual BOOL OnInitDialog();
 	

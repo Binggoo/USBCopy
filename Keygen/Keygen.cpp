@@ -12,6 +12,15 @@ BOOL g_bLockString = FALSE;
 char g_szLockFile[MAX_PATH] = {0};
 char g_szLockString[256] = {0};
 
+void Usage()
+{
+	printf("Keygen.exe [/f:filename] [/s:str]\r\n");
+	printf("           /f:filename   lock file\r\n");
+	printf("           /s:str        lock string\r\n");
+
+	exit(1);
+}
+
 void ValidateArgs(int argc,char *argv[])
 {
 	for (int i = 1; i < argc;i++)
@@ -39,6 +48,14 @@ void ValidateArgs(int argc,char *argv[])
 					g_bLockString = TRUE;
 					strcpy_s(g_szLockString,strlen(&argv[i][3]) + 1,&argv[i][3]);
 				}
+				else
+				{
+					Usage();
+				}
+				break;
+
+			default:
+				Usage();
 				break;
 
 			}

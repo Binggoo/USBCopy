@@ -28,6 +28,9 @@ private:
 	CComboBox m_ComboBoxCleanTimes;
 	CString m_strFillValues;
 
+	int m_nCompareMethodIndex;
+	BOOL m_bCompareClean;
+
 public:
 	virtual BOOL OnInitDialog();
 	void SetConfig(CIni *pIni);
@@ -36,4 +39,5 @@ public:
 	afx_msg void OnBnClickedRadioMtpImage();
 	afx_msg void OnBnClickedCheckCleanDisk();
 	afx_msg void OnCbnSelchangeComboCleanTimes();
+	afx_msg void OnBnClickedCheckCompare();
 };

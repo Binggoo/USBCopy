@@ -35,4 +35,5 @@ private:
 	SOCKET m_ClientSocket;
 
 	BOOL   m_bServerFirst; // 0 - ±¾µØ£¬1 - Ô¶¶Ë
+	BOOL   m_bMtpImage;  // 0 - DiskImage, 1 - Mtp Image
 };

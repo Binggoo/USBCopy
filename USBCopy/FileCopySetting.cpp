@@ -17,6 +17,7 @@ CFileCopySetting::CFileCopySetting(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CFileCopySetting::IDD, pParent)
 	, m_bCheckComputeHash(FALSE)
 	, m_bCheckCompare(FALSE)
+	, m_nCompareMethodIndex(0)
 {
 	m_pIni = NULL;
 	m_strMasterPath = _T("M:\\");
@@ -32,6 +33,7 @@ void CFileCopySetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_LIST_COPY, m_ListCtrl);
 	DDX_Check(pDX, IDC_CHECK_COMPUTE_HASH, m_bCheckComputeHash);
 	DDX_Check(pDX, IDC_CHECK_COMPARE, m_bCheckCompare);
+	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
 }
 
 
@@ -43,6 +45,7 @@ BEGIN_MESSAGE_MAP(CFileCopySetting, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_COMPUTE_HASH, &CFileCopySetting::OnBnClickedCheckComputeHash)
 	ON_BN_CLICKED(IDC_CHECK_COMPARE, &CFileCopySetting::OnBnClickedCheckCompare)
 	ON_BN_CLICKED(IDOK, &CFileCopySetting::OnBnClickedOk)
+	ON_BN_CLICKED(IDC_RADIO_HASH_COMPARE, &CFileCopySetting::OnBnClickedRadioHashCompare)
 END_MESSAGE_MAP()
 
 
@@ -58,10 +61,17 @@ BOOL CFileCopySetting::OnInitDialog()
 
 	m_bCheckComputeHash = m_pIni->GetBool(_T("FileCopy"),_T("En_ComputeHash"),FALSE);
 	m_bCheckCompare = m_pIni->GetBool(_T("FileCopy"),_T("En_Compare"),FALSE);
+	m_nCompareMethodIndex = m_pIni->GetInt(_T("FileCopy"),_T("CompareMethod"),0);
+
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCheckCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
 
 	if (!m_bCheckComputeHash)
 	{
-		m_bCheckCompare = FALSE;
+		if (m_bCheckCompare)
+		{
+			m_nCompareMethodIndex = 1;
+		}
 	}
 
 	InitialListCtrl();
@@ -383,12 +393,14 @@ void CFileCopySetting::OnBnClickedCheckComputeHash()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
-
 	if (!m_bCheckComputeHash)
 	{
-		m_bCheckCompare = FALSE;
-		UpdateData(FALSE);
+		if (m_bCheckCompare)
+		{
+			m_nCompareMethodIndex = 1;
+		}
 	}
+	UpdateData(FALSE);
 }
 
 
@@ -397,11 +409,8 @@ void CFileCopySetting::OnBnClickedCheckCompare()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 
-	if (m_bCheckCompare)
-	{
-		m_bCheckComputeHash = TRUE;
-		UpdateData(FALSE);
-	}
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCheckCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
 }
 
 
@@ -414,6 +423,7 @@ void CFileCopySetting::OnBnClickedOk()
 
 	m_pIni->WriteBool(_T("FileCopy"),_T("En_ComputeHash"),m_bCheckComputeHash);
 	m_pIni->WriteBool(_T("FileCopy"),_T("En_Compare"),m_bCheckCompare);
+	m_pIni->WriteInt(_T("FileCopy"),_T("CompareMethod"),m_nCompareMethodIndex);
 
 	UINT nNumOfFolders = m_pIni->GetUInt(_T("FileCopy"),_T("NumOfFolders"),0);
 	UINT nNumOfFiles = m_pIni->GetUInt(_T("FileCopy"),_T("NumOfFiles"),0);
@@ -495,4 +505,15 @@ BOOL CFileCopySetting::IsAdded( CString strItem )
 	}
 
 	return bRet;
+}
+
+
+void CFileCopySetting::OnBnClickedRadioHashCompare()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+
+	m_bCheckComputeHash = TRUE;
+
+	UpdateData(FALSE);
 }

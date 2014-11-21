@@ -53,10 +53,12 @@ BOOL CImageNameDlg::OnInitDialog()
 	if (m_bImageMake)
 	{
 		m_bServerFirst = m_pIni->GetBool(_T("ImageMake"),_T("SavePath"),FALSE);
+		m_bMtpImage = (m_pIni->GetInt(_T("ImageMake"),_T("SaveMode"),0) == 2);
 	}
 	else
 	{
 		m_bServerFirst = m_pIni->GetBool(_T("ImageCopy"),_T("PathType"),FALSE);
+		m_bMtpImage = (m_pIni->GetInt(_T("ImageCopy"),_T("ImageType"),0) == 1);
 	}
 
 	UpdateData(FALSE);
@@ -89,10 +91,23 @@ void CImageNameDlg::OnBnClickedOk()
 
 	CString strImagePath = m_pIni->GetString(_T("ImagePath"),_T("ImagePath"),_T("d:\\image"));
 	strImagePath.TrimRight(_T('\\'));
-	if (m_strEditImageName.Right(4).CompareNoCase(_T(".IMG")) != 0)
+
+	if (m_bMtpImage)
 	{
-		m_strEditImageName += _T(".IMG");
+		if (m_strEditImageName.Right(4).CompareNoCase(_T(".MTP")) != 0)
+		{
+			m_strEditImageName += _T(".MTP");
+		}
 	}
+	else
+	{
+		if (m_strEditImageName.Right(4).CompareNoCase(_T(".IMG")) != 0)
+		{
+			m_strEditImageName += _T(".IMG");
+		}
+	}
+	
+	UpdateData(FALSE);
 
 	CString strImageFile;
 	strImageFile.Format(_T("%s\\%s"),strImagePath,m_strEditImageName);
@@ -213,19 +228,42 @@ BOOL CImageNameDlg::QueryImage(CString strImageName,PDWORD pdwErrorCode)
 
 	delete []bufSend;
 
-	QUERY_IMAGE_OUT queryImageOut = {0};
-	dwLen = sizeof(QUERY_IMAGE_OUT);
+	CMD_OUT queryImageOut = {0};
+	dwLen = sizeof(CMD_OUT);
 	if (!Recv(m_ClientSocket,(char *)&queryImageOut,dwLen,NULL,pdwErrorCode))
 	{
 		return FALSE;
 	}
 
-	if (queryImageOut.dwCmdOut == CMD_QUERY_IMAGE_OUT && dwLen == sizeof(QUERY_IMAGE_OUT))
+	dwLen = queryImageOut.dwSizeSend - sizeof(CMD_OUT);
+
+	if (dwLen > 0)
 	{
-		return (queryImageOut.dwErrorCode == 0);
+		BYTE *pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
+
+		DWORD dwRead = 0;
+
+		while(dwRead < dwLen)
+		{
+			DWORD dwByteRead = dwLen - dwRead;
+			if (!Recv(m_ClientSocket,(char *)(pByte+dwRead),dwByteRead,NULL,pdwErrorCode))
+			{
+				break;
+			}
+
+			dwRead += dwByteRead;
+		}
+
+		delete []pByte;
+	}	
+
+	if (queryImageOut.dwCmdOut != CMD_QUERY_IMAGE_OUT)
+	{
+		return FALSE;
 	}
 
-	return FALSE;
+	return (queryImageOut.dwErrorCode == 0);
 }
 
 BOOL CImageNameDlg::GetServerFirst()

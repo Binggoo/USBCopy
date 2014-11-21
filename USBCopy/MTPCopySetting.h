@@ -27,6 +27,8 @@ private:
 
 	CIni *m_pIni;
 
+	int m_nCompareMethodIndex;
+
 public:
 	virtual BOOL OnInitDialog();
 
@@ -35,4 +37,5 @@ public:
 	afx_msg void OnBnClickedCheckCompare();
 	afx_msg void OnBnClickedOk();
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+	afx_msg void OnBnClickedRadioHashCompare();
 };

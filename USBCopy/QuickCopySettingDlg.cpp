@@ -18,6 +18,8 @@ CQuickCopySettingDlg::CQuickCopySettingDlg(CWnd* pParent /*=NULL*/)
 	, m_bComputeHash(FALSE)
 	, m_bCleanDiskFirst(FALSE)
 	, m_strFillValues(_T(""))
+	, m_nCompareMethodIndex(0)
+	, m_bCompareClean(FALSE)
 {
 	m_pIni = NULL;
 }
@@ -36,6 +38,8 @@ void CQuickCopySettingDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_CHECK_CLEAN_DISK, m_bCleanDiskFirst);
 	DDX_Control(pDX, IDC_COMBO_CLEAN_TIMES, m_ComboBoxCleanTimes);
 	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
+	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
+	DDX_Check(pDX,IDC_CHECK_CLEAN_COMPARE,m_bCompareClean);
 }
 
 
@@ -46,6 +50,7 @@ BEGIN_MESSAGE_MAP(CQuickCopySettingDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_COMPARE, &CQuickCopySettingDlg::OnBnClickedCheckCompare)
 	ON_BN_CLICKED(IDC_CHECK_CLEAN_DISK, &CQuickCopySettingDlg::OnBnClickedCheckCleanDisk)
 	ON_CBN_SELCHANGE(IDC_COMBO_CLEAN_TIMES, &CQuickCopySettingDlg::OnCbnSelchangeComboCleanTimes)
+	ON_BN_CLICKED(IDC_RADIO_HASH_COMPARE, &CQuickCopySettingDlg::OnBnClickedRadioHashCompare)
 END_MESSAGE_MAP()
 
 
@@ -60,13 +65,21 @@ BOOL CQuickCopySettingDlg::OnInitDialog()
 	ASSERT(m_pIni);
 	m_bComputeHash = m_pIni->GetBool(_T("QuickCopy"),_T("En_ComputeHash"),FALSE);
 	m_bEnCompare = m_pIni->GetBool(_T("QuickCopy"),_T("En_Compare"),FALSE);
+	m_nCompareMethodIndex = m_pIni->GetInt(_T("QuickCopy"),_T("CompareMethod"),FALSE);
+
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bEnCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bEnCompare);
 
 	if (!m_bComputeHash)
 	{
-		m_bEnCompare = FALSE;
+		if (m_bEnCompare)
+		{
+			m_nCompareMethodIndex = 1;
+		}
 	}
 
 	m_bCleanDiskFirst = m_pIni->GetBool(_T("QuickCopy"),_T("En_CleanDiskFirst"),FALSE);
+	m_bCompareClean = m_pIni->GetBool(_T("QuickCopy"),_T("En_CompareClean"),FALSE);
 
 	m_ComboBoxCleanTimes.AddString(_T("1"));
 	m_ComboBoxCleanTimes.AddString(_T("2"));
@@ -74,6 +87,7 @@ BOOL CQuickCopySettingDlg::OnInitDialog()
 
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 
 	m_strFillValues = m_pIni->GetString(_T("QuickCopy"),_T("FillValues"));
 	UINT nCleanTimes = m_pIni->GetUInt(_T("QuickCopy"),_T("CleanTimes"),1);
@@ -131,7 +145,9 @@ void CQuickCopySettingDlg::OnBnClickedOk()
 
 	m_pIni->WriteBool(_T("QuickCopy"),_T("En_ComputeHash"),m_bComputeHash);
 	m_pIni->WriteBool(_T("QuickCopy"),_T("En_Compare"),m_bEnCompare);
+	m_pIni->WriteInt(_T("QuickCopy"),_T("CompareMethod"),m_nCompareMethodIndex);
 	m_pIni->WriteBool(_T("QuickCopy"),_T("En_CleanDiskFirst"),m_bCleanDiskFirst);
+	m_pIni->WriteBool(_T("QuickCopy"),_T("En_CompareClean"),m_bCompareClean);
 	m_pIni->WriteUInt(_T("QuickCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
 	m_pIni->WriteString(_T("QuickCopy"),_T("FillValues"),m_strFillValues);
 	
@@ -151,9 +167,13 @@ void CQuickCopySettingDlg::OnBnClickedCheckQsComputeHash()
 
 	if (!m_bComputeHash)
 	{
-		m_bEnCompare = FALSE;
-		UpdateData(FALSE);
+		if (m_bEnCompare)
+		{
+			m_nCompareMethodIndex = 1;
+		}
 	}
+
+	UpdateData(FALSE);
 }
 
 
@@ -162,11 +182,8 @@ void CQuickCopySettingDlg::OnBnClickedCheckCompare()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 
-	if (m_bEnCompare)
-	{
-		m_bComputeHash = TRUE;
-		UpdateData(FALSE);
-	}
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bEnCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bEnCompare);
 }
 
 
@@ -176,6 +193,7 @@ void CQuickCopySettingDlg::OnBnClickedCheckCleanDisk()
 	UpdateData(TRUE);
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 }
 
 
@@ -198,6 +216,17 @@ void CQuickCopySettingDlg::OnCbnSelchangeComboCleanTimes()
 		m_strFillValues = _T("00;FF;XX");
 		break;
 	}
+
+	UpdateData(FALSE);
+}
+
+
+void CQuickCopySettingDlg::OnBnClickedRadioHashCompare()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+
+	m_bComputeHash = TRUE;
 
 	UpdateData(FALSE);
 }

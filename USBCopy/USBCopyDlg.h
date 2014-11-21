@@ -47,7 +47,7 @@ private:
 	CRect         m_Rect;
 	CString       m_strAppPath;
 	HANDLE        m_hLogFile;
-	HANDLE        m_hEvent;
+	HANDLE        m_hBurninEvent;
 	BOOL          m_bLock;
 	BOOL          m_bCancel;
 	CString       m_strPassWord;
@@ -114,7 +114,7 @@ private:
 	void InitialStatisticInfo();
 	void UpdateStatisticInfo();
 
-	void InitialBurnInTest();
+	void InitialBurnInTest(UINT cycle,UINT nCycleCount);
 
 	// ÍøÂç²¿·Ö
 	BOOL CreateSocketConnect();

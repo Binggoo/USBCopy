@@ -802,7 +802,7 @@ HRESULT GetObjectProperties( IPortableDevice *pDevice,LPCWSTR wszObjectID,PObjec
 		pObjectPropertieValues->GetStringValue(WPD_OBJECT_PARENT_ID,&pObjectProperties->pwszObjectParentID);
 		pObjectPropertieValues->GetStringValue(WPD_OBJECT_NAME,&pObjectProperties->pwszObjectName);
 		pObjectPropertieValues->GetStringValue(WPD_OBJECT_ORIGINAL_FILE_NAME,&pObjectProperties->pwszObjectOringalFileName);
-		pObjectPropertieValues->GetGuidValue(WPD_OBJECT_FORMAT,&pObjectProperties->guidOjectFormat);
+		pObjectPropertieValues->GetGuidValue(WPD_OBJECT_FORMAT,&pObjectProperties->guidObjectFormat);
 		pObjectPropertieValues->GetGuidValue(WPD_OBJECT_CONTENT_TYPE,&pObjectProperties->guidObjectContentType);
 		pObjectPropertieValues->GetUnsignedLargeIntegerValue(WPD_OBJECT_PARENT_ID,&pObjectProperties->ullObjectSize);
 	}
@@ -908,7 +908,7 @@ HRESULT GetObjectProperties( IPortableDeviceContent* pContent,LPCWSTR wszObjectI
 		pObjectPropertieValues->GetStringValue(WPD_OBJECT_PARENT_ID,&pObjectProperties->pwszObjectParentID);
 		pObjectPropertieValues->GetStringValue(WPD_OBJECT_NAME,&pObjectProperties->pwszObjectName);
 		pObjectPropertieValues->GetStringValue(WPD_OBJECT_ORIGINAL_FILE_NAME,&pObjectProperties->pwszObjectOringalFileName);
-		pObjectPropertieValues->GetGuidValue(WPD_OBJECT_FORMAT,&pObjectProperties->guidOjectFormat);
+		pObjectPropertieValues->GetGuidValue(WPD_OBJECT_FORMAT,&pObjectProperties->guidObjectFormat);
 		pObjectPropertieValues->GetGuidValue(WPD_OBJECT_CONTENT_TYPE,&pObjectProperties->guidObjectContentType);
 		pObjectPropertieValues->GetUnsignedLargeIntegerValue(WPD_OBJECT_SIZE,&pObjectProperties->ullObjectSize);
 	}
@@ -990,7 +990,7 @@ HRESULT CreateDataOutStream( IPortableDevice *pDevice, LPCWSTR pwszParentObjectI
 		DbgPrint((_T("! Failed to set WPD_OBJECT_CONTENT_TYPE, hr = 0x%lx"),hr));
 	}
 
-	hr = pObjectPropertiesValues->SetGuidValue(WPD_OBJECT_FORMAT, pObjectProperties->guidOjectFormat);
+	hr = pObjectPropertiesValues->SetGuidValue(WPD_OBJECT_FORMAT, pObjectProperties->guidObjectFormat);
 	if (FAILED(hr))
 	{
 		DbgPrint((_T("! Failed to set WPD_OBJECT_FORMAT, hr = 0x%lx"),hr));

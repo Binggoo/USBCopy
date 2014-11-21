@@ -21,8 +21,9 @@ protected:
 
 	DECLARE_MESSAGE_MAP()
 private:
-	int m_nCompareModeIndex;
+	int m_nCompareModeIndex; // 0 - 全盘比对， 1 - 快速比对
 	CIni *m_pIni;
+	int m_nCompareMethodIndex; // 0 - hash比对， 1 - byte 比对
 public:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnBnClickedOk();

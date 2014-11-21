@@ -35,15 +35,16 @@ public:
 	void Init(HWND hWnd,LPBOOL lpCancel,HANDLE hLogFile,CPortCommand *pCommand,UINT nBlockSectors);
 	void SetMasterPort(CPort *port);
 	void SetTargetPorts(PortList *pList);
-	void SetHashMethod(BOOL bComputeHash,BOOL bHashVerify,HashMethod hashMethod);
+	void SetHashMethod(BOOL bComputeHash,HashMethod hashMethod);
 	void SetWorkMode(WorkMode workMode);
-	void SetCleanMode(CleanMode cleanMode,int nFillValue);
+	void SetCleanMode(CleanMode cleanMode,int nFillValue,BOOL bCompareClean);
 	void SetCompareMode(CompareMode compareMode);
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
 	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
 	void SetMakeImageParm(BOOL bQuickImage,int compressLevel);
 	void SetFullCopyParm(BOOL bAllowCapGap,UINT nPercent);
-	void SetCleanDiskFirst(BOOL bCleanDiskFist,int times,int *values);
+	void SetCleanDiskFirst(BOOL bCleanDiskFist,BOOL bCompareClean,int times,int *values);
+	void SetCompareParm(BOOL bCompare,CompareMethod method);
 	BOOL Start();
 
 	void SetSocket(SOCKET sClient,BOOL bServerFirst);
@@ -66,7 +67,8 @@ private:
 
 	// 相同参数
 	BOOL m_bComputeHash;
-	BOOL m_bHashVerify;
+	BOOL m_bCompare;
+	CompareMethod m_CompareMethod;
 	HashMethod m_HashMethod;
 	CHashMethod *m_pMasterHashMethod;
 	BYTE m_ImageHash[LEN_DIGEST];
@@ -93,8 +95,6 @@ private:
 
 	CDataQueue m_CompressQueue;
 	CDataQueueList m_DataQueueList;
-
-	volatile UINT m_nCurrentTargetCount;
 
 	CStringArray  m_FileArray;
 	CStringArray  m_FodlerArray;
@@ -123,6 +123,8 @@ private:
 
 	// 记录是否显示结果
 	BOOL m_bEnd;
+	BOOL m_bCompareClean;
+	BOOL m_bVerify;
 
 	// 20140-10-14 新增增量拷贝
 	CMapPortStringArray m_MapPortStringArray;
@@ -142,6 +144,7 @@ private:
 	CMapStringToString m_MapSourceFolders;
 	CMapStringToString m_MapDestFolders;
 
+protected:
 	BOOL ReadSectors(HANDLE hDevice,
 		ULONGLONG ullStartSector,
 		DWORD dwSectors,
@@ -174,7 +177,7 @@ private:
 		PDWORD pdwErrorCode,
 		DWORD dwTimeOut= 10000);
 
-
+private:
 	// 文件系统分析
 	BootSector GetBootSectorType(const PBYTE pXBR);
 	PartitionStyle GetPartitionStyle(const PBYTE pByte,BootSector bootSector);
@@ -195,6 +198,8 @@ private:
 
 	int EnumFile(CString strSource);
 
+	UINT GetCurrentTargetCount();
+
 	BOOL QuickClean(CPort *port,PDWORD pdwErrorCode);
 	BOOL QuickClean(HANDLE hDisk,CPort *port,PDWORD pdwErrorCode);
 
@@ -212,6 +217,7 @@ private:
 	static DWORD WINAPI ReadFilesThreadProc(LPVOID lpParm);
 	static DWORD WINAPI WriteFilesThreadProc(LPVOID lpParm);
 	static DWORD WINAPI VerifyFilesThreadProc(LPVOID lpParm);
+	static DWORD WINAPI VerifyFilesByteThreadProc(LPVOID lpParm);
 
 	static DWORD WINAPI FormatDiskThreadProc(LPVOID lpParm);
 
@@ -245,6 +251,7 @@ private:
 	BOOL ReadLocalFiles();
 	BOOL WriteFiles(CPort *port,CDataQueue *pDataQueue);
 	BOOL VerifyFiles(CPort *port,CHashMethod *pHashMethod);
+	BOOL VerifyFiles(CPort *port,CDataQueue *pDataQueue);
 
 	BOOL FormatDisk(CPort *port);
 

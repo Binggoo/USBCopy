@@ -88,27 +88,34 @@ void CImageManager::SetConfig( CIni *pIni )
 DWORD CImageManager::EnumImage()
 {
 	DWORD dwCount = 0;
-	CString strFile = m_strImagePath + _T("\\*.IMG");
+	CString strFile = m_strImagePath + _T("\\*.*");
 	CFileFind fileFind;
 	BOOL bFind = fileFind.FindFile(strFile);
-	CString strName,strSize,strModifyTime;
+	CString strName,strSize,strModifyTime,strExt;
 	while (bFind)
 	{
 		bFind = fileFind.FindNextFile();
 
 		if (!fileFind.IsDirectory())
 		{
-			CFileStatus status;
-			CFile::GetStatus(fileFind.GetFilePath(),status);
-
 			strName = fileFind.GetFileName();
-			strSize = CUtils::AdjustFileSize(status.m_size);
-			strModifyTime = status.m_mtime.Format(_T("%Y-%m-%d %H:%M:%S"));
+			strExt = strName.Right(3);
 
-			m_ListImages.InsertItem(dwCount,strName);
-			m_ListImages.SetItemText(dwCount,1,strSize);
-			m_ListImages.SetItemText(dwCount,2,strModifyTime);
-			dwCount++;
+			if (strExt.CompareNoCase(_T("IMG")) == 0
+				|| strExt.CompareNoCase(_T("MTP")) == 0)
+			{
+				CFileStatus status;
+				CFile::GetStatus(fileFind.GetFilePath(),status);
+
+				strSize = CUtils::AdjustFileSize(status.m_size);
+				strModifyTime = status.m_mtime.Format(_T("%Y-%m-%d %H:%M:%S"));
+
+				m_ListImages.InsertItem(dwCount,strName);
+				m_ListImages.SetItemText(dwCount,1,strSize);
+				m_ListImages.SetItemText(dwCount,2,strModifyTime);
+				dwCount++;
+			}
+			
 		}
 	}
 	fileFind.Close();
@@ -168,7 +175,7 @@ void CImageManager::OnBnClickedBtnSync()
 
 	strPath = CUtils::GetFilePathWithoutName(strPath);
 
-	CString strCmd = _T("SynchImage.exe");
+	CString strCmd = _T("SyncImage.exe");
 	if (CreateProcess(NULL,strCmd.GetBuffer(),NULL,NULL,FALSE,0,NULL,strPath,&si,&pi))
 	{
 		CloseHandle(pi.hProcess);

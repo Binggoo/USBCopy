@@ -26,6 +26,9 @@ CCompleteMsg::CCompleteMsg(CIni *pIni,CPortCommand *pCommand,CString strMessage,
 	}
 	m_bStop = FALSE;
 	m_ThreadBuzzer = NULL;
+
+	m_nWidth = 800;
+	m_nHeight = 600;
 }
 
 CCompleteMsg::~CCompleteMsg()
@@ -66,6 +69,20 @@ BOOL CCompleteMsg::OnInitDialog()
 	SetDlgItemText(IDC_TEXT_MSG,m_strMessage);
 
 	BOOL bBeep = m_pIni->GetBool(_T("Option"),_T("BeepWhenFinish"),TRUE);
+
+	m_nWidth = m_pIni->GetInt(_T("AppSetting"),_T("Width"),0);
+	m_nHeight = m_pIni->GetInt(_T("AppSetting"),_T("Height"),0);
+
+	if (m_nHeight == 0 || m_nWidth == 0)
+	{
+		m_nHeight = 600;
+		m_nWidth = 800;
+	}
+	else if (m_nHeight == -1 || m_nWidth == -1)
+	{
+		m_nWidth = GetSystemMetrics(SM_CXSCREEN);
+		m_nHeight = GetSystemMetrics(SM_CYSCREEN);
+	}
 
 	if (bBeep)
 	{
@@ -189,5 +206,10 @@ void CCompleteMsg::OnShowWindow(BOOL bShow, UINT nStatus)
 	GetParent()->GetWindowRect(&parentRect);
 	GetWindowRect(&rect);
 
-	MoveWindow(rect.left,parentRect.bottom - rect.Height()*5/2,rect.Width(),rect.Height());
+	int x = rect.left;
+	int y = parentRect.bottom - rect.Height() * m_nHeight/600 * 5/2;
+	int nWidth = rect.Width();
+	int nHeight = rect.Height();
+
+	MoveWindow(x,y,nWidth,nHeight);
 }

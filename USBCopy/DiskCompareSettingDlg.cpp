@@ -14,6 +14,8 @@ IMPLEMENT_DYNAMIC(CDiskCompareSettingDlg, CDialogEx)
 CDiskCompareSettingDlg::CDiskCompareSettingDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CDiskCompareSettingDlg::IDD, pParent)
 	, m_nCompareModeIndex(0)
+	, m_nCompareMethodIndex(0)
+	
 {
 	m_pIni = NULL;
 }
@@ -26,6 +28,7 @@ void CDiskCompareSettingDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Radio(pDX, IDC_RADIO_FULL_COMPARE, m_nCompareModeIndex);
+	DDX_Radio(pDX, IDC_RADIO_HASH_COMPARE, m_nCompareMethodIndex);
 }
 
 
@@ -50,6 +53,7 @@ BOOL CDiskCompareSettingDlg::OnInitDialog()
 	ASSERT(m_pIni);
 
 	m_nCompareModeIndex = m_pIni->GetInt(_T("DiskCompare"),_T("CompareMode"),0);
+	m_nCompareMethodIndex = m_pIni->GetInt(_T("DiskCompare"),_T("CompareMethod"),0);
 
 	UpdateData(FALSE);
 
@@ -64,6 +68,7 @@ void CDiskCompareSettingDlg::OnBnClickedOk()
 	UpdateData(TRUE);
 
 	m_pIni->WriteInt(_T("DiskCompare"),_T("CompareMode"),m_nCompareModeIndex);
+	m_pIni->WriteInt(_T("DiskCompare"),_T("CompareMethod"),m_nCompareMethodIndex);
 
 	CDialogEx::OnOK();
 }

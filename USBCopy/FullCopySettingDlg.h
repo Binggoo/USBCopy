@@ -28,6 +28,8 @@ private:
 	CComboBox m_ComboBoxCapGap;
 	CComboBox m_ComboBoxCleanTimes;
 	CString m_strFillValues;
+	int m_nCompareMethodIndex;
+	BOOL m_bCompareClean;
 
 	CIni *m_pIni;
 
@@ -40,4 +42,5 @@ public:
 	afx_msg void OnBnClickedCheckCapaGap();
 	afx_msg void OnBnClickedCheckCleanDisk();
 	afx_msg void OnCbnSelchangeComboCleanTimes();
+	afx_msg void OnBnClickedRadioHashCompare();
 };

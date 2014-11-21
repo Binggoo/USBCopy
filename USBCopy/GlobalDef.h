@@ -121,6 +121,12 @@ typedef enum _ENUM_COMPARE_MODE
 	CompareMode_Quick
 }CompareMode;
 
+typedef enum _ENUM_COMPARE_METHOD
+{
+	CompareMethod_Hash = 0,
+	CompareMethod_Byte
+}CompareMethod;
+
 typedef enum _ENUM_SAVE_PATH
 {
 	PathType_Local = 0,
@@ -352,7 +358,11 @@ typedef struct _STRUCT_IMAGE_HEADER
 	DWORD	  dwHashType; //4
 	BYTE	  byImageDigest[LEN_DIGEST]; // 64
 	char      szDescription[SIZEOF_IMAGE_DISCRP]; //256
-	BYTE      byReserved[SIZEOF_IMAGE_HEADER-8*5-4*5-APP_VER_LENGTH*2-LEN_DIGEST-SIZEOF_IMAGE_DISCRP-1];
+	DWORD     dwPkgOffset; // 4
+	DWORD     dwFolderCount; // 4
+	DWORD     dwFileCount; // 4
+	DWORD     dwListSize; // 4
+	BYTE      byReserved[SIZEOF_IMAGE_HEADER-8*5-4*9-APP_VER_LENGTH*2-LEN_DIGEST-SIZEOF_IMAGE_DISCRP-1]; //595
 	BYTE      byEnd; //1
 }IMAGE_HEADER,*PIMAGE_HEADER;
 

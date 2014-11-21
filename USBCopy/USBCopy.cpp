@@ -67,23 +67,21 @@ BOOL CUSBCopyApp::InitInstance()
 
 	CIni ini(strConfigName);
 
-	int language = ini.GetInt(_T("Option"),_T("Language"),-1);
+	int language = ini.GetInt(_T("AppSetting"),_T("Language"),-1);
 	LCID lcid = GetThreadLocale();
 	if (language == 0)
 	{
-		if (LANG_CHINESE == PRIMARYLANGID(LANGIDFROMLCID(lcid)))
-		{
+		//if (LANG_CHINESE == PRIMARYLANGID(LANGIDFROMLCID(lcid)))
+		//{
 			SetThreadUILanguage(MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
-		}
-
+		//}
 	}
 	else if (language == 1)
 	{
-		if (LANG_ENGLISH == PRIMARYLANGID(LANGIDFROMLCID(lcid)))
-		{
+		//if (LANG_ENGLISH == PRIMARYLANGID(LANGIDFROMLCID(lcid)))
+		//{
 			SetThreadUILanguage(MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED));
-		}
-
+		//}
 	}
 
 	CUSBCopyDlg dlg;

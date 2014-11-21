@@ -28,6 +28,9 @@ private:
 	CWinThread *m_ThreadBuzzer;
 	CIni *m_pIni;
 
+	int m_nWidth;
+	int m_nHeight;
+
 	void Buzzer();
 
 	static DWORD WINAPI BuzzerThreadProc(LPVOID lpParm);

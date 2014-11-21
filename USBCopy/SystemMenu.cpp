@@ -305,10 +305,9 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 
 	GetDlgItem(IDC_BTN_EXPORT_LOG)->EnableWindow(FALSE);
 
-	for (UINT i = 0; i <= m_nTargetNum;i++)
-	{
-		m_pCommand->Power(i,FALSE);
-	}
+	
+	// È«²¿¶Ïµç
+	m_pCommand->ResetPower();
 
 	CString strDrive,strPath,strMsg,strTitle;
 
@@ -416,6 +415,7 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 	for (UINT i = 0; i <= m_nTargetNum;i++)
 	{
 		m_pCommand->Power(i,TRUE);
+		Sleep(100);
 	}
 
 	GetDlgItem(IDC_BTN_EXPORT_LOG)->EnableWindow(TRUE);

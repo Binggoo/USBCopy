@@ -28,6 +28,9 @@ private:
 	CComboBox m_ComboBoxCleanTimes;
 	CString m_strFillValues;
 
+	int m_nCompareMethodIndex;
+	BOOL m_bCompareClean;
+
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV Ö§³Ö
 
@@ -45,4 +48,5 @@ public:
 	afx_msg void OnBnClickedCheckCompare();
 	afx_msg void OnBnClickedCheckCleanDisk();
 	afx_msg void OnCbnSelchangeComboCleanTimes();
+	afx_msg void OnBnClickedRadioHashCompare();
 };

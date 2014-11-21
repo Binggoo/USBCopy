@@ -14,7 +14,7 @@ typedef struct _STRUCT_OBJECT_PROPERTIES
 	LPWSTR pwszObjectName;
 	LPWSTR pwszObjectOringalFileName;
 	GUID   guidObjectContentType;
-	GUID   guidOjectFormat;
+	GUID   guidObjectFormat;
 	ULONGLONG ullObjectSize;
 	int level;
 }ObjectProperties,*PObjectProperties;

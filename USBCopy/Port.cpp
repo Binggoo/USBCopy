@@ -38,7 +38,7 @@ void CPort::Initial()
 {
 	// …Ë±∏
 	m_bConnected = FALSE;
-	m_iDiskNum = 0;
+	m_iDiskNum = -1;
 	m_strVolumeArray.RemoveAll();
 	m_ullTotalSize = 0;
 	m_dwBytesPerSector = 0;

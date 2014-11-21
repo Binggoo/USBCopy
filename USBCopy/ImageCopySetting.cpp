@@ -18,6 +18,8 @@ CImageCopySetting::CImageCopySetting(CWnd* pParent /*=NULL*/)
 	, m_nRadioImageTypeIndex(0)
 	, m_bCleanDiskFirst(FALSE)
 	, m_strFillValues(_T(""))
+	, m_nCompareMethodIndex(0)
+	, m_bCompareClean(FALSE)
 {
 	m_pIni = NULL;
 }
@@ -35,6 +37,8 @@ void CImageCopySetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_CHECK_CLEAN_DISK_FIRST, m_bCleanDiskFirst);
 	DDX_Control(pDX, IDC_COMBO_CLEAN_TIMES, m_ComboBoxCleanTimes);
 	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
+	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
+	DDX_Check(pDX,IDC_CHECK_CLEAN_COMPARE,m_bCompareClean);
 }
 
 
@@ -44,6 +48,7 @@ BEGIN_MESSAGE_MAP(CImageCopySetting, CDialogEx)
 	ON_BN_CLICKED(IDC_RADIO_MTP_IMAGE, &CImageCopySetting::OnBnClickedRadioMtpImage)
 	ON_BN_CLICKED(IDC_CHECK_CLEAN_DISK_FIRST, &CImageCopySetting::OnBnClickedCheckCleanDisk)
 	ON_CBN_SELCHANGE(IDC_COMBO_CLEAN_TIMES, &CImageCopySetting::OnCbnSelchangeComboCleanTimes)
+	ON_BN_CLICKED(IDC_CHECK_COMPARE, &CImageCopySetting::OnBnClickedCheckCompare)
 END_MESSAGE_MAP()
 
 
@@ -60,8 +65,13 @@ BOOL CImageCopySetting::OnInitDialog()
 	m_nRadioPriorityIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("PathType"),0);
 	m_bCheckCompare = m_pIni->GetBool(_T("ImageCopy"),_T("En_Compare"),FALSE);
 	m_nRadioImageTypeIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("ImageType"),0);
+	m_nCompareMethodIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("CompareMethod"),0);
+
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCheckCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
 
 	m_bCleanDiskFirst = m_pIni->GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE);
+	m_bCompareClean = m_pIni->GetBool(_T("ImageCopy"),_T("En_CompareClean"),FALSE);
 
 	m_ComboBoxCleanTimes.AddString(_T("1"));
 	m_ComboBoxCleanTimes.AddString(_T("2"));
@@ -73,11 +83,20 @@ BOOL CImageCopySetting::OnInitDialog()
 		GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(FALSE);
 		GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(FALSE);
 		GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(FALSE);
+		GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(FALSE);
+		GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(FALSE);
+
+		if (m_bCheckCompare)
+		{
+			m_nCompareMethodIndex = 0;
+		}
 	}
 	else
 	{
 		GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 		GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+		GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
+		GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(TRUE);
 	}
 
 	m_strFillValues = m_pIni->GetString(_T("ImageCopy"),_T("FillValues"));
@@ -109,8 +128,11 @@ void CImageCopySetting::OnBnClickedOk()
 
 	m_pIni->WriteUInt(_T("ImageCopy"),_T("PathType"),m_nRadioPriorityIndex);
 	m_pIni->WriteBool(_T("ImageCopy"),_T("En_Compare"),m_bCheckCompare);
+	m_pIni->WriteUInt(_T("ImageCopy"),_T("CompareMethod"),m_nCompareMethodIndex);
+
 	m_pIni->WriteUInt(_T("ImageCopy"),_T("ImageType"),m_nRadioImageTypeIndex);
 	m_pIni->WriteBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),m_bCleanDiskFirst);
+	m_pIni->WriteBool(_T("ImageCopy"),_T("En_CompareClean"),m_bCompareClean);
 	m_pIni->WriteString(_T("ImageCopy"),_T("FillValues"),m_strFillValues);
 	m_pIni->WriteUInt(_T("ImageCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
 
@@ -125,7 +147,10 @@ void CImageCopySetting::OnBnClickedRadioDiskImage()
 	GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(TRUE);
 
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 	m_ComboBoxCleanTimes.EnableWindow(m_bCleanDiskFirst);
+
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(TRUE);
 }
 
 
@@ -134,9 +159,19 @@ void CImageCopySetting::OnBnClickedRadioMtpImage()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 	GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(FALSE);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(FALSE);
 
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(FALSE);
 	m_ComboBoxCleanTimes.EnableWindow(FALSE);
+
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(FALSE);
+
+	if (m_bCheckCompare)
+	{
+		m_nCompareMethodIndex = 0;
+	}
+	
+	UpdateData(FALSE);
 }
 
 
@@ -147,6 +182,7 @@ void CImageCopySetting::OnBnClickedCheckCleanDisk()
 
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 	m_ComboBoxCleanTimes.EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 }
 
 
@@ -171,4 +207,13 @@ void CImageCopySetting::OnCbnSelchangeComboCleanTimes()
 	}
 
 	UpdateData(FALSE);
+}
+
+
+void CImageCopySetting::OnBnClickedCheckCompare()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCheckCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
 }

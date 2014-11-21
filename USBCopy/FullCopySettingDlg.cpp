@@ -18,6 +18,8 @@ CFullCopySettingDlg::CFullCopySettingDlg(CWnd* pParent /*=NULL*/)
 	, m_bAllowCapGap(FALSE)
 	, m_bCleanDiskFirst(FALSE)
 	, m_strFillValues(_T(""))
+	, m_nCompareMethodIndex(0)
+	, m_bCompareClean(FALSE)
 {
 	m_pIni = NULL;
 }
@@ -36,6 +38,8 @@ void CFullCopySettingDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX,IDC_COMBO_CAP_GAP,m_ComboBoxCapGap);
 	DDX_Control(pDX, IDC_COMBO_CLEAN_TIMES, m_ComboBoxCleanTimes);
 	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
+	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
+	DDX_Check(pDX,IDC_CHECK_CLEAN_COMPARE,m_bCompareClean);
 }
 
 
@@ -47,6 +51,7 @@ BEGIN_MESSAGE_MAP(CFullCopySettingDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_CAPA_GAP, &CFullCopySettingDlg::OnBnClickedCheckCapaGap)
 	ON_BN_CLICKED(IDC_CHECK_CLEAN_DISK, &CFullCopySettingDlg::OnBnClickedCheckCleanDisk)
 	ON_CBN_SELCHANGE(IDC_COMBO_CLEAN_TIMES, &CFullCopySettingDlg::OnCbnSelchangeComboCleanTimes)
+	ON_BN_CLICKED(IDC_RADIO_HASH_COMPARE, &CFullCopySettingDlg::OnBnClickedRadioHashCompare)
 END_MESSAGE_MAP()
 
 void CFullCopySettingDlg::SetConfig( CIni *pIni )
@@ -66,14 +71,22 @@ BOOL CFullCopySettingDlg::OnInitDialog()
 	ASSERT(m_pIni);
 	m_bComputeHash = m_pIni->GetBool(_T("FullCopy"),_T("En_ComputeHash"),FALSE);
 	m_bCompare = m_pIni->GetBool(_T("FullCopy"),_T("En_Compare"),FALSE);
+	m_nCompareMethodIndex = m_pIni->GetInt(_T("FullCopy"),_T("CompareMethod"),0);
+
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCompare);
 
 	if (!m_bComputeHash)
 	{
-		m_bCompare = FALSE;
+		if (m_bCompare)
+		{
+			m_nCompareMethodIndex = 1;
+		}
 	}
-
+	
 	m_bAllowCapGap = m_pIni->GetBool(_T("FullCopy"),_T("En_AllowCapaGap"),FALSE);
 	m_bCleanDiskFirst = m_pIni->GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE);
+	m_bCompareClean = m_pIni->GetBool(_T("FullCopy"),_T("En_CompareClean"),FALSE);
 
 	m_ComboBoxCleanTimes.AddString(_T("1"));
 	m_ComboBoxCleanTimes.AddString(_T("2"));
@@ -81,6 +94,7 @@ BOOL CFullCopySettingDlg::OnInitDialog()
 
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 
 	m_strFillValues = m_pIni->GetString(_T("FullCopy"),_T("FillValues"));
 	UINT nCleanTimes = m_pIni->GetUInt(_T("FullCopy"),_T("CleanTimes"),1);
@@ -119,11 +133,9 @@ void CFullCopySettingDlg::OnBnClickedCheckCompare()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
-	if (m_bCompare)
-	{
-		m_bComputeHash = TRUE;
-		UpdateData(FALSE);
-	}
+	
+	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCompare);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCompare);
 }
 
 
@@ -134,9 +146,13 @@ void CFullCopySettingDlg::OnBnClickedCheckComputeHash()
 
 	if (!m_bComputeHash)
 	{
-		m_bCompare = m_bComputeHash;
-		UpdateData(FALSE);
+		if (m_bCompare)
+		{
+			m_nCompareMethodIndex = 1;
+		}
 	}
+
+	UpdateData(FALSE);
 }
 
 
@@ -150,9 +166,13 @@ void CFullCopySettingDlg::OnBnClickedOk()
 
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_ComputeHash"),m_bComputeHash);
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_Compare"),m_bCompare);
+	m_pIni->WriteInt(_T("FullCopy"),_T("CompareMethod"),m_nCompareMethodIndex);
+
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_AllowCapaGap"),m_bAllowCapGap);
 	m_pIni->WriteString(_T("FullCopy"),_T("CapacityGap"),strCapGap);
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_CleanDiskFirst"),m_bCleanDiskFirst);
+	m_pIni->WriteBool(_T("FullCopy"),_T("En_CompareClean"),m_bCompareClean);
+
 	m_pIni->WriteUInt(_T("FullCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
 	m_pIni->WriteString(_T("FullCopy"),_T("FillValues"),m_strFillValues);
 
@@ -193,6 +213,7 @@ void CFullCopySettingDlg::OnBnClickedCheckCleanDisk()
 	UpdateData(TRUE);
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 }
 
 
@@ -215,6 +236,17 @@ void CFullCopySettingDlg::OnCbnSelchangeComboCleanTimes()
 		m_strFillValues = _T("00;FF;XX");
 		break;
 	}
+
+	UpdateData(FALSE);
+}
+
+
+void CFullCopySettingDlg::OnBnClickedRadioHashCompare()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+
+	m_bComputeHash = TRUE;
 
 	UpdateData(FALSE);
 }

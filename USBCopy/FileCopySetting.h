@@ -29,6 +29,7 @@ private:
 	CListCtrl m_ListCtrl;
 	BOOL m_bCheckComputeHash;
 	BOOL m_bCheckCompare;
+	int m_nCompareMethodIndex; // 0 - hash比对， 1 - byte 比对
 
 	void InitialListCtrl();
 
@@ -51,4 +52,5 @@ public:
 	afx_msg void OnBnClickedCheckComputeHash();
 	afx_msg void OnBnClickedCheckCompare();
 	afx_msg void OnBnClickedOk();
+	afx_msg void OnBnClickedRadioHashCompare();
 };
