@@ -20,6 +20,7 @@ CFullCopySettingDlg::CFullCopySettingDlg(CWnd* pParent /*=NULL*/)
 	, m_strFillValues(_T(""))
 	, m_nCompareMethodIndex(0)
 	, m_bCompareClean(FALSE)
+	, m_nCompareCleanSeqIndex(0)
 {
 	m_pIni = NULL;
 }
@@ -40,6 +41,7 @@ void CFullCopySettingDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
 	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
 	DDX_Check(pDX,IDC_CHECK_CLEAN_COMPARE,m_bCompareClean);
+	DDX_Radio(pDX,IDC_RADIO_CLEAN_IN,m_nCompareCleanSeqIndex);
 }
 
 
@@ -87,6 +89,7 @@ BOOL CFullCopySettingDlg::OnInitDialog()
 	m_bAllowCapGap = m_pIni->GetBool(_T("FullCopy"),_T("En_AllowCapaGap"),FALSE);
 	m_bCleanDiskFirst = m_pIni->GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE);
 	m_bCompareClean = m_pIni->GetBool(_T("FullCopy"),_T("En_CompareClean"),FALSE);
+	m_nCompareCleanSeqIndex = m_pIni->GetInt(_T("FullCopy"),_T("CompareCleanSeq"),0);
 
 	m_ComboBoxCleanTimes.AddString(_T("1"));
 	m_ComboBoxCleanTimes.AddString(_T("2"));
@@ -95,6 +98,8 @@ BOOL CFullCopySettingDlg::OnInitDialog()
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 
 	m_strFillValues = m_pIni->GetString(_T("FullCopy"),_T("FillValues"));
 	UINT nCleanTimes = m_pIni->GetUInt(_T("FullCopy"),_T("CleanTimes"),1);
@@ -172,6 +177,7 @@ void CFullCopySettingDlg::OnBnClickedOk()
 	m_pIni->WriteString(_T("FullCopy"),_T("CapacityGap"),strCapGap);
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_CleanDiskFirst"),m_bCleanDiskFirst);
 	m_pIni->WriteBool(_T("FullCopy"),_T("En_CompareClean"),m_bCompareClean);
+	m_pIni->WriteInt(_T("FullCopy"),_T("CompareCleanSeq"),m_nCompareCleanSeqIndex);
 
 	m_pIni->WriteUInt(_T("FullCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
 	m_pIni->WriteString(_T("FullCopy"),_T("FillValues"),m_strFillValues);
@@ -214,6 +220,8 @@ void CFullCopySettingDlg::OnBnClickedCheckCleanDisk()
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 }
 
 

@@ -15,6 +15,7 @@ CDiskCleanSettingDlg::CDiskCleanSettingDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CDiskCleanSettingDlg::IDD, pParent)
 	, m_nRadioSelectIndex(-1)
 	, m_bCompareClean(FALSE)
+	, m_nCompareCleanSeqIndex(0)
 {
 	m_pIni = NULL;
 }
@@ -29,6 +30,7 @@ void CDiskCleanSettingDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_COMBO_FULL_CLEAN_VALUE, m_ComboBoxFullCleanValue);
 	DDX_Radio(pDX, IDC_RADIO_FULL_CLEAN, m_nRadioSelectIndex);
 	DDX_Check(pDX,IDC_CHECK_CLEAN_COMPARE,m_bCompareClean);
+	DDX_Radio(pDX, IDC_RADIO_CLEAN_IN, m_nCompareCleanSeqIndex);
 }
 
 
@@ -57,6 +59,7 @@ BOOL CDiskCleanSettingDlg::OnInitDialog()
 
 	m_nRadioSelectIndex = m_pIni->GetInt(_T("DiskClean"),_T("CleanMode"),0);
 	m_bCompareClean = m_pIni->GetBool(_T("DiskClean"),_T("En_CompareClean"),FALSE);
+	m_nCompareCleanSeqIndex = m_pIni->GetInt(_T("DiskClean"),_T("CompareCleanSeq"),0);
 
 	m_ComboBoxFullCleanValue.AddString(_T("00"));
 	m_ComboBoxFullCleanValue.AddString(_T("FF"));
@@ -120,6 +123,8 @@ void CDiskCleanSettingDlg::OnBnClickedOk()
 	m_pIni->WriteInt(_T("DiskClean"),_T("CleanMode"),m_nRadioSelectIndex);
 	m_pIni->WriteInt(_T("DiskClean"),_T("FillValue"),nFillValue,16);
 	m_pIni->WriteBool(_T("DiskClean"),_T("En_CompareClean"),m_bCompareClean);
+
+	m_pIni->WriteInt(_T("DiskClean"),_T("CompareCleanSeq"),m_nCompareCleanSeqIndex);
 	
 	CDialogEx::OnOK();
 }

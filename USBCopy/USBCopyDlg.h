@@ -88,7 +88,7 @@ private:
 
 	BOOL  m_bLisence;
 
-	BOOL  m_bIsUSB;
+	int   m_nMachineType;
 	BOOL  m_bIsMTP;
 
 	enum

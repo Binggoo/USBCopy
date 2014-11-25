@@ -203,8 +203,11 @@ void CScanningDlg::ScanningDevice()
 				|| m_WorkMode == WorkMode_ImageCopy 
 				|| m_WorkMode == WorkMode_DiskFormat
 				|| (m_WorkMode == WorkMode_DifferenceCopy 
-				&& m_pIni->GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Package
-				&& m_pIni->GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0) == PathType_Remote)
+				&& m_pIni->GetUInt(_T("DifferenceCopy"),_T("SourceType"),0) == SourceType_Package 
+				&& m_pIni->GetUInt(_T("DifferenceCopy"),_T("PkgLocation"),0) == PathType_Remote) 
+				|| m_WorkMode == WorkMode_Full_RW_Test 
+				|| m_WorkMode == WorkMode_Fade_Picker 
+				|| m_WorkMode == WorkMode_Speed_Check 
 				)
 			{
 				port->Initial();
@@ -305,7 +308,8 @@ void CScanningDlg::ScanningDevice()
 										PVOLUMEDEVICEINFO pVolumeInfo = (PVOLUMEDEVICEINFO)pVolumeNode->pDevInfo;
 										if (pVolumeInfo)
 										{
-											strVolumeArray.Add(pVolumeInfo->pszVolumePath);
+											CString strVolume(pVolumeInfo->pszVolumePath);
+											strVolumeArray.Add(strVolume);
 										}
 
 										pVolumeNode = pVolumeNode->pNext;
@@ -314,7 +318,7 @@ void CScanningDlg::ScanningDevice()
 									CleanupVolumeDeviceList(pVolumeList);
 								}
 
-								if (!m_bIsUSB)
+								if (m_nMachineType == MT_TS)
 								{
 									TCHAR szModelName[256] = {NULL};
 									TCHAR szSerialNumber[256] = {NULL};
@@ -499,6 +503,7 @@ BOOL CScanningDlg::IsAllConnected()
 	case WorkMode_FullCopy:
 	case WorkMode_QuickCopy:
 	case WorkMode_FileCopy:
+	case WorkMode_MTPCopy:
 		// 必须要有母盘
 		if (!m_pMasterPort->IsConnected())
 		{
@@ -539,11 +544,11 @@ BOOL CScanningDlg::IsAllConnected()
 	return bConnect;
 }
 
-void CScanningDlg::SetConfig( CIni *pIni,WorkMode workMode ,BOOL bIsUSB)
+void CScanningDlg::SetConfig( CIni *pIni,WorkMode workMode ,int nMachineType)
 {
 	m_pIni = pIni;
 	m_WorkMode = workMode;
-	m_bIsUSB = bIsUSB;
+	m_nMachineType = nMachineType;
 }
 
 void CScanningDlg::SetLogFile( HANDLE hFile )
@@ -582,10 +587,26 @@ void CScanningDlg::ScanningMTPDevice()
 		if (nCount == 0)
 		{
 			port = m_pMasterPort;
+
+			// 不需要母盘
+			if (m_WorkMode == WorkMode_ImageCopy)
+			{
+				port->Initial();
+				nCount++;
+				continue;
+			}
 		}
 		else
 		{
 			port = m_pTargetPortList->GetNext(pos);
+
+			//不需要子盘
+			if (m_WorkMode == WorkMode_ImageMake)
+			{
+				port->Initial();
+				nCount++;
+				continue;
+			}
 		}
 
 		nCount++;

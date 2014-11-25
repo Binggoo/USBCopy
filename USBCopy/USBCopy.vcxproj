@@ -126,6 +126,11 @@
     <None Include="res\manager.bmp" />
     <None Include="res\menu.bmp" />
     <None Include="res\more.bmp" />
+    <None Include="res\NGFF_gray.bmp" />
+    <None Include="res\NGFF_GREEN.bmp" />
+    <None Include="res\NGFF_normal.bmp" />
+    <None Include="res\NGFF_RED.bmp" />
+    <None Include="res\NGFF_YELLOW.bmp" />
     <None Include="res\package.bmp" />
     <None Include="res\quickcopy.bmp" />
     <None Include="res\restore.bmp" />
@@ -176,10 +181,12 @@
     <ClInclude Include="EnumStorage.h" />
     <ClInclude Include="EnumUSB.h" />
     <ClInclude Include="ExportLog.h" />
+    <ClInclude Include="FadePickerSetting.h" />
     <ClInclude Include="Fat32.h" />
     <ClInclude Include="FileCopySetting.h" />
     <ClInclude Include="Fs.h" />
     <ClInclude Include="FullCopySettingDlg.h" />
+    <ClInclude Include="FullRWTest.h" />
     <ClInclude Include="GlobalDef.h" />
     <ClInclude Include="GlobalSetting.h" />
     <ClInclude Include="HashMethod.h" />
@@ -203,6 +210,7 @@
     <ClInclude Include="SelectCurModeDlg.h" />
     <ClInclude Include="SerialPort.h" />
     <ClInclude Include="SoftwareRecovery.h" />
+    <ClInclude Include="SpeedCheckSetting.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="SystemMenu.h" />
     <ClInclude Include="targetver.h" />
@@ -238,10 +246,12 @@
     <ClCompile Include="EnumStorage.cpp" />
     <ClCompile Include="EnumUSB.cpp" />
     <ClCompile Include="ExportLog.cpp" />
+    <ClCompile Include="FadePickerSetting.cpp" />
     <ClCompile Include="Fat32.cpp" />
     <ClCompile Include="FileCopySetting.cpp" />
     <ClCompile Include="Fs.cpp" />
     <ClCompile Include="FullCopySettingDlg.cpp" />
+    <ClCompile Include="FullRWTest.cpp" />
     <ClCompile Include="GlobalSetting.cpp" />
     <ClCompile Include="HashMethod.cpp" />
     <ClCompile Include="ImageCopySetting.cpp" />
@@ -262,6 +272,7 @@
     <ClCompile Include="SelectCurModeDlg.cpp" />
     <ClCompile Include="SerialPort.cpp" />
     <ClCompile Include="SoftwareRecovery.cpp" />
+    <ClCompile Include="SpeedCheckSetting.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

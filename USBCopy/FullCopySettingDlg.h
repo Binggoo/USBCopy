@@ -31,6 +31,8 @@ private:
 	int m_nCompareMethodIndex;
 	BOOL m_bCompareClean;
 
+	int m_nCompareCleanSeqIndex;
+
 	CIni *m_pIni;
 
 public:

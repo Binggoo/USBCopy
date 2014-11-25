@@ -62,6 +62,10 @@ void CPort::Initial()
 	m_dbUsedNoWaitTimeS = 0.0;
 	memset(m_Hash,0,LEN_DIGEST);
 
+	m_BadBlockArray.RemoveAll();
+	m_dbReadUsedTimeS = 0.0;
+	m_dbWriteUsedTimeS = 0.0;
+
 	// 结果
 	m_PortState = PortState_Offline;
 	m_bResult = FALSE;
@@ -82,6 +86,10 @@ void CPort::Reset()
 	m_dbUsedNoWaitTimeS = 0.0;
 	memset(m_Hash,0,LEN_DIGEST);
 
+	m_BadBlockArray.RemoveAll();
+	m_dbReadUsedTimeS = 0.0;
+	m_dbWriteUsedTimeS = 0.0;
+
 	// 结果
 	m_PortState = PortState_Offline;
 	m_bResult = TRUE;
@@ -89,6 +97,7 @@ void CPort::Reset()
 	m_ErrorType = ErrorType_System;
 
 	m_bKickOff = FALSE;
+
 }
 
 void CPort::Active()
@@ -103,6 +112,10 @@ void CPort::Active()
 	m_ErrorType = ErrorType_System;
 
 	m_bKickOff = FALSE;
+
+	m_BadBlockArray.RemoveAll();
+	m_dbReadUsedTimeS = 0.0;
+	m_dbWriteUsedTimeS = 0.0;
 }
 
 void CPort::SetPortNum( int iPortNum )
@@ -379,6 +392,30 @@ void CPort::AppendCompleteSize( ULONGLONG ullSize )
 	m_ullCompleteSize += ullSize;
 }
 
+void CPort::SetUsedTimeS( double dbTimeS,BOOL bRead )
+{
+	if (bRead)
+	{
+		m_dbReadUsedTimeS = dbTimeS;
+	}
+	else
+	{
+		m_dbWriteUsedTimeS = dbTimeS;
+	}
+}
+
+void CPort::AppendUsedTimeS( double dbTimeS,BOOL bRead )
+{
+	if (bRead)
+	{
+		m_dbReadUsedTimeS += dbTimeS;
+	}
+	else
+	{
+		m_dbWriteUsedTimeS += dbTimeS;
+	}
+}
+
 ULONGLONG CPort::GetCompleteSize()
 {
 	return m_ullCompleteSize;
@@ -465,6 +502,28 @@ double CPort::GetRealSpeed()
 	return dbSpeed;
 }
 
+double CPort::GetRealSpeed( BOOL bRead )
+{
+	double dbSpeed = 0.0;
+
+	if (bRead)
+	{
+		if (m_dbReadUsedTimeS > 0)
+		{
+			dbSpeed = (m_ullCompleteSize / 1024. / 1024.) / m_dbReadUsedTimeS;
+		}
+	}
+	else
+	{
+		if (m_dbWriteUsedTimeS > 0)
+		{
+			dbSpeed = (m_ullCompleteSize / 1024. / 1024.) / m_dbWriteUsedTimeS;
+		}
+	}
+	
+	return dbSpeed;
+}
+
 CString CPort::GetRealSpeedString()
 {
 	CString strSpeed;
@@ -486,6 +545,44 @@ CString CPort::GetRealSpeedString()
 		else
 		{
 			speed = (int)(m_ullCompleteSize / m_dbUsedNoWaitTimeS);
+			strSpeed.Format(_T("%dB/s"),speed);
+		}
+	}
+	return strSpeed;
+}
+
+CString CPort::GetRealSpeedString( BOOL bRead )
+{
+	CString strSpeed;
+	double dbTimeS = 0.0;
+
+	if (bRead)
+	{
+		dbTimeS = m_dbReadUsedTimeS;
+	}
+	else
+	{
+		dbTimeS = m_dbWriteUsedTimeS;
+	}
+
+	if (dbTimeS > 0)
+	{
+		int speed = 0;
+		if ((speed = (int)((m_ullCompleteSize / 1024 / 1024 / 1024) / dbTimeS)))
+		{
+			strSpeed.Format(_T("%dGB/s"),speed);
+		}
+		else if ((speed = (int)((m_ullCompleteSize / 1024 / 1024 ) / dbTimeS)))
+		{
+			strSpeed.Format(_T("%dMB/s"),speed);
+		}
+		else if ((speed = (int)((m_ullCompleteSize / 1024) / dbTimeS)))
+		{
+			strSpeed.Format(_T("%dKB/s"),speed);
+		}
+		else
+		{
+			speed = (int)(m_ullCompleteSize / dbTimeS);
 			strSpeed.Format(_T("%dB/s"),speed);
 		}
 	}
@@ -617,5 +714,20 @@ CString CPort::GetUsbType()
 void CPort::SetUsbType(CString strUSBType)
 {
 	m_strUSBType = strUSBType;
+}
+
+void CPort::AddBadBlock( ULONGLONG ullSectorNum )
+{
+	m_BadBlockArray.Add(ullSectorNum);
+}
+
+void CPort::GetBadBlockArray( CULLArray &ullBadBlockArray )
+{
+	ullBadBlockArray.Copy(m_BadBlockArray);
+}
+
+int CPort::GetBadBlockCount()
+{
+	return m_BadBlockArray.GetCount();
 }
 

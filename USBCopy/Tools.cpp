@@ -36,7 +36,6 @@ BEGIN_MESSAGE_MAP(CTools, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_DISK_FORMART, &CTools::OnBnClickedBtnDiskFormart)
 	ON_BN_CLICKED(IDC_BTN_FULL_RW_TEST, &CTools::OnBnClickedBtnFullRwTest)
 	ON_BN_CLICKED(IDC_BTN_FAKE_PICKER, &CTools::OnBnClickedBtnFakePicker)
-	ON_BN_CLICKED(IDC_BTN_CAPACITY_CHECK, &CTools::OnBnClickedBtnCapacityCheck)
 	ON_BN_CLICKED(IDC_BTN_SPEED_CHECK, &CTools::OnBnClickedBtnSpeedCheck)
 	ON_BN_CLICKED(IDC_BTN_BURN_IN, &CTools::OnBnClickedBtnBurnIn)
 END_MESSAGE_MAP()
@@ -62,10 +61,6 @@ BOOL CTools::OnInitDialog()
 	m_BtnFakePicker.SetFlat(FALSE);
 	m_BtnFakePicker.SetBitmaps(IDB_FAKE_PICKER,RGB(255,255,255));
 
-	m_BtnCapCheck.SubclassDlgItem(IDC_BTN_CAPACITY_CHECK,this);
-	m_BtnCapCheck.SetFlat(FALSE);
-	m_BtnCapCheck.SetBitmaps(IDB_CAP_CHECK,RGB(255,255,255));
-
 	m_BtnSpeedCheck.SubclassDlgItem(IDC_BTN_SPEED_CHECK,this);
 	m_BtnSpeedCheck.SetFlat(FALSE);
 	m_BtnSpeedCheck.SetBitmaps(IDB_SPEED_TEST,RGB(255,255,255));
@@ -90,7 +85,6 @@ BOOL CTools::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		case IDC_BTN_DISK_FORMART:
 		case IDC_BTN_FULL_RW_TEST:
 		case IDC_BTN_FAKE_PICKER:
-		case IDC_BTN_CAPACITY_CHECK:
 		case IDC_BTN_SPEED_CHECK:
 		case IDC_BTN_BURN_IN:
 			if (pWnd->IsWindowEnabled())
@@ -143,16 +137,6 @@ void CTools::OnBnClickedBtnFakePicker()
 
 	CDialogEx::OnOK();
 }
-
-
-void CTools::OnBnClickedBtnCapacityCheck()
-{
-	// TODO: 在此添加控件通知处理程序代码
-	::PostMessage(m_hParent,WM_WORK_MODE_SELECT,(WPARAM)WorkMode_Capacity_Check,(LPARAM)WorkMode_Capacity_Check);
-
-	CDialogEx::OnOK();
-}
-
 
 void CTools::OnBnClickedBtnSpeedCheck()
 {

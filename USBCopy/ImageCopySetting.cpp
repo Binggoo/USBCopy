@@ -20,6 +20,7 @@ CImageCopySetting::CImageCopySetting(CWnd* pParent /*=NULL*/)
 	, m_strFillValues(_T(""))
 	, m_nCompareMethodIndex(0)
 	, m_bCompareClean(FALSE)
+	, m_nCompareCleanSeqIndex(0)
 {
 	m_pIni = NULL;
 }
@@ -39,6 +40,7 @@ void CImageCopySetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
 	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
 	DDX_Check(pDX,IDC_CHECK_CLEAN_COMPARE,m_bCompareClean);
+	DDX_Radio(pDX,IDC_RADIO_CLEAN_IN,m_nCompareCleanSeqIndex);
 }
 
 
@@ -60,7 +62,7 @@ BOOL CImageCopySetting::OnInitDialog()
 	CDialogEx::OnInitDialog();
 
 	// TODO:  在此添加额外的初始化
-	ASSERT(m_pIni);
+	ASSERT(m_pIni != NULL);
 
 	m_nRadioPriorityIndex = m_pIni->GetUInt(_T("ImageCopy"),_T("PathType"),0);
 	m_bCheckCompare = m_pIni->GetBool(_T("ImageCopy"),_T("En_Compare"),FALSE);
@@ -72,6 +74,7 @@ BOOL CImageCopySetting::OnInitDialog()
 
 	m_bCleanDiskFirst = m_pIni->GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE);
 	m_bCompareClean = m_pIni->GetBool(_T("ImageCopy"),_T("En_CompareClean"),FALSE);
+	m_nCompareCleanSeqIndex = m_pIni->GetInt(_T("ImageCopy"),_T("CompareCleanSeq"),0);
 
 	m_ComboBoxCleanTimes.AddString(_T("1"));
 	m_ComboBoxCleanTimes.AddString(_T("2"));
@@ -85,6 +88,8 @@ BOOL CImageCopySetting::OnInitDialog()
 		GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(FALSE);
 		GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(FALSE);
 		GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(FALSE);
+		GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(FALSE);
+		GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(FALSE);
 
 		if (m_bCheckCompare)
 		{
@@ -97,6 +102,8 @@ BOOL CImageCopySetting::OnInitDialog()
 		GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 		GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 		GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(TRUE);
+		GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
+		GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 	}
 
 	m_strFillValues = m_pIni->GetString(_T("ImageCopy"),_T("FillValues"));
@@ -136,6 +143,8 @@ void CImageCopySetting::OnBnClickedOk()
 	m_pIni->WriteString(_T("ImageCopy"),_T("FillValues"),m_strFillValues);
 	m_pIni->WriteUInt(_T("ImageCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
 
+	m_pIni->WriteInt(_T("ImageCopy"),_T("CompareCleanSeq"),m_nCompareCleanSeqIndex);
+
 	CDialogEx::OnOK();
 }
 
@@ -149,6 +158,8 @@ void CImageCopySetting::OnBnClickedRadioDiskImage()
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
 	m_ComboBoxCleanTimes.EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 
 	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(TRUE);
 }
@@ -165,6 +176,9 @@ void CImageCopySetting::OnBnClickedRadioMtpImage()
 	m_ComboBoxCleanTimes.EnableWindow(FALSE);
 
 	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(FALSE);
+
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(FALSE);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(FALSE);
 
 	if (m_bCheckCompare)
 	{
@@ -183,6 +197,8 @@ void CImageCopySetting::OnBnClickedCheckCleanDisk()
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 	m_ComboBoxCleanTimes.EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 }
 
 

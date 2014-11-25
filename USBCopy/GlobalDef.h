@@ -25,6 +25,13 @@
 #define IDE_ATAPI_IDENTIFY 0xA1   // 读取ATAPI设备的命令
 #define IDE_ATA_IDENTIFY  0xEC   // 读取ATA设备的命
 
+typedef enum _ENUM_MACHINE_TYPE
+{
+	MT_TS,
+	MT_USB,
+	MT_NGFF
+};
+
 // 错误类型
 typedef enum _ENUM_ERROR_TYPE
 {
@@ -63,6 +70,9 @@ typedef enum _ENUM_CUSTOM_ERROR
 	CustomError_MTP_WriteFile_Failed,
 	CustomError_MTP_ReadFile_Failed,
 
+	CustomError_ReadSpeed_Slow,
+	CustomError_WriteSpeed_Slow
+
 }CustomError;
 
 // 工作模式
@@ -81,7 +91,6 @@ typedef enum _ENUM_WORK_MODE
 	WorkMode_MTPCopy,
 	WorkMode_Full_RW_Test,
 	WorkMode_Fade_Picker,
-	WorkMode_Capacity_Check,
 	WorkMode_Speed_Check,
 	WorkMode_Burnin_Test
 }WorkMode;
@@ -126,6 +135,12 @@ typedef enum _ENUM_COMPARE_METHOD
 	CompareMethod_Hash = 0,
 	CompareMethod_Byte
 }CompareMethod;
+
+typedef enum _ENUM_COMPARE_CLEAN_SEQ
+{
+	CompareCleanSeq_In = 0,
+	CompareCleanSeq_After
+}CompareCleanSeq;
 
 typedef enum _ENUM_SAVE_PATH
 {

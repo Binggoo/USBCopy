@@ -28,6 +28,9 @@
 //V1.0.6.3 2014-11-17 Binggoo 1.加入擦除过程中比对
 //V1.0.6.4 2014-11-18 Binggoo 1.加入By-Byte比对方式
 //V1.0.7.0 2014-11-20 Binggoo 1.加入MTP映像制作和映像拷贝
+//V1.0.8.0 2014-11-25 Binggoo 1.加入卡检测功能
+//                            2.比对擦除中加入擦除中比对和擦除后比对
+//                            3.加入NGFF拷贝机类型
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -60,6 +63,9 @@
 #include "MTPCopySetting.h"
 #include "WpdDevice.h"
 #include "BurnIn.h"
+#include "FullRWTest.h"
+#include "FadePickerSetting.h"
+#include "SpeedCheckSetting.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -117,8 +123,9 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bStart = FALSE;
 	m_bLisence = FALSE;
 	m_bSockeConnected = FALSE;
-	m_bIsUSB = FALSE;
 	m_bIsMTP = FALSE;
+
+	m_nMachineType = MT_TS;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -254,11 +261,15 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	// 判断是USB接口还是TF/SD接口
 	if (strModel.Find(_T("TS")) != -1)
 	{
-		m_bIsUSB = FALSE;
+		m_nMachineType = MT_TS;
 	}
-	else
+	else if (strModel.Find(_T("USB")) != -1)
 	{
-		m_bIsUSB = TRUE;
+		m_nMachineType = MT_USB;;
+	}
+	else if (strModel.Find(_T("NGFF")) != -1)
+	{
+		m_nMachineType = MT_NGFF;;
 	}
 
 	// 把配置文件设置回USBCopy.ini
@@ -311,13 +322,19 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 	GetDlgItem(IDC_TEXT_LOGO)->SetFont(&m_LogoFont);
 
-	if (m_bIsUSB)
+	switch (m_nMachineType)
 	{
-		SetDlgItemText(IDC_TEXT_LOGO,LOGO_USB);
-	}
-	else
-	{
+	case MT_TS:
 		SetDlgItemText(IDC_TEXT_LOGO,LOGO_TS);
+		break;
+
+	case MT_USB:
+		SetDlgItemText(IDC_TEXT_LOGO,LOGO_USB);
+		break;
+
+	case MT_NGFF:
+		SetDlgItemText(IDC_TEXT_LOGO,LOGO_NGFF);
+		break;
 	}
 
 	GetDlgItem(IDC_BTN_START)->SetFont(&m_LogoFont);
@@ -483,7 +500,7 @@ void CUSBCopyDlg::InitialPortFrame()
 	int nHeight = (rectFrame.Height()-2) / rows;
 
 	// 母盘
-	m_PortFrames[0].SetPort(&m_Config,m_hLogFile,&m_Command,&m_MasterPort,&m_TargetPorts,m_bIsUSB);
+	m_PortFrames[0].SetPort(&m_Config,m_hLogFile,&m_Command,&m_MasterPort,&m_TargetPorts,m_nMachineType);
 
 	m_PortFrames[0].Create(IDD_DIALOG_PORT,this);
 
@@ -501,7 +518,7 @@ void CUSBCopyDlg::InitialPortFrame()
 	{
 		CPort *port = m_TargetPorts.GetNext(pos);
 
-		m_PortFrames[nItem].SetPort(&m_Config,m_hLogFile,&m_Command,port,&m_TargetPorts,m_bIsUSB);
+		m_PortFrames[nItem].SetPort(&m_Config,m_hLogFile,&m_Command,port,&m_TargetPorts,m_nMachineType);
 
 		m_PortFrames[nItem].Create(IDD_DIALOG_PORT,this);
 
@@ -861,14 +878,6 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 		}
 		break;
 
-	case WorkMode_Capacity_Check:
-		{
-			nBitMap = IDB_CAP_CHECK;
-			strResText1.LoadString(IDS_WORK_MODE_CAP_CHECK);
-			strWorkMode = strWorkModeParm = strResText1;
-		}
-		break;
-
 	case WorkMode_Speed_Check:
 		{
 			nBitMap = IDB_SPEED_TEST;
@@ -1134,6 +1143,30 @@ void CUSBCopyDlg::OnBnClickedBtnSetting()
 			burnIn.DoModal();
 		}
 		break;
+
+	case WorkMode_Full_RW_Test:
+		{
+			CFullRWTest dlg;
+			dlg.SetConfig(&m_Config);
+			dlg.DoModal();
+		}
+		break;
+
+	case WorkMode_Fade_Picker:
+		{
+			CFadePickerSetting dlg;
+			dlg.SetConfig(&m_Config);
+			dlg.DoModal();
+		}
+		break;
+
+	case WorkMode_Speed_Check:
+		{
+			CSpeedCheckSetting dlg;
+			dlg.SetConfig(&m_Config);
+			dlg.DoModal();
+		}
+		break;
 	}
 
 	InitialCurrentWorkMode();
@@ -1251,7 +1284,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 		CScanningDlg dlg;
 		dlg.SetLogFile(m_hLogFile);
-		dlg.SetConfig(&m_Config,m_WorkMode,m_bIsUSB);
+		dlg.SetConfig(&m_Config,m_WorkMode,m_nMachineType);
 		dlg.SetDeviceInfoList(&m_MasterPort,&m_TargetPorts);
 		dlg.SetBegining(TRUE);
 		dlg.DoModal();
@@ -1272,13 +1305,18 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 		POSITION pos = NULL;
 		switch (m_WorkMode)
 		{
+			//只需要母盘
 		case WorkMode_ImageMake:
 			m_Command.GreenLightFlash(0);
 			break;
 
+			//只需要子盘
 		case WorkMode_DiskClean:
 		case WorkMode_ImageCopy:
 		case WorkMode_DiskFormat:
+		case WorkMode_Full_RW_Test:
+		case WorkMode_Fade_Picker:
+		case WorkMode_Speed_Check:
 			pos = m_TargetPorts.GetHeadPosition();
 			while (pos)
 			{
@@ -1506,6 +1544,17 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 	}
 	*/
 
+	// 以下几种模式不做速度比分比和剩余时间统计
+	if (m_WorkMode == WorkMode_Speed_Check)
+	{
+		CTime time = CTime::GetCurrentTime();
+		CTimeSpan spanTotal = time - m_StartTime;
+		SetDlgItemText(IDC_TEXT_TIME_ELAPSED2,spanTotal.Format(_T("%H:%M:%S")));
+
+		return;
+	}
+
+
 	if (m_WorkMode != WorkMode_ImageMake)
 	{
 		// 拷贝过程中
@@ -1648,6 +1697,9 @@ BOOL CUSBCopyDlg::IsReady()
 	case WorkMode_ImageCopy:
 	case WorkMode_DiskClean:
 	case WorkMode_DiskFormat:
+	case WorkMode_Fade_Picker:
+	case WorkMode_Full_RW_Test:
+	case WorkMode_Speed_Check:
 		if (!IsExistTarget())
 		{
 			strMsg.Format(_T("%s failed!\r\nCustom errorcode=0x%X, No Targets."),strWorkMode,CustomError_No_Target);
@@ -1797,6 +1849,7 @@ void CUSBCopyDlg::OnStart()
 			BOOL bCompareClean = m_Config.GetBool(_T("FullCopy"),_T("En_CompareClean"),FALSE);
 			UINT nCleanTimes = m_Config.GetUInt(_T("FullCopy"),_T("CleanTimes"),1);
 			CString strFillValues = m_Config.GetString(_T("FullCopy"),_T("FillValues"));
+			CompareCleanSeq seq = (CompareCleanSeq)m_Config.GetInt(_T("FullCopy"),_T("CompareCleanSeq"),0);
 
 			if (nCleanTimes < 0 || nCleanTimes > 3)
 			{
@@ -1851,7 +1904,7 @@ void CUSBCopyDlg::OnStart()
 			disk.SetHashMethod(bComputeHash,hashMethod);
 			disk.SetCompareParm(bCompare,compareMothod);
 			disk.SetFullCopyParm(bAllowCapGap,nPercent);
-			disk.SetCleanDiskFirst(bCleanDiskFirst,bCompareClean,nCleanTimes,pCleanFillValues);
+			disk.SetCleanDiskFirst(bCleanDiskFirst,bCompareClean,seq,nCleanTimes,pCleanFillValues);
 			delete []pCleanFillValues;
 			
 			bResult = disk.Start();
@@ -1930,6 +1983,7 @@ void CUSBCopyDlg::OnStart()
 			BOOL bCompareClean = m_Config.GetBool(_T("QuickCopy"),_T("En_CompareClean"),FALSE);
 			UINT nCleanTimes = m_Config.GetUInt(_T("QuickCopy"),_T("CleanTimes"),1);
 			CString strFillValues = m_Config.GetString(_T("QuickCopy"),_T("FillValues"));
+			CompareCleanSeq seq = (CompareCleanSeq)m_Config.GetInt(_T("QuickCopy"),_T("CompareCleanSeq"),0);
 
 			if (nCleanTimes < 0 || nCleanTimes > 3)
 			{
@@ -1982,7 +2036,7 @@ void CUSBCopyDlg::OnStart()
 			disk.SetTargetPorts(&m_TargetPorts);
 			disk.SetHashMethod(bComputeHash,hashMethod);
 			disk.SetCompareParm(bCompare,compareMethod);
-			disk.SetCleanDiskFirst(bCleanDiskFirst,bCompareClean,nCleanTimes,pCleanFillValues);
+			disk.SetCleanDiskFirst(bCleanDiskFirst,bCompareClean,seq,nCleanTimes,pCleanFillValues);
 			delete []pCleanFillValues;
 
 			bResult = disk.Start();
@@ -2057,6 +2111,7 @@ void CUSBCopyDlg::OnStart()
 			CleanMode cleanMode = (CleanMode)m_Config.GetInt(_T("DiskClean"),_T("CleanMode"),0);
 			int nFillVal = m_Config.GetInt(_T("DiskClean"),_T("FillValue"),0,16);
 			BOOL bCompareClean = m_Config.GetBool(_T("DiskClean"),_T("En_CompareClean"),FALSE);
+			CompareCleanSeq seq = (CompareCleanSeq)m_Config.GetInt(_T("DiskClean"),_T("CompareCleanSeq"),0);
 
 			// 设置端口状态
 			m_MasterPort.Initial();
@@ -2074,7 +2129,7 @@ void CUSBCopyDlg::OnStart()
 			}
 
 			disk.SetTargetPorts(&m_TargetPorts);
-			disk.SetCleanMode(cleanMode,nFillVal,bCompareClean);
+			disk.SetCleanMode(cleanMode,nFillVal,bCompareClean,seq);
 
 			bResult = disk.Start();
 
@@ -2348,10 +2403,11 @@ void CUSBCopyDlg::OnStart()
 			CompareMethod compareMethod = (CompareMethod)m_Config.GetInt(_T("ImageCopy"),_T("CompareMethod"),0);
 			UINT nImageType = m_Config.GetBool(_T("ImageCopy"),_T("ImageType"),0);
 
-			BOOL bCleanDiskFirst = m_Config.GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE);
-			BOOL bCompareClean = m_Config.GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE);
-			UINT nCleanTimes = m_Config.GetUInt(_T("FullCopy"),_T("CleanTimes"),1);
-			CString strFillValues = m_Config.GetString(_T("FullCopy"),_T("FillValues"));
+			BOOL bCleanDiskFirst = m_Config.GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE);
+			BOOL bCompareClean = m_Config.GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE);
+			UINT nCleanTimes = m_Config.GetUInt(_T("ImageCopy"),_T("CleanTimes"),1);
+			CString strFillValues = m_Config.GetString(_T("ImageCopy"),_T("FillValues"));
+			CompareCleanSeq seq = (CompareCleanSeq)m_Config.GetInt(_T("ImageCopy"),_T("CompareCleanSeq"),0);
 
 			BOOL bMtpImage = (nImageType == 1);
 
@@ -2458,7 +2514,7 @@ void CUSBCopyDlg::OnStart()
 				disk.SetHashMethod(TRUE,hashMethod);
 				disk.SetCompareParm(bCompare,compareMethod);
 				disk.SetSocket(m_ClientSocket,m_bServerFirst);
-				disk.SetCleanDiskFirst(bCleanDiskFirst,bCompareClean,nCleanTimes,pCleanFillValues);
+				disk.SetCleanDiskFirst(bCleanDiskFirst,bCompareClean,seq,nCleanTimes,pCleanFillValues);
 				delete []pCleanFillValues;
 
 				bResult = disk.Start();
@@ -2982,6 +3038,216 @@ void CUSBCopyDlg::OnStart()
 			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
 		}
 		break;
+
+	case WorkMode_Full_RW_Test:
+		{
+			BOOL bReadOnlyTest = m_Config.GetBool(_T("FullRWTest"),_T("En_ReadOnlyTest"),FALSE);
+			BOOL bRetainOriginData = m_Config.GetBool(_T("FullRWTest"),_T("En_RetainOriginData"),FALSE);
+			BOOL bFormatFinish = m_Config.GetBool(_T("FullRWTest"),_T("En_FormatFinished"),FALSE);
+			BOOL bStopBad = m_Config.GetBool(_T("FullRWTest"),_T("En_StopBadBlock"),FALSE);
+
+			// 设置端口状态
+			m_MasterPort.Initial();
+
+			POSITION pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					port->SetHashMethod(hashMethod);
+					port->SetWorkMode(m_WorkMode);
+					port->SetStartTime(m_StartTime);
+				}
+			}
+
+			if (bFormatFinish)
+			{
+				CString strVolumeLable = m_Config.GetString(_T("DiskFormat"),_T("VolumeLabel"));
+				FileSystem fileSystem = (FileSystem)m_Config.GetUInt(_T("DiskFormat"),_T("FileSystem"),FileSystem_FAT32);
+				UINT nClusterSize = m_Config.GetUInt(_T("DiskFormat"),_T("ClusterSize"),0);
+				BOOL bQuickFormat = m_Config.GetBool(_T("DiskFormat"),_T("QuickFormat"),TRUE);
+
+				disk.SetFormatParm(strVolumeLable,fileSystem,nClusterSize,TRUE);
+			}
+
+			disk.SetTargetPorts(&m_TargetPorts);
+			disk.SetFullRWTestParm(bReadOnlyTest,bRetainOriginData,bFormatFinish,bStopBad);
+
+			bResult = disk.Start();
+
+			if (bResult)
+			{
+				strMsg.Format(_T("%s Completed !!!"),strWorkMode);
+			}
+			else
+			{
+				// 任意取一个错误
+				ErrorType errType = ErrorType_System;
+				DWORD dwErrorCode = 0;
+				pos = m_TargetPorts.GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts.GetNext(pos);
+
+					if (port->IsConnected() && !port->GetResult())
+					{
+						errType = port->GetErrorCode(&dwErrorCode);
+						break;
+					}
+				}
+
+				if (errType == ErrorType_System)
+				{
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				}
+				else
+				{
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+				}
+			}
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+		}
+		break;
+
+	case WorkMode_Fade_Picker:
+		{
+			BOOL bRetainOriginData = m_Config.GetBool(_T("FadePicker"),_T("En_RetainOriginData"),FALSE);
+			BOOL bFormatFinish = m_Config.GetBool(_T("FadePicker"),_T("En_FormatFinished"),FALSE);
+
+			// 设置端口状态
+			m_MasterPort.Initial();
+
+			POSITION pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					port->SetHashMethod(hashMethod);
+					port->SetWorkMode(m_WorkMode);
+					port->SetStartTime(m_StartTime);
+				}
+			}
+
+			if (bFormatFinish)
+			{
+				CString strVolumeLable = m_Config.GetString(_T("DiskFormat"),_T("VolumeLabel"));
+				FileSystem fileSystem = (FileSystem)m_Config.GetUInt(_T("DiskFormat"),_T("FileSystem"),FileSystem_FAT32);
+				UINT nClusterSize = m_Config.GetUInt(_T("DiskFormat"),_T("ClusterSize"),0);
+				BOOL bQuickFormat = m_Config.GetBool(_T("DiskFormat"),_T("QuickFormat"),TRUE);
+
+				disk.SetFormatParm(strVolumeLable,fileSystem,nClusterSize,TRUE);
+			}
+
+			disk.SetTargetPorts(&m_TargetPorts);
+			disk.SetFadePickerParm(bRetainOriginData,bFormatFinish);
+
+			bResult = disk.Start();
+
+			if (bResult)
+			{
+				strMsg.Format(_T("%s Completed !!!"),strWorkMode);
+			}
+			else
+			{
+				// 任意取一个错误
+				ErrorType errType = ErrorType_System;
+				DWORD dwErrorCode = 0;
+				pos = m_TargetPorts.GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts.GetNext(pos);
+
+					if (port->IsConnected() && !port->GetResult())
+					{
+						errType = port->GetErrorCode(&dwErrorCode);
+						break;
+					}
+				}
+
+				if (errType == ErrorType_System)
+				{
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				}
+				else
+				{
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+				}
+			}
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+		}
+		break;
+
+	case WorkMode_Speed_Check:
+		{
+			BOOL bSpeedUpStandard = m_Config.GetBool(_T("SpeedCheck"),_T("En_SpeedUpStandard"),FALSE);
+			double dbReadSpeed = m_Config.GetDouble(_T("SpeedCheck"),_T("ReadSpeed"),0.0);
+			double dbWriteSpeed = m_Config.GetDouble(_T("SpeedCheck"),_T("WriteSpeed"),0.0);
+
+			// 设置端口状态
+			m_MasterPort.Initial();
+
+			POSITION pos = m_TargetPorts.GetHeadPosition();
+			while (pos)
+			{
+				CPort *port = m_TargetPorts.GetNext(pos);
+				if (port->IsConnected())
+				{
+					port->SetHashMethod(hashMethod);
+					port->SetWorkMode(m_WorkMode);
+					port->SetStartTime(m_StartTime);
+				}
+			}
+
+			disk.SetTargetPorts(&m_TargetPorts);
+			disk.SetSpeedCheckParm(bSpeedUpStandard,dbReadSpeed,dbWriteSpeed);
+
+			bResult = disk.Start();
+
+			if (bResult)
+			{
+				strMsg.Format(_T("%s Completed !!!"),strWorkMode);
+			}
+			else
+			{
+				// 任意取一个错误
+				ErrorType errType = ErrorType_System;
+				DWORD dwErrorCode = 0;
+				pos = m_TargetPorts.GetHeadPosition();
+				while (pos)
+				{
+					CPort *port = m_TargetPorts.GetNext(pos);
+
+					if (port->IsConnected() && !port->GetResult())
+					{
+						errType = port->GetErrorCode(&dwErrorCode);
+						break;
+					}
+				}
+
+				if (errType == ErrorType_System)
+				{
+					strMsg.Format(_T("%s Failed !\r\nSystem errorCode=%d,%s")
+						,strWorkMode,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+				}
+				else
+				{
+					strMsg.Format(_T("%s Failed !\r\nCustom errorCode=0x%X,%s")
+						,strWorkMode,dwErrorCode,GetCustomErrorMsg((CustomError)dwErrorCode));
+				}
+			}
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,strMsg);
+		}
+		break;
+
 	}
 
 	m_strMsg = strMsg;
@@ -3107,6 +3373,14 @@ CString CUSBCopyDlg::GetCustomErrorMsg( CustomError customError )
 
 		case CustomError_MTP_ReadFile_Failed:
 			strError = _T("MTP read file failed.");
+			break;
+
+		case CustomError_ReadSpeed_Slow:
+			strError = _T("Read speed slow.");
+			break;
+
+		case CustomError_WriteSpeed_Slow:
+			strError = _T("Write speed slow.");
 			break;
 	}
 
@@ -3446,7 +3720,7 @@ void CUSBCopyDlg::MatchDevice()
 			{
 				PDEVICELIST pListNode = pStorageList->pNext;
 
-				if (pListNode == NULL && m_bIsUSB)
+				if (pListNode == NULL && m_nMachineType != MT_TS)
 				{
 					port->Initial();
 				}
@@ -3479,10 +3753,10 @@ void CUSBCopyDlg::MatchDevice()
 								}
 
 							}
-							else
-							{
-								CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
-							}
+// 							else
+// 							{
+// 								CDisk::SetDiskAtrribute(hDevice,FALSE,FALSE,&dwErrorCode);
+// 							}
 
 
 							if (ullSectorNums > 0)
@@ -3523,7 +3797,7 @@ void CUSBCopyDlg::MatchDevice()
 									CleanupVolumeDeviceList(pVolumeList);
 								}
 
-								if (!m_bIsUSB)
+								if (m_nMachineType == MT_TS)
 								{
 									TCHAR szModelName[256] = {NULL};
 									TCHAR szSerialNumber[256] = {NULL};
@@ -3692,7 +3966,7 @@ void CUSBCopyDlg::MatchDevice()
 
 				// 如果是TF卡拷贝机则必须重新上电，如果是USB拷贝机则不需要
 
-				if (!m_bIsUSB)
+				if (m_nMachineType == MT_TS)
 				{
 					// 重新上电
 					m_Command.Power(port->GetPortNum(),FALSE);
@@ -3711,7 +3985,7 @@ void CUSBCopyDlg::MatchDevice()
 
 			// 如果是TF卡拷贝机则必须重新上电，如果是USB拷贝机则不需要
 
-			if (!m_bIsUSB)
+			if (m_nMachineType == MT_TS)
 			{
 				// 重新上电
 				m_Command.Power(port->GetPortNum(),FALSE);
@@ -3957,6 +4231,18 @@ CString CUSBCopyDlg::GetWorkModeString( WorkMode mode )
 
 	case WorkMode_MTPCopy:
 		strWorkMode = _T("MTP COPY");
+		break;
+
+	case WorkMode_Full_RW_Test:
+		strWorkMode = _T("FULL RW TEST");
+		break;
+
+	case WorkMode_Fade_Picker:
+		strWorkMode = _T("FADE PICKER");
+		break;
+
+	case WorkMode_Speed_Check:
+		strWorkMode = _T("SPEED CHECK");
 		break;
 	}
 

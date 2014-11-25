@@ -30,6 +30,7 @@ private:
 
 	int m_nCompareMethodIndex;
 	BOOL m_bCompareClean;
+	int m_nCompareCleanSeqIndex;
 
 public:
 	virtual BOOL OnInitDialog();

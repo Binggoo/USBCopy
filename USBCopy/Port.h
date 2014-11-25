@@ -2,6 +2,8 @@
 #include "GlobalDef.h"
 #include "DataQueue.h"
 
+typedef CArray<ULONGLONG,ULONGLONG> CULLArray;
+
 class CPort
 {
 public:
@@ -47,6 +49,11 @@ private:
 	volatile double     m_dbUsedWaitTimeS;
 	volatile double     m_dbUsedNoWaitTimeS;
 	BYTE m_Hash[LEN_DIGEST];
+
+	// 2014-11-21 新增
+	CULLArray m_BadBlockArray;  //坏块记录
+	volatile double     m_dbReadUsedTimeS;
+	volatile double     m_dbWriteUsedTimeS;
 
 	// 结果
 	ErrorType m_ErrorType;
@@ -160,6 +167,12 @@ public:
 	void GetHash(PBYTE value,size_t length);
 	CString GetHashString();
 
+	// 2014-11-21 新增分别计算读写速度，用于速度检测
+	void SetUsedTimeS(double dbTimeS,BOOL bRead);
+	void AppendUsedTimeS(double dbTimeS,BOOL bRead);
+
+	double GetRealSpeed(BOOL bRead);
+	CString GetRealSpeedString(BOOL bRead);
 
 	// 结果
 	void SetPortState(PortState state);
@@ -175,6 +188,10 @@ public:
 	// OVERLAPPED
 	LPOVERLAPPED GetOverlapped(BOOL bRead);
 
+	// 2014-11-21 新增坏块记录
+	void AddBadBlock(ULONGLONG ullSectorNum);
+	void GetBadBlockArray(CULLArray &ullBadBlockArray);
+	int GetBadBlockCount();
 };
 
 typedef CList<CPort*,CPort*> PortList;

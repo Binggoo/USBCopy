@@ -31,6 +31,8 @@ private:
 	int m_nCompareMethodIndex;
 	BOOL m_bCompareClean;
 
+	int m_nCompareCleanSeqIndex;
+
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV Ö§³Ö
 

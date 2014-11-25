@@ -37,14 +37,17 @@ public:
 	void SetTargetPorts(PortList *pList);
 	void SetHashMethod(BOOL bComputeHash,HashMethod hashMethod);
 	void SetWorkMode(WorkMode workMode);
-	void SetCleanMode(CleanMode cleanMode,int nFillValue,BOOL bCompareClean);
+	void SetCleanMode(CleanMode cleanMode,int nFillValue,BOOL bCompareClean,CompareCleanSeq seq);
 	void SetCompareMode(CompareMode compareMode);
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
 	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
 	void SetMakeImageParm(BOOL bQuickImage,int compressLevel);
 	void SetFullCopyParm(BOOL bAllowCapGap,UINT nPercent);
-	void SetCleanDiskFirst(BOOL bCleanDiskFist,BOOL bCompareClean,int times,int *values);
+	void SetCleanDiskFirst(BOOL bCleanDiskFist,BOOL bCompareClean,CompareCleanSeq seq,int times,int *values);
 	void SetCompareParm(BOOL bCompare,CompareMethod method);
+	void SetFullRWTestParm(BOOL bReadOnlyTest,BOOL bRetainOriginData,BOOL bFormatFinished,BOOL bStopBadBlock);
+	void SetFadePickerParm(BOOL bRetainOriginData,BOOL bFormatFinished);
+	void SetSpeedCheckParm(BOOL bCheckSpeed,double dbReaddSpeed,double dbWriteSpeed);
 	BOOL Start();
 
 	void SetSocket(SOCKET sClient,BOOL bServerFirst);
@@ -79,6 +82,8 @@ private:
 	BOOL m_bCleanDiskFirst;
 	int  m_nCleanTimes;
 	int  *m_pCleanValues;
+	CompareCleanSeq m_CompareCleanSeq;
+	PBYTE m_pFillBytes;
 
 	//全盘拷贝参数
 	BOOL m_bAllowCapGap;
@@ -126,6 +131,17 @@ private:
 	BOOL m_bCompareClean;
 	BOOL m_bVerify;
 
+	// 全盘读写测试参数
+	BOOL m_bReadOnlyTest;
+	BOOL m_bRetainOrginData;
+	BOOL m_bFormatFinished;
+	BOOL m_bStopBadBlock;
+
+	BOOL m_bCheckSpeed;
+	double m_dbMinReadSpeed;
+	double m_dbMinWriteSpeed;
+
+
 	// 20140-10-14 新增增量拷贝
 	CMapPortStringArray m_MapPortStringArray;
 	CStringArray m_ArrayLogPath;
@@ -152,7 +168,7 @@ protected:
 		LPBYTE lpSectBuff, 
 		LPOVERLAPPED lpOverlap,
 		DWORD *pdwErrorCode,
-		DWORD dwTimeOut = 10000);
+		DWORD dwTimeOut = 30000);
 	BOOL WriteSectors(HANDLE hDevice,
 		ULONGLONG ullStartSector,
 		DWORD dwSectors,
@@ -160,7 +176,7 @@ protected:
 		LPBYTE lpSectBuff,
 		LPOVERLAPPED lpOverlap, 
 		DWORD *pdwErrorCode,
-		DWORD dwTimeOut = 10000);
+		DWORD dwTimeOut = 30000);
 
 	BOOL ReadFileAsyn(HANDLE hFile,
 		ULONGLONG ullOffset,
@@ -168,14 +184,14 @@ protected:
 		LPBYTE lpBuffer,
 		LPOVERLAPPED lpOverlap,
 		PDWORD pdwErrorCode,
-		DWORD dwTimeOut = 10000);
+		DWORD dwTimeOut = 30000);
 	BOOL WriteFileAsyn(HANDLE hFile,
 		ULONGLONG ullOffset,
 		DWORD &dwSize,
 		LPBYTE lpBuffer,
 		LPOVERLAPPED lpOverlap,
 		PDWORD pdwErrorCode,
-		DWORD dwTimeOut= 10000);
+		DWORD dwTimeOut= 30000);
 
 private:
 	// 文件系统分析
@@ -227,6 +243,13 @@ private:
 	static DWORD WINAPI EnumFileThreadProc(LPVOID lpParm);
 	static DWORD WINAPI ComputeHashThreadProc(LPVOID lpParm);
 
+	// 2014-11-21 卡检测
+	static DWORD WINAPI FullRWTestThreadProc(LPVOID lpParm);
+	static DWORD WINAPI FadePickerThreadProc(LPVOID lpParm);
+	static DWORD WINAPI SpeedCheckThreadProc(LPVOID lpParm);
+
+	static DWORD WINAPI CompareCleanThreadProc(LPVOID lpParm);
+
 	BOOL OnCopyDisk();
 	BOOL OnCopyImage();
 	BOOL OnMakeImage();
@@ -237,6 +260,10 @@ private:
 	// 2014-10-14 增量拷贝新增
 	BOOL OnDiffCopy();
 
+	BOOL OnFullRWTest();
+	BOOL OnFadePickerTest();
+	BOOL OnSpeedCheck();
+
 	BOOL ReadDisk();
 	BOOL ReadImage();
 	BOOL WriteDisk(CPort *port,CDataQueue *pDataQueue);
@@ -246,6 +273,11 @@ private:
 	BOOL Compress();
 	BOOL Uncompress();
 	BOOL CleanDisk(CPort *port);
+	BOOL FullRWTest(CPort *port);
+	BOOL FadePicker(CPort *port);
+	BOOL SpeedCheck(CPort *port);
+
+	BOOL CompareClean(CPort *port);
 
 	BOOL ReadFiles();
 	BOOL ReadLocalFiles();

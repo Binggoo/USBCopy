@@ -17,7 +17,7 @@ public:
 
 	void SetDeviceInfoList(CPort *pMaster,PortList *pTargetPortList);
 	void SetBegining(BOOL bBeginning = TRUE);
-	void SetConfig(CIni *pIni,WorkMode workMode,BOOL bIsUSB);
+	void SetConfig(CIni *pIni,WorkMode workMode,int nMachineType);
 	void SetLogFile(HANDLE hFile);
 
 protected:
@@ -40,7 +40,7 @@ private:
 	DWORD m_dwCurrentTime;
 	HANDLE m_hLogFile;
 	WorkMode m_WorkMode;
-	BOOL m_bIsUSB;
+	int m_nMachineType;
 
 public:
 	virtual BOOL OnInitDialog();

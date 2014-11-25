@@ -22,7 +22,7 @@ CPortDlg::CPortDlg(CWnd* pParent /*=NULL*/)
 
 	m_bEnableKickOff = FALSE;
 
-	m_bIsUSB = FALSE;
+	m_nMachineType = MT_TS;
 
 	m_nKickOffCount = 0;
 
@@ -105,14 +105,14 @@ void CPortDlg::ChangeSize( CWnd *pWnd,int cx, int cy )
 	}
 }
 
-void CPortDlg::SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand, CPort *port,PortList *pPortList,BOOL bIsUSB)
+void CPortDlg::SetPort(CIni *pIni,HANDLE hLogFile,CPortCommand *pCommand, CPort *port,PortList *pPortList,int nMachineType)
 {
 	m_pCommand = pCommand;
 	m_Port = port;
 	m_PortList = pPortList;
 	m_pIni = pIni;
 	m_hLogFile = hLogFile;
-	m_bIsUSB = bIsUSB;
+	m_nMachineType = nMachineType;
 }
 
 void CPortDlg::Update( BOOL bStart /*= TRUE*/ )
@@ -147,9 +147,20 @@ void CPortDlg::Initial()
 
 	UINT nID = IDB_GRAY;
 
-	if (m_bIsUSB)
+	switch (m_nMachineType)
 	{
+	case MT_TS:
+		nID = IDB_GRAY;
+		break;
+
+	case MT_USB:
 		nID = IDB_USB_GRAY;
+		break;
+
+	case MT_NGFF:
+		nID = IDB_NGFF_GRAY;
+		break;
+
 	}
 
 	m_Bitmap.LoadBitmap(nID);
@@ -277,18 +288,30 @@ CPort * CPortDlg::GetPort()
 
 void CPortDlg::UpdateState()
 {
-	CString strSpeed,strSize,strSN,strTips,strUSBType;
+	CString strSpeed,strSize,strSN,strTips,strUSBType,strReadSpeed,strWriteSpeed,strBadBlock,strRealSize;
+	CULLArray ullBadBlockArray;
 	int iPercent = 0;
 	UINT nID  = IDB_GRAY;
 	switch (m_Port->GetPortState())
 	{
 	case PortState_Offline:
-		nID = IDB_GRAY;
 
-		if (m_bIsUSB)
+		switch (m_nMachineType)
 		{
+		case MT_TS:
+			nID = IDB_GRAY;
+			break;
+
+		case MT_USB:
 			nID = IDB_USB_GRAY;
+			break;
+
+		case MT_NGFF:
+			nID = IDB_NGFF_GRAY;
+			break;
+
 		}
+
 		strSpeed = _T("");
 		strSize = _T("");
 		strSN = _T("");
@@ -301,15 +324,26 @@ void CPortDlg::UpdateState()
 			m_pCommand->RedGreenLight(m_Port->GetPortNum(),FALSE);
 			m_bOnlineCommand = FALSE;
 		}
+		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
 
 		break;
 
 	case PortState_Online:
-		nID = IDB_NORMAL;
 
-		if (m_bIsUSB)
+		switch (m_nMachineType)
 		{
+		case MT_TS:
+			nID = IDB_NORMAL;
+			break;
+
+		case MT_USB:
 			nID = IDB_USB_NORMAL;
+			break;
+
+		case MT_NGFF:
+			nID = IDB_NGFF_NORMAL;
+			break;
+
 		}
 
 		strSpeed = _T("");
@@ -324,6 +358,7 @@ void CPortDlg::UpdateState()
 			m_pCommand->RedGreenLight(m_Port->GetPortNum(),TRUE);
 			m_bOnlineCommand = TRUE;
 		}
+		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
 
 		break;
 
@@ -331,19 +366,39 @@ void CPortDlg::UpdateState()
 	case PortState_Stop:
 		if (IsSlowest())
 		{
-			nID = IDB_YELLOW;
-			if (m_bIsUSB)
+			switch (m_nMachineType)
 			{
+			case MT_TS:
+				nID = IDB_YELLOW;
+				break;
+
+			case MT_USB:
 				nID = IDB_USB_YELLOW;
+				break;
+
+			case MT_NGFF:
+				nID = IDB_NGFF_YELLOW;
+				break;
+
 			}
 
 		}
 		else
 		{
-			nID = IDB_NORMAL;
-			if (m_bIsUSB)
+			switch (m_nMachineType)
 			{
+			case MT_TS:
+				nID = IDB_NORMAL;
+				break;
+
+			case MT_USB:
 				nID = IDB_USB_NORMAL;
+				break;
+
+			case MT_NGFF:
+				nID = IDB_NGFF_NORMAL;
+				break;
+
 			}
 			
 		}
@@ -355,15 +410,37 @@ void CPortDlg::UpdateState()
 		strUSBType = m_Port->GetUsbType();
 
 		strTips.Format(_T("Running\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
+		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
+
+		if (m_Port->GetWorkMode() == WorkMode_Full_RW_Test 
+			|| m_Port->GetWorkMode() == WorkMode_Fade_Picker 
+			|| m_Port->GetWorkMode() == WorkMode_Speed_Check
+			)
+		{
+			strReadSpeed.Format(_T("R:%s"),m_Port->GetRealSpeedString(TRUE));
+			strWriteSpeed.Format(_T("W:%s"),m_Port->GetRealSpeedString(FALSE));
+
+			SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
+			SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
+		}
 
 		break;
 
 	case PortState_Pass:
-		nID = IDB_GREEN;
-
-		if (m_bIsUSB)
+		switch (m_nMachineType)
 		{
+		case MT_TS:
+			nID = IDB_GREEN;
+			break;
+
+		case MT_USB:
 			nID = IDB_USB_GREEN;
+			break;
+
+		case MT_NGFF:
+			nID = IDB_NGFF_GREEN;
+			break;
+
 		}
 
 		strSpeed = m_Port->GetRealSpeedString();
@@ -379,16 +456,41 @@ void CPortDlg::UpdateState()
 			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE);
 			m_bStopCommand = TRUE;
 		}
+		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
+
+		if (m_Port->GetWorkMode() == WorkMode_Full_RW_Test 
+			|| m_Port->GetWorkMode() == WorkMode_Fade_Picker)
+		{
+			SetDlgItemText(IDC_TEXT_SPEED_R,strSize);
+			SetDlgItemText(IDC_TEXT_SPEED_W,_T(""));
+		}
+		else if (m_Port->GetWorkMode() == WorkMode_Speed_Check)
+		{
+			strReadSpeed.Format(_T("R:%s"),m_Port->GetRealSpeedString(TRUE));
+			strWriteSpeed.Format(_T("W:%s"),m_Port->GetRealSpeedString(FALSE));
+
+			SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
+			SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
+		}
 
 		break;
 
 	case PortState_Fail:
 
-		nID = IDB_RED;
-
-		if (m_bIsUSB)
+		switch (m_nMachineType)
 		{
+		case MT_TS:
+			nID = IDB_RED;
+			break;
+
+		case MT_USB:
 			nID = IDB_USB_RED;
+			break;
+
+		case MT_NGFF:
+			nID = IDB_NGFF_RED;
+			break;
+
 		}
 
 		strSpeed = m_Port->GetRealSpeedString();
@@ -404,6 +506,41 @@ void CPortDlg::UpdateState()
 			m_bStopCommand = TRUE;
 		}
 
+		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
+
+		if (m_Port->GetWorkMode() == WorkMode_Full_RW_Test
+			|| m_Port->GetWorkMode() == WorkMode_Fade_Picker )
+		{
+			strReadSpeed.Format(_T("R:%s"),m_Port->GetRealSpeedString(TRUE));
+			strWriteSpeed.Format(_T("W:%s"),m_Port->GetRealSpeedString(FALSE));
+
+			SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
+			SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
+
+			int nBadCount = m_Port->GetBadBlockCount();
+
+			if (nBadCount > 0)
+			{
+				m_Port->GetBadBlockArray(ullBadBlockArray);
+
+				strBadBlock.Format(_T("Bad:%d"),nBadCount);
+				strRealSize = CUtils::AdjustFileSize(ullBadBlockArray.GetAt(0) * m_Port->GetBytesPerSector());
+
+				SetDlgItemText(IDC_TEXT_SPEED_R,strRealSize);
+				SetDlgItemText(IDC_TEXT_SPEED_W,strBadBlock);
+			}
+			
+		}
+		else if (m_Port->GetWorkMode() == WorkMode_Speed_Check)
+		{
+			strReadSpeed.Format(_T("R:%s"),m_Port->GetRealSpeedString(TRUE));
+			strWriteSpeed.Format(_T("W:%s"),m_Port->GetRealSpeedString(FALSE));
+
+			SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
+			SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
+
+			iPercent = 100;
+		}
 		break;
 	}
 
@@ -415,7 +552,6 @@ void CPortDlg::UpdateState()
 	m_Bitmap.LoadBitmap(nID);
 	m_PictureCtrol.SetBitmap(m_Bitmap);
 	SetDlgItemText(IDC_TEXT_SIZE,strSize);
-	SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
 	SetDlgItemText(IDC_TEXT_SN,strSN);
 	m_ProgressCtrl.SetPos(iPercent);
 

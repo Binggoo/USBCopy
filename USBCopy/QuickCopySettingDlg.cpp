@@ -20,6 +20,7 @@ CQuickCopySettingDlg::CQuickCopySettingDlg(CWnd* pParent /*=NULL*/)
 	, m_strFillValues(_T(""))
 	, m_nCompareMethodIndex(0)
 	, m_bCompareClean(FALSE)
+	, m_nCompareCleanSeqIndex(0)
 {
 	m_pIni = NULL;
 }
@@ -40,6 +41,7 @@ void CQuickCopySettingDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_FILL_VALUE, m_strFillValues);
 	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
 	DDX_Check(pDX,IDC_CHECK_CLEAN_COMPARE,m_bCompareClean);
+	DDX_Radio(pDX,IDC_RADIO_CLEAN_IN,m_nCompareCleanSeqIndex);
 }
 
 
@@ -80,6 +82,7 @@ BOOL CQuickCopySettingDlg::OnInitDialog()
 
 	m_bCleanDiskFirst = m_pIni->GetBool(_T("QuickCopy"),_T("En_CleanDiskFirst"),FALSE);
 	m_bCompareClean = m_pIni->GetBool(_T("QuickCopy"),_T("En_CompareClean"),FALSE);
+	m_nCompareCleanSeqIndex = m_pIni->GetInt(_T("QuickCopy"),_T("CompareCleanSeq"),0);
 
 	m_ComboBoxCleanTimes.AddString(_T("1"));
 	m_ComboBoxCleanTimes.AddString(_T("2"));
@@ -88,6 +91,8 @@ BOOL CQuickCopySettingDlg::OnInitDialog()
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 
 	m_strFillValues = m_pIni->GetString(_T("QuickCopy"),_T("FillValues"));
 	UINT nCleanTimes = m_pIni->GetUInt(_T("QuickCopy"),_T("CleanTimes"),1);
@@ -150,6 +155,7 @@ void CQuickCopySettingDlg::OnBnClickedOk()
 	m_pIni->WriteBool(_T("QuickCopy"),_T("En_CompareClean"),m_bCompareClean);
 	m_pIni->WriteUInt(_T("QuickCopy"),_T("CleanTimes"),m_ComboBoxCleanTimes.GetCurSel() + 1);
 	m_pIni->WriteString(_T("QuickCopy"),_T("FillValues"),m_strFillValues);
+	m_pIni->WriteInt(_T("QuickCopy"),_T("CompareCleanSeq"),m_nCompareCleanSeqIndex);
 	
 	CDialogEx::OnOK();
 }
@@ -194,6 +200,8 @@ void CQuickCopySettingDlg::OnBnClickedCheckCleanDisk()
 	GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 }
 
 

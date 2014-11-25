@@ -160,10 +160,6 @@ BOOL CSelectCurModeDlg::OnInitDialog()
 		strResText.LoadString(IDS_WORK_MODE_FADE_PICKER);
 		break;
 
-	case WorkMode_Capacity_Check:
-		strResText.LoadString(IDS_WORK_MODE_CAP_CHECK);
-		break;
-
 	case WorkMode_Speed_Check:
 		strResText.LoadString(IDS_WORK_MODE_SPEED_CHECK);
 		break;

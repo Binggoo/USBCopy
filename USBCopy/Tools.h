@@ -17,7 +17,6 @@ private:
 	CButtonST m_BtnDiskFormat;
 	CButtonST m_BtnFullRWTest;
 	CButtonST m_BtnFakePicker;
-	CButtonST m_BtnCapCheck;
 	CButtonST m_BtnSpeedCheck;
 	CButtonST m_BtnBurnIn;
 
@@ -34,7 +33,6 @@ public:
 	afx_msg void OnBnClickedBtnDiskFormart();
 	afx_msg void OnBnClickedBtnFullRwTest();
 	afx_msg void OnBnClickedBtnFakePicker();
-	afx_msg void OnBnClickedBtnCapacityCheck();
 	afx_msg void OnBnClickedBtnSpeedCheck();
 	afx_msg void OnBnClickedBtnBurnIn();
 };
