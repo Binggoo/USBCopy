@@ -410,8 +410,6 @@ void CPortDlg::UpdateState()
 		strUSBType = m_Port->GetUsbType();
 
 		strTips.Format(_T("Running\r\nModel:%s\r\nSN:%s\r\n"),m_Port->GetModuleName(),m_Port->GetSN());
-		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
-
 		if (m_Port->GetWorkMode() == WorkMode_Full_RW_Test 
 			|| m_Port->GetWorkMode() == WorkMode_Fade_Picker 
 			|| m_Port->GetWorkMode() == WorkMode_Speed_Check
@@ -422,6 +420,10 @@ void CPortDlg::UpdateState()
 
 			SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
 			SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
+		}
+		else
+		{
+			SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
 		}
 
 		break;
@@ -456,7 +458,6 @@ void CPortDlg::UpdateState()
 			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE);
 			m_bStopCommand = TRUE;
 		}
-		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
 
 		if (m_Port->GetWorkMode() == WorkMode_Full_RW_Test 
 			|| m_Port->GetWorkMode() == WorkMode_Fade_Picker)
@@ -471,6 +472,10 @@ void CPortDlg::UpdateState()
 
 			SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
 			SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
+		}
+		else
+		{
+			SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
 		}
 
 		break;
@@ -506,28 +511,28 @@ void CPortDlg::UpdateState()
 			m_bStopCommand = TRUE;
 		}
 
-		SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
-
 		if (m_Port->GetWorkMode() == WorkMode_Full_RW_Test
 			|| m_Port->GetWorkMode() == WorkMode_Fade_Picker )
 		{
-			strReadSpeed.Format(_T("R:%s"),m_Port->GetRealSpeedString(TRUE));
-			strWriteSpeed.Format(_T("W:%s"),m_Port->GetRealSpeedString(FALSE));
-
-			SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
-			SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
-
 			int nBadCount = m_Port->GetBadBlockCount();
 
 			if (nBadCount > 0)
 			{
 				m_Port->GetBadBlockArray(ullBadBlockArray);
 
-				strBadBlock.Format(_T("Bad:%d"),nBadCount);
+				strBadBlock.Format(_T("B:%d"),nBadCount);
 				strRealSize = CUtils::AdjustFileSize(ullBadBlockArray.GetAt(0) * m_Port->GetBytesPerSector());
 
 				SetDlgItemText(IDC_TEXT_SPEED_R,strRealSize);
 				SetDlgItemText(IDC_TEXT_SPEED_W,strBadBlock);
+			}
+			else
+			{
+				strReadSpeed.Format(_T("R:%s"),m_Port->GetRealSpeedString(TRUE));
+				strWriteSpeed.Format(_T("W:%s"),m_Port->GetRealSpeedString(FALSE));
+
+				SetDlgItemText(IDC_TEXT_SPEED_R,strReadSpeed);
+				SetDlgItemText(IDC_TEXT_SPEED_W,strWriteSpeed);
 			}
 			
 		}
@@ -541,6 +546,11 @@ void CPortDlg::UpdateState()
 
 			iPercent = 100;
 		}
+		else
+		{
+			SetDlgItemText(IDC_TEXT_SPEED_R,strSpeed);
+		}
+
 		break;
 	}
 

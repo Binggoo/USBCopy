@@ -448,13 +448,13 @@ void CSystemMenu::OnBnClickedButtonDebug()
 {
 	// TODO: 在此添加控件通知处理程序代码
 
-	if (!m_bLisence)
-	{
-		CString strResText;
-		strResText.LoadString(IDS_MSG_LISENCE_FAILED);
-		MessageBox(strResText,_T("USBCopy"),MB_ICONERROR | MB_SETFOREGROUND);
-		return;
-	}
+// 	if (!m_bLisence)
+// 	{
+// 		CString strResText;
+// 		strResText.LoadString(IDS_MSG_LISENCE_FAILED);
+// 		MessageBox(strResText,_T("USBCopy"),MB_ICONERROR | MB_SETFOREGROUND);
+// 		return;
+// 	}
 
 	STARTUPINFO si;
 	PROCESS_INFORMATION pi;

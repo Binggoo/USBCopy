@@ -147,10 +147,11 @@ BOOL CFat32::FormatPartition()
 	dbr.Signature = 0xAA55;
 
 	// 第二步，把保留扇区先清零
-	DWORD dwLen = dbr.Bpb.ReservedSectors * dbr.Bpb.BytesPerSector;
+	DWORD dwSetors = dbr.Bpb.ReservedSectors + dbr.Fat32Section.SectorsPerFAT * dbr.Bpb.NumOfFATs;
+	DWORD dwLen = dwSetors * m_dwBytesPerSector;
 	BYTE *pByte = new BYTE[dwLen];
 	memset(pByte,0,dwLen);
-	if (!WriteSectors(START_SECTOR,dbr.Bpb.ReservedSectors,pByte))
+	if (!WriteSectors(START_SECTOR,dwSetors,pByte))
 	{
 		delete []pByte;
 		pByte = NULL;

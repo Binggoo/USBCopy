@@ -28,9 +28,10 @@
 //V1.0.6.3 2014-11-17 Binggoo 1.加入擦除过程中比对
 //V1.0.6.4 2014-11-18 Binggoo 1.加入By-Byte比对方式
 //V1.0.7.0 2014-11-20 Binggoo 1.加入MTP映像制作和映像拷贝
-//V1.0.8.0 2014-11-25 Binggoo 1.加入卡检测功能
+//V1.0.8.0 2014-11-26 Binggoo 1.加入卡检测功能
 //                            2.比对擦除中加入擦除中比对和擦除后比对
 //                            3.加入NGFF拷贝机类型
+//v1.0.8.2 2014-11-27 Binggoo 1.优化烧机测试
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -664,7 +665,7 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 	m_WorkMode = (WorkMode)m_Config.GetUInt(_T("Option"),_T("FunctionMode"),1);
 
 	CString strWorkMode,strWorkModeParm;
-	CString strResText1,strResText2;
+	CString strResText1,strResText2,strResText3;
 	UINT nBitMap = IDB_QUICK_COPY;
 	m_bIsMTP = FALSE;
 	switch (m_WorkMode)
@@ -676,15 +677,20 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 
 			strWorkMode = strWorkModeParm = strResText1;
 
+			if (m_Config.GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE))
+			{
+				strResText3.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+
+				strWorkModeParm = strResText3;
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText1;
+			}
+
 			if (m_Config.GetBool(_T("FullCopy"),_T("En_Compare"),FALSE))
 			{
 				strResText2.LoadString(IDS_COMPARE);
-				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
-			}
-
-			if (m_Config.GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE))
-			{
-				strWorkModeParm += _T(" + Clean Disk");
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText2;
 			}
 		}
 		break;
@@ -696,15 +702,21 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 			strResText1.LoadString(IDS_WORK_MODE_QUICK_COPY);
 			strWorkMode = strWorkModeParm = strResText1;
 
-			if (m_Config.GetBool(_T("QuickCopy"),_T("En_Compare"),FALSE))
-			{
-				strResText2.LoadString(IDS_COMPARE);
-				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
-			}
 
 			if (m_Config.GetBool(_T("QuickCopy"),_T("En_CleanDiskFirst"),FALSE))
 			{
-				strWorkModeParm += _T("  + Clean Disk");
+				strResText3.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+
+				strWorkModeParm = strResText3;
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText1;
+			}
+
+			if (m_Config.GetBool(_T("QuickCopy"),_T("En_Compare"),FALSE))
+			{
+				strResText2.LoadString(IDS_COMPARE);
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText2;
 			}
 		}
 		break;
@@ -726,13 +738,17 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 			if (m_Config.GetUInt(_T("ImageCopy"),_T("ImageType"),0) == 1)
 			{
 				m_bIsMTP = TRUE;
-				strWorkModeParm += _T(" - MTP Image");
+				strResText3.LoadString(IDS_MTP_IMAGE);
+				strWorkModeParm += _T(" - ");
+				strWorkModeParm += strResText3;
 			}
 			else
 			{
 				if (m_Config.GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE))
 				{
-					strWorkModeParm += _T(" + Clean Disk");
+					strResText3.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+
+					strWorkModeParm = strResText3 + _T(" + ") + strWorkModeParm;
 				}
 			}
 		}
@@ -749,19 +765,23 @@ void CUSBCopyDlg::InitialCurrentWorkMode()
 			switch (nSaveMode)
 			{
 			case 0: //Full image
-				strWorkModeParm += _T(" - Full Image");
+				strResText3.LoadString(IDS_FULL_IMAGE);
+				
 				break;
 
 			case 1: //Quick image
-				strWorkModeParm += _T(" - Quick Image");
+				strResText3.LoadString(IDS_QUICK_IMAGE);
 				break;
 
 			case 2: //MTP image
 				m_bIsMTP = TRUE;
-				strWorkModeParm += _T(" - MTP Image");
+				strResText3.LoadString(IDS_MTP_IMAGE);
 				break;
 
 			}
+
+			strWorkModeParm += _T(" - ");
+			strWorkModeParm += strResText3;
 		}
 		
 		break;
@@ -3763,8 +3783,8 @@ void CUSBCopyDlg::MatchDevice()
 							{
 
 								if (port->IsConnected())
-								{
-									CloseHandle(hDevice);
+								{									
+									CloseHandle(hDevice);									
 									break;
 								}
 
@@ -3936,6 +3956,7 @@ void CUSBCopyDlg::MatchDevice()
 									,ullSectorNums * dwBytesPerSector,strModel,strSN);
 
 								CloseHandle(hDevice);
+								
 								break;
 							}
 							else
@@ -4252,7 +4273,8 @@ CString CUSBCopyDlg::GetWorkModeString( WorkMode mode )
 void CUSBCopyDlg::InitialBurnInTest(UINT cycle,UINT nCycleCount)
 {
 	CString strWorkMode,strWorkModeParm;
-	CString strResText1,strResText2;
+	CString strResText1,strResText2,strResText3;
+	m_bIsMTP = FALSE;
 	switch (m_WorkMode)
 	{
 	case WorkMode_FullCopy:
@@ -4261,10 +4283,20 @@ void CUSBCopyDlg::InitialBurnInTest(UINT cycle,UINT nCycleCount)
 
 			strWorkMode = strWorkModeParm = strResText1;
 
+			if (m_Config.GetBool(_T("FullCopy"),_T("En_CleanDiskFirst"),FALSE))
+			{
+				strResText3.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+
+				strWorkModeParm = strResText3;
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText1;
+			}
+
 			if (m_Config.GetBool(_T("FullCopy"),_T("En_Compare"),FALSE))
 			{
 				strResText2.LoadString(IDS_COMPARE);
-				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText2;
 			}
 		}
 		break;
@@ -4274,16 +4306,28 @@ void CUSBCopyDlg::InitialBurnInTest(UINT cycle,UINT nCycleCount)
 			strResText1.LoadString(IDS_WORK_MODE_QUICK_COPY);
 			strWorkMode = strWorkModeParm = strResText1;
 
+
+			if (m_Config.GetBool(_T("QuickCopy"),_T("En_CleanDiskFirst"),FALSE))
+			{
+				strResText3.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+
+				strWorkModeParm = strResText3;
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText1;
+			}
+
 			if (m_Config.GetBool(_T("QuickCopy"),_T("En_Compare"),FALSE))
 			{
 				strResText2.LoadString(IDS_COMPARE);
-				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
+				strWorkModeParm += _T(" + ");
+				strWorkModeParm += strResText2;
 			}
 		}
 		break;
 
 	case WorkMode_ImageCopy:
 		{
+
 			strResText1.LoadString(IDS_WORK_MODE_IMAGE_COPY);
 			strWorkMode = strWorkModeParm = strResText1;
 
@@ -4292,12 +4336,56 @@ void CUSBCopyDlg::InitialBurnInTest(UINT cycle,UINT nCycleCount)
 				strResText2.LoadString(IDS_COMPARE);
 				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
 			}
+
+			// MTP Copy
+			if (m_Config.GetUInt(_T("ImageCopy"),_T("ImageType"),0) == 1)
+			{
+				m_bIsMTP = TRUE;
+				strResText3.LoadString(IDS_MTP_IMAGE);
+				strWorkModeParm += _T(" - ");
+				strWorkModeParm += strResText3;
+			}
+			else
+			{
+				if (m_Config.GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE))
+				{
+					strResText3.LoadString(IDS_WORK_MODE_DISK_CLEAN);
+
+					strWorkModeParm = strResText3 + _T(" + ") + strWorkModeParm;
+				}
+			}
 		}
 		break;
 
 	case WorkMode_ImageMake:
-		strResText1.LoadString(IDS_WORK_MODE_IMAGE_MAKE);
-		strWorkMode = strWorkModeParm = strResText1;
+		{
+			strResText1.LoadString(IDS_WORK_MODE_IMAGE_MAKE);
+			strWorkMode = strWorkModeParm = strResText1;
+
+			UINT nSaveMode = m_Config.GetUInt(_T("ImageMake"),_T("SaveMode"),0);
+
+			switch (nSaveMode)
+			{
+			case 0: //Full image
+				strResText3.LoadString(IDS_FULL_IMAGE);
+
+				break;
+
+			case 1: //Quick image
+				strResText3.LoadString(IDS_QUICK_IMAGE);
+				break;
+
+			case 2: //MTP image
+				m_bIsMTP = TRUE;
+				strResText3.LoadString(IDS_MTP_IMAGE);
+				break;
+
+			}
+
+			strWorkModeParm += _T(" - ");
+			strWorkModeParm += strResText3;
+		}
+
 		break;
 
 	case WorkMode_DiskClean:
@@ -4385,6 +4473,29 @@ void CUSBCopyDlg::InitialBurnInTest(UINT cycle,UINT nCycleCount)
 				strResText2.LoadString(IDS_COMPARE);
 				strWorkModeParm.Format(_T("%s + %s"),strResText1,strResText2);
 			}
+
+			m_bIsMTP = TRUE;
+		}
+		break;
+
+	case WorkMode_Full_RW_Test:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_FULL_RW_TEST);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+
+	case WorkMode_Fade_Picker:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_FADE_PICKER);
+			strWorkMode = strWorkModeParm = strResText1;
+		}
+		break;
+
+	case WorkMode_Speed_Check:
+		{
+			strResText1.LoadString(IDS_WORK_MODE_SPEED_CHECK);
+			strWorkMode = strWorkModeParm = strResText1;
 		}
 		break;
 	}
@@ -4419,6 +4530,11 @@ void CUSBCopyDlg::BurnInTest()
 				SetEvent(m_hBurninEvent);
 				break;
 			}
+
+			ResetPortFrame();
+			ResetPortInfo();
+
+			UpdatePortFrame(TRUE);
 
 			strKey.Format(_T("Function_%d"),i);
 			m_WorkMode = (WorkMode)m_Config.GetUInt(_T("BurnIn"),strKey,0);
@@ -4721,7 +4837,9 @@ CString CUSBCopyDlg::GetUploadLogString()
 {
 	CString strLog;
 
-	//PortNum,PortType,MachineSN,AliasName,SerialNumber,Model,DataSize,Capacity,Function,StartTime,EndTime,HashMethod,HashValue,Speed,Result,ErrorType,ErrorCode
+	//PortNum;PortType;MachineSN;AliasName;SerialNumber;Model;DataSize;Capacity;Function;StartTime;EndTime;
+	//1 - HashMethod;HashValue;Speed;Result;ErrorType;ErrorCode
+	//2 - BadBlocks;ReadSpeed;WriteSpeed;Result;ErrorType;ErrorCode
 
 	CString strItem;
 
@@ -4813,7 +4931,30 @@ CString CUSBCopyDlg::GetUploadLogString()
 			strItem.Format(_T("%s;"),port->GetModuleName());
 			strLog += strItem;
 
-			strItem.Format(_T("%I64d;"),port->GetValidSize());
+			// 如果是卡检测，这里填实际容量
+			if (m_WorkMode == WorkMode_Full_RW_Test
+				|| m_WorkMode == WorkMode_Fade_Picker
+				|| m_WorkMode == WorkMode_Speed_Check
+				)
+			{
+				if (port->GetBadBlockCount() > 0)
+				{
+					CULLArray badBlocks;
+					port->GetBadBlockArray(badBlocks);
+
+					ULONGLONG ullSize = badBlocks.GetAt(0) * port->GetBytesPerSector();
+
+					strItem.Format(_T("%I64d;"),ullSize);
+				}
+				else
+				{
+					strItem.Format(_T("%I64d;"),port->GetTotalSize());
+				}
+			}
+			else
+			{
+				strItem.Format(_T("%I64d;"),port->GetValidSize());
+			}
 			strLog += strItem;
 
 			strItem.Format(_T("%I64d;"),port->GetTotalSize());
@@ -4828,14 +4969,32 @@ CString CUSBCopyDlg::GetUploadLogString()
 			strItem.Format(_T("%s;"),port->GetEndTime().Format(_T("%Y-%m-%d %H:%M:%S")));
 			strLog += strItem;
 
-			strItem.Format(_T("%s;"),port->GetHashMethodString());
-			strLog += strItem;
+			// 如果是卡检测，填坏块数量、读速度、写速度
+			if (m_WorkMode == WorkMode_Full_RW_Test
+				|| m_WorkMode == WorkMode_Fade_Picker
+				|| m_WorkMode == WorkMode_Speed_Check
+				)
+			{
+				strItem.Format(_T("%d;"),port->GetBadBlockCount());
+				strLog += strItem;
 
-			strItem.Format(_T("%s;"),port->GetHashString());
-			strLog += strItem;
+				strItem.Format(_T("%d;"),(int)port->GetRealSpeed(TRUE));
+				strLog += strItem;
 
-			strItem.Format(_T("%d;"),(int)port->GetRealSpeed());
-			strLog += strItem;
+				strItem.Format(_T("%d;"),(int)port->GetRealSpeed(FALSE));
+				strLog += strItem;
+			}
+			else
+			{
+				strItem.Format(_T("%s;"),port->GetHashMethodString());
+				strLog += strItem;
+
+				strItem.Format(_T("%s;"),port->GetHashString());
+				strLog += strItem;
+
+				strItem.Format(_T("%d;"),(int)port->GetRealSpeed());
+				strLog += strItem;
+			}
 
 			strItem.Format(_T("%s;"),port->GetResultString());
 			strLog += strItem;

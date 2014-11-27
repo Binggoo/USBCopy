@@ -34,4 +34,5 @@ public:
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedRadioQuickClean();
 	afx_msg void OnBnClickedRadioSafeClean();
+	afx_msg void OnBnClickedCheckCleanCompare();
 };

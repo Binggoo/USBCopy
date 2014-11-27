@@ -39,6 +39,7 @@ BEGIN_MESSAGE_MAP(CDiskCleanSettingDlg, CDialogEx)
 	ON_BN_CLICKED(IDOK, &CDiskCleanSettingDlg::OnBnClickedOk)
 	ON_BN_CLICKED(IDC_RADIO_QUICK_CLEAN, &CDiskCleanSettingDlg::OnBnClickedRadioQuickClean)
 	ON_BN_CLICKED(IDC_RADIO_SAFE_CLEAN, &CDiskCleanSettingDlg::OnBnClickedRadioSafeClean)
+	ON_BN_CLICKED(IDC_CHECK_CLEAN_COMPARE, &CDiskCleanSettingDlg::OnBnClickedCheckCleanCompare)
 END_MESSAGE_MAP()
 
 void CDiskCleanSettingDlg::SetConfig( CIni *pIni )
@@ -60,6 +61,9 @@ BOOL CDiskCleanSettingDlg::OnInitDialog()
 	m_nRadioSelectIndex = m_pIni->GetInt(_T("DiskClean"),_T("CleanMode"),0);
 	m_bCompareClean = m_pIni->GetBool(_T("DiskClean"),_T("En_CompareClean"),FALSE);
 	m_nCompareCleanSeqIndex = m_pIni->GetInt(_T("DiskClean"),_T("CompareCleanSeq"),0);
+
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCompareClean);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCompareClean);
 
 	m_ComboBoxFullCleanValue.AddString(_T("00"));
 	m_ComboBoxFullCleanValue.AddString(_T("FF"));
@@ -141,4 +145,14 @@ void CDiskCleanSettingDlg::OnBnClickedRadioSafeClean()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	m_ComboBoxFullCleanValue.EnableWindow(FALSE);
+}
+
+
+void CDiskCleanSettingDlg::OnBnClickedCheckCleanCompare()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCompareClean);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCompareClean);
 }
