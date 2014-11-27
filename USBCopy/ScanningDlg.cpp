@@ -25,6 +25,8 @@ CScanningDlg::CScanningDlg(CWnd* pParent /*=NULL*/)
 	m_dwCurrentTime = 0;
 	m_dwOldTime = 0;
 	m_hLogFile = INVALID_HANDLE_VALUE;
+
+	m_bStop = FALSE;
 }
 
 CScanningDlg::~CScanningDlg()
@@ -66,10 +68,12 @@ BOOL CScanningDlg::OnInitDialog()
 	if (m_bBeginning)
 	{
 		m_nWaitTimeS = m_pIni->GetUInt(_T("Option"),_T("ScanDiskTimeS"),30);
-		strText.Format(_T("Scanning disk ...... %d s"),m_nWaitTimeS);
+		strText.Format(_T("Scanning device ...... %d s"),m_nWaitTimeS);
 		SetDlgItemText(IDC_TEXT_SCAN,strText);
 		SetTimer(1,3000,NULL);
 		m_dwOldTime = m_dwCurrentTime = GetTickCount();
+
+		AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this);
 	}
 	else
 	{
@@ -107,42 +111,16 @@ void CScanningDlg::OnTimer(UINT_PTR nIDEvent)
 
 		m_dwOldTime = m_dwCurrentTime;
 
-		BOOL bStop = FALSE;
-
 		if (m_nWaitTimeS < 0)
 		{
-			bStop = TRUE;
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning disk end."));
 			KillTimer(1);
-			EndDialog(0);
+
+			m_bStop = TRUE;
+
 			return;
 		}
-		strText.Format(_T("Scanning disk ...... %d s"),m_nWaitTimeS);
+		strText.Format(_T("Scanning device ...... %d s"),m_nWaitTimeS);
 		SetDlgItemText(IDC_TEXT_SCAN,strText);
-		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning disk......"));
-
-		if (m_WorkMode == WorkMode_MTPCopy)
-		{
-			EnumWPD(&bStop);
-			ScanningMTPDevice();
-			CleanupWPD();
-		}
-		else
-		{
-			EnumStorage(&bStop);
-			EnumVolume(&bStop);
-			ScanningDevice();
-			CleanupStorage();
-			CleanupVolume();
-		}
-
-		if (IsAllConnected())
-		{
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning disk end."));
-			KillTimer(1);
-			EndDialog(0);
-			return;
-		}
 	}
 	else
 	{
@@ -689,4 +667,48 @@ void CScanningDlg::ScanningMTPDevice()
 			port->Initial();
 		}
 	}
+}
+
+void CScanningDlg::EnumDevice()
+{
+	while (!m_bStop)
+	{
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning device......"));
+
+		if (m_WorkMode == WorkMode_MTPCopy)
+		{
+			EnumWPD(&m_bStop);
+			ScanningMTPDevice();
+			CleanupWPD();
+		}
+		else
+		{
+			EnumStorage(&m_bStop);
+			EnumVolume(&m_bStop);
+			ScanningDevice();
+			CleanupStorage();
+			CleanupVolume();
+		}
+
+		if (IsAllConnected())
+		{
+			break;
+		}
+	}
+
+	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Scanning device end."));
+	KillTimer(1);
+	
+	PostMessage(WM_CLOSE);
+
+	return;
+}
+
+DWORD WINAPI CScanningDlg::EnumDeviceThreadProc( LPVOID lpParm )
+{
+	CScanningDlg *pDlg = (CScanningDlg *)lpParm;
+
+	pDlg->EnumDevice();
+
+	return 1;
 }

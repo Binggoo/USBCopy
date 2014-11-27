@@ -86,6 +86,8 @@ private:
 
 	BOOL  m_bStart; //用于标记当前是开始状态还是结束状态
 
+	BOOL  m_bEnableButton; // 开始和结束键是否可以按
+
 	BOOL  m_bLisence;
 
 	int   m_nMachineType;
@@ -140,6 +142,7 @@ private:
 	void BackupLogfile(HANDLE hFile,DWORD dwFileSize);
 
 	static DWORD WINAPI StartThreadProc(LPVOID lpParm);
+	static DWORD WINAPI StopThreadProc(LPVOID lpParm);
 	static DWORD WINAPI InitialMachineThreadProc(LPVOID lpParm);
 	static DWORD WINAPI EnumDeviceThreadProc(LPVOID lpParm);
 	static DWORD WINAPI BurnInTestThreadProc(LPVOID lpParm);
@@ -192,4 +195,5 @@ public:
 protected:
 	afx_msg LRESULT OnUpdateFunction(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnSetBurnInText(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnInitCurrentWorkmode(WPARAM wParam, LPARAM lParam);
 };

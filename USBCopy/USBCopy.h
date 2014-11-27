@@ -38,6 +38,7 @@
 #define WM_UPDATE_FUNCTION (WM_USER + 11)
 #define WM_WORK_MODE_SELECT (WM_USER + 12)
 #define WM_SET_BURN_IN_TEXT (WM_USER + 13)
+#define WM_INIT_CURRENT_WORKMODE (WM_USER + 14)
 
 class CUSBCopyApp : public CWinApp
 {

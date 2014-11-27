@@ -32,6 +32,10 @@
 //                            2.比对擦除中加入擦除中比对和擦除后比对
 //                            3.加入NGFF拷贝机类型
 //v1.0.8.2 2014-11-27 Binggoo 1.优化烧机测试
+//                            2.改善扫描设备时间不能设置为0的问题
+//                            3.按外部按键取消时延时2s，避免结束蜂鸣和按键蜂鸣重叠
+//                            4.解决手动停止时，会出现界面死掉的问题。
+
 
 #include "stdafx.h"
 #include "USBCopy.h"
@@ -127,6 +131,8 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bIsMTP = FALSE;
 
 	m_nMachineType = MT_TS;
+
+	m_bEnableButton = TRUE;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -161,6 +167,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_WM_CLOSE()
 	ON_MESSAGE(WM_UPDATE_FUNCTION, &CUSBCopyDlg::OnUpdateFunction)
 	ON_MESSAGE(WM_SET_BURN_IN_TEXT, &CUSBCopyDlg::OnSetBurnInText)
+	ON_MESSAGE(WM_INIT_CURRENT_WORKMODE, &CUSBCopyDlg::OnInitCurrentWorkmode)
 END_MESSAGE_MAP()
 
 
@@ -1197,7 +1204,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 {
 	// TODO: 在此添加控件通知处理程序代码
 
-	if (!m_bLisence)
+	if (!m_bEnableButton)
 	{
 		return;
 	}
@@ -1207,16 +1214,19 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 	if (m_bStart)
 	{
 		m_bStart = FALSE;
+		m_bEnableButton = FALSE;
 
 		m_BtnStart.SetBitmaps(IDB_START,RGB(255,255,255));
 
-		OnStop();
+		//OnStop();
+		AfxBeginThread((AFX_THREADPROC)StopThreadProc,this);
 
 		//strResText.LoadString(IDS_BTN_START);
 		//SetDlgItemText(IDC_BTN_START,strResText);
 	}
 	else
 	{
+		m_bStart = TRUE;
 
 		switch(m_WorkMode)
 		{
@@ -1229,6 +1239,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 					dlg.SetConfig(&m_Config,m_ClientSocket);
 					if (dlg.DoModal() == IDCANCEL)
 					{
+						m_bStart = FALSE;
 						return;
 					}
 				}
@@ -1246,6 +1257,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 					dlg.SetConfig(&m_Config,m_ClientSocket);
 					if (dlg.DoModal() == IDCANCEL)
 					{
+						m_bStart = FALSE;
 						return;
 					}
 
@@ -1265,6 +1277,7 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 					if (dlg.DoModal() == IDCANCEL)
 					{
+						m_bStart = FALSE;
 						return;
 					}
 					
@@ -1273,7 +1286,8 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 			break;
 
 		case WorkMode_Burnin_Test:
-			PostMessage(WM_BURN_IN_TEST);
+			SendMessage(WM_BURN_IN_TEST);
+			m_bStart = FALSE;
 			return;
 		}
 
@@ -1316,6 +1330,13 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 			m_Command.AllFail();
 
 			m_bRunning = FALSE;
+
+			MSG msg;
+			while(PeekMessage(&msg,NULL,0,0,PM_REMOVE))
+			{
+				DispatchMessage(&msg);
+				TranslateMessage(&msg); 
+			}
 
 			PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd); 
 			return;
@@ -1491,7 +1512,7 @@ void CUSBCopyDlg::OnStop()
 		completeMsg.DoModal();
 
 		//复位
-		PostMessage(WM_RESET_MACHIEN_PORT);
+		SendMessage(WM_RESET_MACHIEN_PORT);
 
 		EnableControls(TRUE);
 		GetDlgItem(IDC_BTN_START)->SetFocus();
@@ -1499,7 +1520,7 @@ void CUSBCopyDlg::OnStop()
 		m_bRunning = FALSE;
 	}
 
-	
+	m_bEnableButton = TRUE;
 }
 
 void CUSBCopyDlg::OnTimer(UINT_PTR nIDEvent)
@@ -1516,6 +1537,7 @@ void CUSBCopyDlg::OnTimer(UINT_PTR nIDEvent)
 		if (!IsLisence())
 		{
 			m_bLisence = FALSE;
+			m_bEnableButton = FALSE;
 			CString strResText;
 			strResText.LoadString(IDS_MSG_LISENCE_FAILED);
 			MessageBox(strResText,_T("USBCopy"),MB_ICONERROR | MB_SETFOREGROUND);
@@ -1526,6 +1548,7 @@ void CUSBCopyDlg::OnTimer(UINT_PTR nIDEvent)
 		else
 		{
 			m_bLisence = TRUE;
+			m_bEnableButton = TRUE;
 		}
 		
 
@@ -3565,7 +3588,7 @@ afx_msg LRESULT CUSBCopyDlg::OnComReceive(WPARAM wParam, LPARAM lParam)
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("[SerialPort] RD = %02X"),(BYTE)pBuffer[i]);
 		if (pBuffer[i] == 0x5A)
 		{
-			if (!m_bStart)
+			if (!m_bRunning)
 			{
 				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Start event click."),(BYTE)pBuffer[i]);
 				keybd_event(VK_RETURN,0,0,0);
@@ -3578,6 +3601,16 @@ afx_msg LRESULT CUSBCopyDlg::OnComReceive(WPARAM wParam, LPARAM lParam)
 			if (GetDlgItem(IDC_BTN_START)->IsWindowEnabled() && ::GetActiveWindow() == m_hWnd)
 			{
 				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Stop event click."),(BYTE)pBuffer[i]);
+
+				Sleep(2000);
+
+				MSG msg;
+				while(PeekMessage(&msg,NULL,0,0,PM_REMOVE))
+				{
+					DispatchMessage(&msg);
+					TranslateMessage(&msg); 
+				}
+
 				PostMessage(WM_COMMAND, MAKEWPARAM(IDC_BTN_START, BN_CLICKED), (LPARAM)m_hWnd); 
 			}		
 		}
@@ -4536,6 +4569,9 @@ void CUSBCopyDlg::BurnInTest()
 
 			UpdatePortFrame(TRUE);
 
+			// 复位
+			m_Command.ResetLight();
+
 			strKey.Format(_T("Function_%d"),i);
 			m_WorkMode = (WorkMode)m_Config.GetUInt(_T("BurnIn"),strKey,0);
 
@@ -4557,7 +4593,7 @@ void CUSBCopyDlg::BurnInTest()
 	SetEvent(m_hBurninEvent);
 
 	//复位
-	PostMessage(WM_RESET_MACHIEN_PORT);
+	SendMessage(WM_RESET_MACHIEN_PORT);
 
 	EnableControls(TRUE);
 	GetDlgItem(IDC_BTN_START)->SetFocus();
@@ -4566,7 +4602,7 @@ void CUSBCopyDlg::BurnInTest()
 
 	m_bBurnInTest = FALSE;
 
-	InitialCurrentWorkMode();
+	SendMessage(WM_INIT_CURRENT_WORKMODE);
 }
 
 DWORD WINAPI CUSBCopyDlg::BurnInTestThreadProc( LPVOID lpParm )
@@ -4584,8 +4620,8 @@ BOOL CUSBCopyDlg::PreTranslateMessage(MSG* pMsg)
 	if (pMsg->message == WM_KEYDOWN)
 	{
 		if (pMsg->wParam == VK_ESCAPE 
-			|| (pMsg->wParam == VK_RETURN && m_bStart)
-			|| (pMsg->wParam == VK_SPACE && m_bStart))
+			|| (pMsg->wParam == VK_RETURN && m_bRunning)
+			|| (pMsg->wParam == VK_SPACE && m_bRunning))
 		{
 			return TRUE;
 		}
@@ -4715,16 +4751,19 @@ afx_msg LRESULT CUSBCopyDlg::OnConnectSocket(WPARAM wParam, LPARAM lParam)
 
 	if (m_bSockeConnected)
 	{
-		SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: YES"));
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time with server..."));
 
 		if (SyncTime())
 		{
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time success."));
+			SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: YES"));
 		}
 		else
 		{
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time failed."));
+			SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
+
+			m_bSockeConnected = FALSE;
 		}
 	}
 	else
@@ -5102,12 +5141,14 @@ BOOL CUSBCopyDlg::IsLisence()
 	if (!ReadFile(hFile,byFileKey,KEY_LEN,&dwReadSize,NULL))
 	{
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read lisence file failed."));
+		CloseHandle(hFile);
 		return FALSE;
 	}
 
 	if (dwReadSize != KEY_LEN)
 	{
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Invalid lisence file."));
+		CloseHandle(hFile);
 		return FALSE;
 	}
 
@@ -5122,10 +5163,11 @@ BOOL CUSBCopyDlg::IsLisence()
 		if (key[i] != byFileKey[i])
 		{
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Invalid lisence."));
+			CloseHandle(hFile);
 			return FALSE;
 		}
 	}
-
+	CloseHandle(hFile);
 	return TRUE;
 }
 
@@ -5166,5 +5208,21 @@ afx_msg LRESULT CUSBCopyDlg::OnUpdateFunction(WPARAM wParam, LPARAM lParam)
 afx_msg LRESULT CUSBCopyDlg::OnSetBurnInText(WPARAM wParam, LPARAM lParam)
 {
 	InitialBurnInTest(wParam,lParam);
+	return 0;
+}
+
+DWORD WINAPI CUSBCopyDlg::StopThreadProc( LPVOID lpParm )
+{
+	CUSBCopyDlg *pDlg = (CUSBCopyDlg *)lpParm;
+
+	pDlg->OnStop();
+
+	return 1;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnInitCurrentWorkmode(WPARAM wParam, LPARAM lParam)
+{
+	InitialCurrentWorkMode();
 	return 0;
 }
