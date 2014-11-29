@@ -428,6 +428,15 @@ void CScanningDlg::ScanningDevice()
 								port->SetSN(strSN);
 								port->SetModuleName(strModel);
 
+								if ((pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB & 0x0300) == 0x0300)
+								{
+									port->SetUsbType(_T("3.0"));
+								}
+								else
+								{
+									port->SetUsbType(_T("2.0"));
+								}
+
 								CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,ModelName=%s,SN=%s")
 									,port->GetPortName(),pStorageDevInfo->nDiskNum,strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB
 									,ullSectorNums * dwBytesPerSector,strModel,strSN);
@@ -642,6 +651,15 @@ void CScanningDlg::ScanningMTPDevice()
 					port->SetCompleteSize(ullTotalSize - ullFreeSize);
 					port->SetSN(strSN);
 					port->SetModuleName(strModel);
+
+					if ((pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB & 0x0300) == 0x0300)
+					{
+						port->SetUsbType(_T("3.0"));
+					}
+					else
+					{
+						port->SetUsbType(_T("2.0"));
+					}
 
 					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Path=%s:%d,bcdUSB=%04X,Capacity=%I64d,FreeSize=%I64d,ModelName=%s,SN=%s")
 						,port->GetPortName(),strPath,nConnectIndex,pUsbDeviceInfo->ConnectionInfo->DeviceDescriptor.bcdUSB

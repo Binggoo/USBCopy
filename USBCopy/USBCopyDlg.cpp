@@ -28,6 +28,7 @@
 //V1.0.6.3 2014-11-17 Binggoo 1.加入擦除过程中比对
 //V1.0.6.4 2014-11-18 Binggoo 1.加入By-Byte比对方式
 //V1.0.7.0 2014-11-20 Binggoo 1.加入MTP映像制作和映像拷贝
+//                            2.加入配置窗口大小参数
 //V1.0.8.0 2014-11-26 Binggoo 1.加入卡检测功能
 //                            2.比对擦除中加入擦除中比对和擦除后比对
 //                            3.加入NGFF拷贝机类型
@@ -35,6 +36,7 @@
 //                            2.改善扫描设备时间不能设置为0的问题
 //                            3.按外部按键取消时延时2s，避免结束蜂鸣和按键蜂鸣重叠
 //                            4.解决手动停止时，会出现界面死掉的问题。
+//v1.0.8.3 2014-11-29 Binggoo 1.加入创建线程失败检查，防止因为创建线程失败而导致程序崩溃。
 
 
 #include "stdafx.h"
@@ -427,8 +429,12 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	UpdatePortFrame(TRUE);
 
 	m_ThreadListen = AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this,0,CREATE_SUSPENDED);
-	m_ThreadListen->m_bAutoDelete = FALSE;
-	m_ThreadListen->ResumeThread();
+
+	if (m_ThreadListen != NULL)
+	{
+		m_ThreadListen->m_bAutoDelete = FALSE;
+		m_ThreadListen->ResumeThread();
+	}
 
 	SetTimer(TIMER_LISENCE,100,NULL);
 
@@ -1216,8 +1222,6 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 		m_bStart = FALSE;
 		m_bEnableButton = FALSE;
 
-		m_BtnStart.SetBitmaps(IDB_START,RGB(255,255,255));
-
 		//OnStop();
 		AfxBeginThread((AFX_THREADPROC)StopThreadProc,this);
 
@@ -1508,6 +1512,7 @@ void CUSBCopyDlg::OnStop()
 	else
 	{
 		// 弹出结束对话框
+		m_BtnStart.SetBitmaps(IDB_START,RGB(255,255,255));
 		CCompleteMsg completeMsg(&m_Config,&m_Command,m_strMsg,m_bResult);
 		completeMsg.DoModal();
 
@@ -3632,8 +3637,24 @@ afx_msg LRESULT CUSBCopyDlg::OnResetMachienPort(WPARAM wParam, LPARAM lParam)
 	m_Command.ResetLight();
 
 	m_ThreadListen = AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this,0,CREATE_SUSPENDED);
-	m_ThreadListen->m_bAutoDelete = FALSE;
-	m_ThreadListen->ResumeThread();
+
+	int nCount = 3;
+	while (m_ThreadListen == NULL && nCount > 0)
+	{
+		DWORD dwLastError = GetLastError();
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("CreateEnumDeviceThread failed(%d),%s"),nCount,CUtils::GetErrorMsg(dwLastError));
+
+		Sleep(500);
+		m_ThreadListen = AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this,0,CREATE_SUSPENDED);
+
+		nCount--;
+	}
+
+	if (m_ThreadListen)
+	{
+		m_ThreadListen->m_bAutoDelete = FALSE;
+		m_ThreadListen->ResumeThread();
+	}
 
 	return 0;
 }

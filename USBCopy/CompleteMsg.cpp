@@ -87,8 +87,13 @@ BOOL CCompleteMsg::OnInitDialog()
 	if (bBeep)
 	{
 		m_ThreadBuzzer = AfxBeginThread((AFX_THREADPROC)BuzzerThreadProc,this,0,CREATE_SUSPENDED);
-		m_ThreadBuzzer->m_bAutoDelete = FALSE;
-		m_ThreadBuzzer->ResumeThread();
+
+		if (m_ThreadBuzzer)
+		{
+			m_ThreadBuzzer->m_bAutoDelete = FALSE;
+			m_ThreadBuzzer->ResumeThread();
+		}
+		
 	}
 
 	return TRUE;  // return TRUE unless you set the focus to a control
