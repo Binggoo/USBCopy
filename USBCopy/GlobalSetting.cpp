@@ -78,8 +78,8 @@ BOOL CGlobalSetting::OnInitDialog()
 	m_ComboBoxScanTime.AddString(_T("90"));
 	m_ComboBoxScanTime.AddString(_T("120"));
 	
-	m_ComboBoxBlockSectors.AddString(_T("1024"));//512KB
-	m_ComboBoxBlockSectors.AddString(_T("512")); //256KB
+//	m_ComboBoxBlockSectors.AddString(_T("1024"));//512KB
+//	m_ComboBoxBlockSectors.AddString(_T("512")); //256KB
 	m_ComboBoxBlockSectors.AddString(_T("256")); //128KB
 	m_ComboBoxBlockSectors.AddString(_T("128")); //64KB
 
@@ -88,13 +88,13 @@ BOOL CGlobalSetting::OnInitDialog()
 	m_ComboBoxKickOffTimeInterval.AddString(_T("30"));
 
 	CString strScanTime = m_pIni->GetString(_T("Option"),_T("ScanDiskTimeS"),_T("30"));
-	CString strBlockSectors = m_pIni->GetString(_T("Option"),_T("BlockSectors"),_T("1024"));
+	CString strBlockSectors = m_pIni->GetString(_T("Option"),_T("BlockSectors"),_T("256"));
 	CString strKickOffTimeInterval =  m_pIni->GetString(_T("Option"),_T("KickOffTimeS"),_T("5"));
 	m_ComboBoxScanTime.SetWindowText(strScanTime);
 	m_ComboBoxKickOffTimeInterval.SetWindowText(strKickOffTimeInterval);
 
 	int nBlockSectorCount = m_ComboBoxBlockSectors.GetCount();
-	int nSelectIndex = 1;
+	int nSelectIndex = 0;
 	for (int i = 0; i < nBlockSectorCount;i++)
 	{
 		CString strLBText;

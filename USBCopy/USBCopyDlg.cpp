@@ -37,6 +37,10 @@
 //                            3.按外部按键取消时延时2s，避免结束蜂鸣和按键蜂鸣重叠
 //                            4.解决手动停止时，会出现界面死掉的问题。
 //v1.0.8.3 2014-11-29 Binggoo 1.加入创建线程失败检查，防止因为创建线程失败而导致程序崩溃。
+//v1.0.9.0 2014-12-02 Binggoo 1.添加USB-123界面12x2。
+//                            2.修改栈内存大小为10000000
+//                            3.修改针对NFGG的电源控制
+//v1.0.9.1 2014-12-03 Binggoo 1.为了避免造成内存不够用的情况，取消数据块扇区数为1024和512的设置。
 
 
 #include "stdafx.h"
@@ -135,6 +139,9 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_nMachineType = MT_TS;
 
 	m_bEnableButton = TRUE;
+
+	m_nCols = 6;
+	m_nRows = 3;
 }
 
 void CUSBCopyDlg::DoDataExchange(CDataExchange* pDX)
@@ -398,17 +405,9 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	m_BtnSetting.SetFlat(FALSE);
 
 	m_BtnWorkMode.SubclassDlgItem(IDC_BTN_WORK_SELECT,this);
-
-	if (m_bIsMTP)
-	{
-		m_BtnWorkMode.SetFlat(TRUE);
-	}
-	else
-	{
-		m_BtnWorkMode.SetFlat(FALSE);
-	}
+	m_BtnWorkMode.SetFlat(FALSE);
 	
-
+	
 	// 初始化
 	InitialPortPath();
 
@@ -428,12 +427,16 @@ BOOL CUSBCopyDlg::OnInitDialog()
 
 	UpdatePortFrame(TRUE);
 
-	m_ThreadListen = AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this,0,CREATE_SUSPENDED);
-
-	if (m_ThreadListen != NULL)
+	//如果是NGFF不用实时监控
+	if (m_nMachineType != MT_NGFF)
 	{
-		m_ThreadListen->m_bAutoDelete = FALSE;
-		m_ThreadListen->ResumeThread();
+		m_ThreadListen = AfxBeginThread((AFX_THREADPROC)EnumDeviceThreadProc,this,0,CREATE_SUSPENDED);
+
+		if (m_ThreadListen != NULL)
+		{
+			m_ThreadListen->m_bAutoDelete = FALSE;
+			m_ThreadListen->ResumeThread();
+		}
 	}
 
 	SetTimer(TIMER_LISENCE,100,NULL);
@@ -498,9 +501,18 @@ void CUSBCopyDlg::InitialPortFrame()
 	GetDlgItem(IDC_PIC_FRAME)->GetWindowRect(&rectFrame);
 	ScreenToClient(&rectFrame);
 
-	int rows = m_nPortNum / COLUMNS;
+	// 大于18个接口，按一排12个处理
+	UINT nIDTemplate = IDD_DIALOG_PORT;
+	if (m_nPortNum > 18)
+	{
+		m_nCols = 12;
 
-	if (m_nPortNum % COLUMNS)
+		nIDTemplate = IDD_DIALOG_PORT_V;
+	}
+
+	int rows = m_nPortNum / m_nCols;
+
+	if (m_nPortNum % m_nCols)
 	{
 		rows++;
 	}
@@ -510,13 +522,13 @@ void CUSBCopyDlg::InitialPortFrame()
 		rows = 2;
 	}
 
-	int nWidth = (rectFrame.Width()-2) / COLUMNS;
+	int nWidth = (rectFrame.Width()-2) / m_nCols;
 	int nHeight = (rectFrame.Height()-2) / rows;
 
 	// 母盘
 	m_PortFrames[0].SetPort(&m_Config,m_hLogFile,&m_Command,&m_MasterPort,&m_TargetPorts,m_nMachineType);
 
-	m_PortFrames[0].Create(IDD_DIALOG_PORT,this);
+	m_PortFrames[0].Create(nIDTemplate,this);
 
 	m_PortFrames[0].MoveWindow(rectFrame.left + 1,
 		rectFrame.top + 1,
@@ -534,10 +546,10 @@ void CUSBCopyDlg::InitialPortFrame()
 
 		m_PortFrames[nItem].SetPort(&m_Config,m_hLogFile,&m_Command,port,&m_TargetPorts,m_nMachineType);
 
-		m_PortFrames[nItem].Create(IDD_DIALOG_PORT,this);
+		m_PortFrames[nItem].Create(nIDTemplate,this);
 
-		UINT nRow = nItem / COLUMNS;
-		UINT nCol = nItem % COLUMNS;
+		UINT nRow = nItem / m_nCols;
+		UINT nCol = nItem % m_nCols;
 
 		m_PortFrames[nItem].MoveWindow(rectFrame.left + 1 + nWidth * nCol,
 			rectFrame.top + 1 + nHeight * nRow,
@@ -1030,7 +1042,7 @@ void CUSBCopyDlg::OnBnClickedBtnSystem()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	CSystemMenu menu;
-	menu.SetConfig(&m_Config,&m_Command,m_bSockeConnected,m_bLisence);
+	menu.SetConfig(&m_Config,&m_Command,m_bSockeConnected,m_bLisence,m_nMachineType);
 	menu.DoModal();
 
 	CString strAlias = m_Config.GetString(_T("Option"),_T("MachineAlias"),_T("PHIYO"));
@@ -1320,6 +1332,19 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 
 		SetDlgItemText(IDC_TEXT_FUNCTION2,strWorkMode);
 
+		// 如果是NGFF顺序上电
+		if (m_nMachineType == MT_NGFF)
+		{
+			// 全部上电
+			for (UINT i = 0; i < m_nPortNum;i++)
+			{
+				m_Command.Power(i,TRUE);
+				Sleep(100);
+				m_Command.GreenLight(0,TRUE);
+				Sleep(100);
+			}
+		}
+
 		CScanningDlg dlg;
 		dlg.SetLogFile(m_hLogFile);
 		dlg.SetConfig(&m_Config,m_WorkMode,m_nMachineType);
@@ -1373,6 +1398,13 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 				else
 				{
 					m_Command.RedLight(port->GetPortNum(),TRUE);
+
+					// 如果是NGFF,红灯亮起的时候需要断电
+					if (m_nMachineType == MT_NGFF)
+					{
+						Sleep(100);
+						m_Command.Power(port->GetPortNum(),FALSE);
+					}
 				}
 			}
 			break;
@@ -1389,6 +1421,13 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 				else
 				{
 					m_Command.RedLight(port->GetPortNum(),TRUE);
+
+					// 如果是NGFF,红灯亮起的时候需要断电
+					if (m_nMachineType == MT_NGFF)
+					{
+						Sleep(100);
+						m_Command.Power(port->GetPortNum(),FALSE);
+					}
 				}
 			}
 
@@ -1414,6 +1453,13 @@ void CUSBCopyDlg::OnBnClickedBtnStart()
 				else
 				{
 					m_Command.RedLight(port->GetPortNum(),TRUE);
+
+					// 如果是NGFF,红灯亮起的时候需要断电
+					if (m_nMachineType == MT_NGFF)
+					{
+						Sleep(100);
+						m_Command.Power(port->GetPortNum(),FALSE);
+					}
 				}
 			}
 
@@ -3552,11 +3598,15 @@ void CUSBCopyDlg::InitialMachine()
 	//初始化上电
 	m_Command.ResetPower();
 
-	// 全部上电
-	for (UINT i = 0; i < m_nPortNum;i++)
+	// 如果是NGFF不能上电，只能在点START后上电
+	if (m_nMachineType != MT_NGFF)
 	{
-		m_Command.Power(i,TRUE);
-		Sleep(100);
+		// 全部上电
+		for (UINT i = 0; i < m_nPortNum;i++)
+		{
+			m_Command.Power(i,TRUE);
+			Sleep(100);
+		}
 	}
 
 	// 切屏

@@ -456,6 +456,14 @@ void CPortDlg::UpdateState()
 		if (!m_bStopCommand)
 		{	
 			m_pCommand->GreenLight(m_Port->GetPortNum(),TRUE);
+
+			// 如果是NGFF,红灯亮起的时候需要断电
+			if (m_nMachineType == MT_NGFF)
+			{
+				Sleep(100);
+				m_pCommand->Power(m_Port->GetPortNum(),FALSE);
+			}
+
 			m_bStopCommand = TRUE;
 		}
 
@@ -508,6 +516,14 @@ void CPortDlg::UpdateState()
 		if (!m_bStopCommand)
 		{
 			m_pCommand->RedLight(m_Port->GetPortNum(),TRUE);
+
+			// 如果是NGFF,红灯亮起的时候需要断电
+			if (m_nMachineType == MT_NGFF)
+			{
+				Sleep(100);
+				m_pCommand->Power(m_Port->GetPortNum(),FALSE);
+			}
+
 			m_bStopCommand = TRUE;
 		}
 
@@ -570,7 +586,7 @@ void CPortDlg::UpdateState()
 	if (!strUSBType.IsEmpty())
 	{
 		CString strGroupText;
-		strGroupText.Format(_T("%s                     %s"),m_Port->GetPortName(),strUSBType);
+		strGroupText.Format(_T("%s    %s"),m_Port->GetPortName(),strUSBType);
 
 		SetDlgItemText(IDC_GROUP_PORT,strGroupText);
 	}

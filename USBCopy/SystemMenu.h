@@ -22,7 +22,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
-	void SetConfig(CIni *pIni,CPortCommand *pCommand,BOOL bConnected,BOOL bLisence);
+	void SetConfig(CIni *pIni,CPortCommand *pCommand,BOOL bConnected,BOOL bLisence,UINT nMachineType);
 
 private:
 	CIni *m_pIni;
@@ -41,6 +41,8 @@ private:
 	CButtonST m_BtnMore;
 	CButtonST m_BtnPackage;
 	CButtonST m_BtnShutDown;
+
+	UINT m_nMachineType;
 
 public:
 	afx_msg void OnBnClickedButtonUpdate();

@@ -93,11 +93,9 @@ private:
 	int   m_nMachineType;
 	BOOL  m_bIsMTP;
 
-	enum
-	{
-		COLUMNS = 6,
-		ROWS    = 3
-	};
+	//记录监控界面的列和行
+	UINT m_nCols;
+	UINT m_nRows;
 
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 

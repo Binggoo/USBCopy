@@ -112,12 +112,14 @@ BOOL CSystemMenu::OnInitDialog()
 	// 异常: OCX 属性页应返回 FALSE
 }
 
-void CSystemMenu::SetConfig( CIni *pIni ,CPortCommand *pCommand,BOOL bConnected,BOOL bLisence)
+void CSystemMenu::SetConfig( CIni *pIni ,CPortCommand *pCommand,BOOL bConnected,BOOL bLisence,UINT nMachineType)
 {
 	m_pIni = pIni;
 	m_pCommand = pCommand;
 	m_bSocketConnected = bConnected;
 	m_bLisence = bLisence;
+
+	m_nMachineType = nMachineType;
 }
 
 
@@ -411,13 +413,16 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 		}
 	}
 
-	// 上电
-	for (UINT i = 0; i <= m_nTargetNum;i++)
+	if (m_nMachineType != MT_NGFF)
 	{
-		m_pCommand->Power(i,TRUE);
-		Sleep(100);
+		// 上电
+		for (UINT i = 0; i <= m_nTargetNum;i++)
+		{
+			m_pCommand->Power(i,TRUE);
+			Sleep(100);
+		}
 	}
-
+	
 	GetDlgItem(IDC_BTN_EXPORT_LOG)->EnableWindow(TRUE);
 
 	CDialogEx::OnOK();
