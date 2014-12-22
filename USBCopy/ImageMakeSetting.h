@@ -25,10 +25,21 @@ private:
 	CComboBox m_ComboBoxMBRLBA;
 	CIni *m_pIni;
 	int m_nRadioSaveModeIndex;
+	BOOL m_bCheckDataCompress;
+
+	CListCtrl m_ListCtrl;
+
+
+	void InitialListCtrl();
 public:
 	virtual BOOL OnInitDialog();
 
 	void SetConfig(CIni *pIni);
 	afx_msg void OnBnClickedCheckMutiMbr();
 	afx_msg void OnBnClickedOk();
+	afx_msg void OnBnClickedBtnAdd();
+	afx_msg void OnBnClickedBtnRemove();
+	afx_msg void OnBnClickedRadioFull();
+	afx_msg void OnBnClickedRadioQuick();
+	afx_msg void OnBnClickedRadioMtp();
 };

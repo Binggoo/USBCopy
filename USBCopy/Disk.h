@@ -37,12 +37,14 @@ public:
 	void SetTargetPorts(PortList *pList);
 	void SetHashMethod(BOOL bComputeHash,HashMethod hashMethod);
 	void SetWorkMode(WorkMode workMode);
+	void SetGlobalParm(BOOL bMustSameCapacity);
 	void SetCleanMode(CleanMode cleanMode,int nFillValue,BOOL bCompareClean,CompareCleanSeq seq);
 	void SetCompareMode(CompareMode compareMode);
 	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
 	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
-	void SetMakeImageParm(BOOL bQuickImage,int compressLevel);
+	void SetMakeImageParm(BOOL bQuickImage,BOOL bCompress,int compressLevel);
 	void SetFullCopyParm(BOOL bAllowCapGap,UINT nPercent);
+	void SetQuickCopyParm(RANGE_FROM_TO *ranges,int count);
 	void SetCleanDiskFirst(BOOL bCleanDiskFist,BOOL bCompareClean,CompareCleanSeq seq,int times,int *values);
 	void SetCompareParm(BOOL bCompare,CompareMethod method);
 	void SetFullRWTestParm(BOOL bReadOnlyTest,BOOL bRetainOriginData,BOOL bFormatFinished,BOOL bStopBadBlock);
@@ -64,6 +66,7 @@ private:
 	HANDLE   m_hMaster;
 	
 	ULONGLONG m_ullCapacity;
+	ULONGLONG m_ullImageSize; // 用于记录IMAGE Size,在映像拷贝中会用到
 	ULONGLONG m_ullSectorNums;
 	DWORD     m_dwBytesPerSector;
 	ULONGLONG m_ullValidSize;
@@ -141,6 +144,11 @@ private:
 	double m_dbMinReadSpeed;
 	double m_dbMinWriteSpeed;
 
+	// 2014-12-19
+	BOOL m_bMustSameCapacity;
+	CListRangeFromTo m_ListRangeFromTo;
+	BOOL m_bDataCompress;
+
 
 	// 20140-10-14 新增增量拷贝
 	CMapPortStringArray m_MapPortStringArray;
@@ -199,7 +207,7 @@ private:
 	PartitionStyle GetPartitionStyle(const PBYTE pByte,BootSector bootSector);
 	FileSystem GetFileSystem(const PBYTE pDBR,ULONGLONG ullStartSector);
 	BOOL BriefAnalyze();
-	BOOL AppendEffDataList(const PBYTE pDBR,FileSystem fileSystem,ULONGLONG ullStartSector,ULONGLONG ullMasterSectorOffset,ULONGLONG ullSectors);
+	BOOL AppendEffDataList(const PBYTE pDBR,FileSystem fileSystem,ULONGLONG ullStartSector,ULONGLONG ullMasterSectorOffset,ULONGLONG ullSectors,BOOL bMBR);
 	ULONGLONG ReadOffset(const PBYTE pByte,DWORD offset,BYTE bytes);
 	BOOL IsFATValidCluster(const PBYTE pByte,DWORD cluster,BYTE byFATBit);
 	BOOL IsNTFSValidCluster(const PBYTE pByte,DWORD cluster);
@@ -211,6 +219,8 @@ private:
 
 	void AddDataQueueList(PDATA_INFO dataInfo);
 	bool IsReachLimitQty(int limit);
+
+	bool IsTargetsReady();
 
 	int EnumFile(CString strSource);
 

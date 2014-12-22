@@ -39,6 +39,7 @@ CDisk::CDisk(void)
 	m_ullSectorNums = 0;
 	m_ullValidSize = 0;
 	m_ullCapacity = 0;
+	m_ullImageSize = 0;
 
 	m_bCompare = FALSE;
 	m_pMasterHashMethod = NULL;
@@ -89,6 +90,10 @@ CDisk::CDisk(void)
 
 	m_CompareCleanSeq = CompareCleanSeq_In;
 	m_pFillBytes = NULL;
+
+	m_bMustSameCapacity = FALSE;
+	m_bDataCompress = FALSE;
+
 }
 
 
@@ -135,7 +140,7 @@ HANDLE CDisk::GetHandleOnPhysicalDrive( int iDiskNumber,DWORD dwFlagsAndAttribut
 		FILE_SHARE_READ | FILE_SHARE_WRITE,
 		NULL,
 		OPEN_EXISTING,
-		dwFlagsAndAttributes,
+		dwFlagsAndAttributes | FILE_FLAG_NO_BUFFERING ,
 		NULL);
 
 	*pdwErrorCode = GetLastError();
@@ -1306,7 +1311,7 @@ void CDisk::SetMasterPort( CPort *port )
 				LARGE_INTEGER li = {0};
 				if (GetFileSizeEx(m_hMaster,&li))
 				{
-					m_ullCapacity = (ULONGLONG)li.QuadPart;
+					m_ullImageSize = (ULONGLONG)li.QuadPart;
 				}
 
 			}
@@ -1331,15 +1336,12 @@ void CDisk::SetMasterPort( CPort *port )
 				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Open image file error,filename=%s,system errorcode=%ld,%s")
 					,strTempName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 			}
-
-			m_MasterPort->SetPortState(PortState_Active);
 		}
 
 
 		break;
 
 	default:
-		m_MasterPort->SetPortState(PortState_Active);
 
 		break;
 	}
@@ -1355,7 +1357,6 @@ void CDisk::SetTargetPorts( PortList *pList )
 		if (port->IsConnected())
 		{
 			port->Reset();
-			port->SetPortState(PortState_Active);
 		}
 
 		CDataQueue *dataQueue = new CDataQueue();
@@ -1418,7 +1419,7 @@ BootSector CDisk::GetBootSectorType( const PBYTE pXBR )
 	*/
 	MASTER_BOOT_RECORD mbr;
 	ZeroMemory(&mbr,sizeof(MASTER_BOOT_RECORD));
-	memcpy(&mbr,pXBR + 0x1BE,sizeof(MASTER_BOOT_RECORD));
+	memcpy(&mbr,pXBR,sizeof(MASTER_BOOT_RECORD));
 
 	if (mbr.Signature != 0xAA55)
 	{
@@ -1496,7 +1497,7 @@ PartitionStyle CDisk::GetPartitionStyle( const PBYTE pByte,BootSector bootSector
 	{
 		MASTER_BOOT_RECORD mbr;
 		ZeroMemory(&mbr,sizeof(MASTER_BOOT_RECORD));
-		memcpy(&mbr,pByte + 0x1BE,sizeof(MASTER_BOOT_RECORD));
+		memcpy(&mbr,pByte,sizeof(MASTER_BOOT_RECORD));
 
 		for (int i = 0;i < 4;i++)
 		{
@@ -1653,7 +1654,7 @@ BOOL CDisk::BriefAnalyze()
 	case PartitionStyle_UNKNOWN:
 		fileSystem = GetFileSystem(pXBR,ullStartSectors);
 
-		if (!AppendEffDataList(pXBR,fileSystem,ullStartSectors,ullStartSectors,m_ullSectorNums))
+		if (!AppendEffDataList(pXBR,fileSystem,ullStartSectors,ullStartSectors,m_ullSectorNums,FALSE))
 		{
 			delete []pXBR;
 			pXBR = NULL;
@@ -1665,7 +1666,7 @@ BOOL CDisk::BriefAnalyze()
 	case PartitionStyle_DOS:
 		{
 			fileSystem = FileSystem_EXTEND;
-			if (!AppendEffDataList(pXBR,fileSystem,ullStartSectors,ullStartSectors,m_ullSectorNums))
+			if (!AppendEffDataList(pXBR,fileSystem,ullStartSectors,ullStartSectors,m_ullSectorNums,TRUE))
 			{
 				delete []pXBR;
 				pXBR = NULL;
@@ -1793,7 +1794,7 @@ BOOL CDisk::BriefAnalyze()
 
 					fileSystem = GetFileSystem(pTempDBR,ullTempStartSector);
 
-					if (!AppendEffDataList(pTempDBR,fileSystem,ullTempStartSector,ullTempStartSector,ullSectors))
+					if (!AppendEffDataList(pTempDBR,fileSystem,ullTempStartSector,ullTempStartSector,ullSectors,FALSE))
 					{
 						delete []pTempDBR;
 						pTempDBR = NULL;
@@ -1839,7 +1840,7 @@ BOOL CDisk::BriefAnalyze()
 	return TRUE;
 }
 
-BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG ullStartSector,ULONGLONG ullMasterSectorOffset,ULONGLONG ullSectors )
+BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG ullStartSector,ULONGLONG ullMasterSectorOffset,ULONGLONG ullSectors ,BOOL bMBR)
 {
 	DWORD dwErrorCode = 0;
 	switch (fileSystem)
@@ -1944,6 +1945,11 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 				}
 			}
 
+			if (effData.ullSectors != 0)
+			{
+				m_EffList.AddTail(effData);
+			}
+
 			delete []pFATByte;
 			pFATByte = NULL;
 
@@ -1974,7 +1980,9 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 			BYTE *pRoot = new BYTE[exfatInfo.wBytesPerSector];
 			ZeroMemory(pRoot,exfatInfo.wBytesPerSector);
 
-			ULONGLONG ullTempStartSector = exfatInfo.ullPartitionOffset + dwRootDirectoryStartSector;
+			// 20140-12-10 取Boot Sector中的偏移扇区不保险，换成MBR中记录的起始地址
+			//ULONGLONG ullTempStartSector = exfatInfo.ullPartitionOffset + dwRootDirectoryStartSector;
+			ULONGLONG ullTempStartSector = ullStartSector + dwRootDirectoryStartSector;
 			if (!ReadSectors(m_hMaster,ullTempStartSector,1,exfatInfo.wBytesPerSector,pRoot,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
 			{
 				m_MasterPort->SetEndTime(CTime::GetCurrentTime());
@@ -2069,6 +2077,12 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 					effData.ullSectors = 0;
 
 				}
+			}
+
+
+			if (effData.ullSectors != 0)
+			{
+				m_EffList.AddTail(effData);
 			}
 
 			delete []pBitMap;
@@ -2224,6 +2238,10 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 					ullClusterIndex++;
 				}
 
+				if (effData.ullSectors != 0)
+				{
+					*m_EffList.AddTail(effData);
+				}
 
 			}
 
@@ -2338,6 +2356,10 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 				DWORD dwBlockBitMapStartSector = dwBlockBitMapStartBlock * superBlockInfo.dwSectorsPerBlock;
 				DWORD dwBlockBitMapLength = superBlockInfo.dwBlocksPerBlockGroup / 8;
 
+				//块位图的大小必须是块大小的整数倍
+				dwBlockBitMapLength = (dwBlockBitMapLength + superBlockInfo.dwBytesPerBlock - 1) / superBlockInfo.dwBytesPerBlock
+					* superBlockInfo.dwBytesPerBlock;
+
 				BYTE *pBitMap = new BYTE[dwBlockBitMapLength];
 				ZeroMemory(pBitMap,dwBlockBitMapLength);
 
@@ -2408,6 +2430,11 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 				delete []pBitMap;
 				pBitMap = NULL;
 
+				if (effData.ullSectors != 0)
+				{
+					m_EffList.AddTail(effData);
+				}
+
 			}
 
 			delete []pGroupDescrption;
@@ -2418,32 +2445,44 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 
 	case FileSystem_EXTEND:
 		{
-
-			EFF_DATA headData;
-			headData.ullStartSector = ullStartSector;
-			headData.ullSectors = 63;
-			headData.wBytesPerSector = (WORD)m_dwBytesPerSector;
-
-			m_EffList.AddTail(headData);
-
 			MASTER_BOOT_RECORD ebr;
 			ZeroMemory(&ebr,sizeof(MASTER_BOOT_RECORD));
-			memcpy(&ebr,pDBR + 0x1BE,sizeof(MASTER_BOOT_RECORD));
+			memcpy(&ebr,pDBR,sizeof(MASTER_BOOT_RECORD));
 
 			CString strPartions,strByte;
-
+			DWORD dwMinSector = -1;
 			for (int row = 0;row < 4;row++)
 			{
+				strPartions.Empty();
 				for (int col =0;col < 16;col++)
 				{
 					int offset = 0x1BE + row * 16 + col;
 					strByte.Format(_T("%02X "),pDBR[offset]);
 					strPartions += strByte;
 				}
-				strPartions += _T("\r\n");
+				CUtils::WriteLogFile(m_hLogFile,FALSE,strPartions);
+
+				if (ebr.Partition[row].StartLBA != 0 && bMBR)
+				{
+					if (ebr.Partition[row].StartLBA < dwMinSector)
+					{
+						dwMinSector = ebr.Partition[row].StartLBA;
+					}
+				}
 			}
 
-			CUtils::WriteLogFile(m_hLogFile,FALSE,strPartions);
+			// 把MBR到第一个分区之前的数据添加进列表
+			EFF_DATA headData;
+			headData.ullStartSector = ullStartSector;
+			headData.ullSectors = 63;
+			headData.wBytesPerSector = (WORD)m_dwBytesPerSector;
+
+			if (bMBR)
+			{
+				headData.ullSectors = dwMinSector;
+			}
+
+			m_EffList.AddTail(headData);
 
 			for (int i = 0; i < 4;i++)
 			{
@@ -2499,7 +2538,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 				}
 
 				if (!AppendEffDataList(pDBRTemp,fileSystem,ullTempStartSector,ullMasterSectorOffset,
-					ebr.Partition[i].TotalSector))
+					ebr.Partition[i].TotalSector,FALSE))
 				{
 					delete []pDBRTemp;
 					pDBRTemp = NULL;
@@ -2883,6 +2922,32 @@ BOOL CDisk::OnCopyDisk()
 			if (!BriefAnalyze())
 			{
 				return FALSE;
+			}
+
+			// 是否有用户指定区域,如果存在直接加载列表后面
+			POSITION pos = m_ListRangeFromTo.GetHeadPosition();
+			while (pos)
+			{
+				RANGE_FROM_TO range = m_ListRangeFromTo.GetNext(pos);
+
+				CString strList;
+				strList.Format(_T("User custom area --- StartSector:%I64d  EndSector:%I64d")
+					,range.ullStartLBA,range.ullEndingLBA);
+
+				CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
+
+				if (range.ullStartLBA < m_ullSectorNums && range.ullEndingLBA <= m_ullCapacity)
+				{
+					EFF_DATA effData = {0};
+					effData.ullStartSector = range.ullStartLBA;
+					effData.ullSectors = range.ullEndingLBA - range.ullStartLBA;
+					effData.wBytesPerSector = BYTES_PER_SECTOR;
+
+					if (effData.ullSectors != 0)
+					{
+						m_EffList.AddTail(effData);
+					}
+				}
 			}
 
 			m_ullValidSize = GetValidSize();
@@ -3365,8 +3430,10 @@ BOOL CDisk::OnCopyImage()
 
 	m_ullValidSize = imgHead.ullValidSize;
 	m_ullSectorNums = imgHead.ullCapacitySize / imgHead.dwBytesPerSector;
-	m_ullCapacity = imgHead.ullImageSize;
+	m_ullCapacity = imgHead.ullCapacitySize;
+	m_ullImageSize = imgHead.ullImageSize;
 	m_dwBytesPerSector = imgHead.dwBytesPerSector;
+	m_bDataCompress = (imgHead.byUnCompress == 0) ? TRUE : FALSE;
 
 	HashMethod hashMethod = (HashMethod)imgHead.dwHashType;
 
@@ -3392,9 +3459,14 @@ BOOL CDisk::OnCopyImage()
 		,m_MasterPort->GetFileName(),dwReadId,hReadThread);
 
 	// 创建多个解压缩线程
-	HANDLE hUncompressThread = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Copy Image - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
-		,dwUncompressId,hUncompressThread);
+	HANDLE hUncompressThread = NULL;
+
+	if (m_bDataCompress)
+	{
+		hUncompressThread = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Copy Image - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
+			,dwUncompressId,hUncompressThread);
+	}
 
 	UINT nCount = 0;
 	UINT nCurrentTargetCount = GetCurrentTargetCount();
@@ -3434,9 +3506,13 @@ BOOL CDisk::OnCopyImage()
 	}
 	delete []hWriteThreads;
 
-	// 等待解压缩线程结束
-	WaitForSingleObject(hUncompressThread,INFINITE);
-	CloseHandle(hUncompressThread);
+	if (m_bDataCompress)
+	{
+		// 等待解压缩线程结束
+		WaitForSingleObject(hUncompressThread,INFINITE);
+		CloseHandle(hUncompressThread);
+	}
+	
 
 	//等待读磁盘线程结束
 	WaitForSingleObject(hReadThread,INFINITE);
@@ -3463,11 +3539,13 @@ BOOL CDisk::OnCopyImage()
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Verfiy Image(%s) - CreateReadImageThread,ThreadId=0x%04X,HANDLE=0x%04X")
 				,m_MasterPort->GetFileName(),dwReadId,hReadThread);
 
-			// 创建多个解压缩线程
-			hUncompressThread = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Verify Image - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
-				,dwUncompressId,hUncompressThread);
-
+			if (m_bDataCompress)
+			{
+				// 创建多个解压缩线程
+				hUncompressThread = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Verify Image - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
+					,dwUncompressId,hUncompressThread);
+			}
 
 			nCount = 0;
 			pos = m_TargetPorts->GetHeadPosition();
@@ -3505,9 +3583,12 @@ BOOL CDisk::OnCopyImage()
 			}
 			delete []hVerifyThreads;
 
-			// 等待解压缩线程结束
-			WaitForSingleObject(hUncompressThread,INFINITE);
-			CloseHandle(hUncompressThread);
+			if (m_bDataCompress)
+			{
+				// 等待解压缩线程结束
+				WaitForSingleObject(hUncompressThread,INFINITE);
+				CloseHandle(hUncompressThread);
+			}
 
 			//等待读磁盘线程结束
 			WaitForSingleObject(hReadThread,INFINITE);
@@ -3605,6 +3686,33 @@ BOOL CDisk::OnMakeImage()
 			return FALSE;
 		}
 
+		// 是否有用户指定区域,如果存在直接加载列表后面
+		POSITION pos = m_ListRangeFromTo.GetHeadPosition();
+		while (pos)
+		{
+			RANGE_FROM_TO range = m_ListRangeFromTo.GetNext(pos);
+
+			CString strList;
+			strList.Format(_T("User custom area --- StartSector:%I64d  EndSector:%I64d")
+				,range.ullStartLBA,range.ullEndingLBA);
+
+			CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
+
+			if (range.ullStartLBA < m_ullSectorNums && range.ullEndingLBA <= m_ullCapacity)
+			{
+				EFF_DATA effData = {0};
+				effData.ullStartSector = range.ullStartLBA;
+				effData.ullSectors = range.ullEndingLBA - range.ullStartLBA;
+				effData.wBytesPerSector = BYTES_PER_SECTOR;
+
+				if (effData.ullSectors != 0)
+				{
+					m_EffList.AddTail(effData);
+				}
+			}
+
+		}
+
 		m_ullValidSize = GetValidSize();
 		SetValidSize(m_ullValidSize);
 
@@ -3641,11 +3749,14 @@ BOOL CDisk::OnMakeImage()
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Image Make(Master) - CreateReadDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
 		,dwReadId,hReadThread);
 
-	HANDLE hCompressThread = CreateThread(NULL,0,CompressThreadProc,this,0,&dwCompressId);
+	HANDLE hCompressThread = NULL;
 
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Compress Image - CreateCompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
-		,dwCompressId,hCompressThread);
-
+	if (m_bDataCompress)
+	{
+		hCompressThread = CreateThread(NULL,0,CompressThreadProc,this,0,&dwCompressId);
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Compress Image - CreateCompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
+			,dwCompressId,hCompressThread);
+	}
 
 	UINT nCount = 0;
 	UINT nCurrentTargetCount = GetCurrentTargetCount();
@@ -3685,9 +3796,12 @@ BOOL CDisk::OnMakeImage()
 	}
 	delete []hWriteThreads;
 
-	//等待压缩线程结束
-	WaitForSingleObject(hCompressThread,INFINITE);
-	CloseHandle(hCompressThread);
+	if (m_bDataCompress)
+	{
+		//等待压缩线程结束
+		WaitForSingleObject(hCompressThread,INFINITE);
+		CloseHandle(hCompressThread);
+	}
 
 	//等待读磁盘线程结束
 	WaitForSingleObject(hReadThread,INFINITE);
@@ -3752,7 +3866,9 @@ BOOL CDisk::OnCompareDisk()
 	HANDLE *hVerifyThreads = new HANDLE[nCurrentTargetCount];
 	UINT nCount = 0;
 
-	if (m_CompareMethod = CompareMethod_Byte)
+	m_bVerify = TRUE;
+
+	if (m_CompareMethod == CompareMethod_Byte)
 	{
 		m_bComputeHash = FALSE;
 
@@ -4612,7 +4728,7 @@ BOOL CDisk::OnDiffCopy()
 			}
 
 			m_ullValidSize = queryPkgOut.ullFileSize;
-			m_ullCapacity = queryPkgOut.ullFileSize;
+			m_ullImageSize = queryPkgOut.ullFileSize;
 
 			// 第二步下载变更列表信息
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query change list..."));
@@ -4748,7 +4864,6 @@ BOOL CDisk::OnDiffCopy()
 			lpVoidMaster->lpVoid1 = this;
 			lpVoidMaster->lpVoid2 = m_MasterPort;
 			lpVoidMaster->lpVoid3 = &m_MapHashSourceFiles;
-
 
 			hThreads[0] = CreateThread(NULL,0,ComputeHashThreadProc,lpVoidMaster,0,&dwThreadId);
 
@@ -5199,7 +5314,7 @@ BOOL CDisk::ReadDisk()
 	DWORD dwLen = m_nBlockSectors * m_dwBytesPerSector;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	// 如果要先擦除，此时需要等待擦除结束
@@ -5207,6 +5322,16 @@ BOOL CDisk::ReadDisk()
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	POSITION pos = m_EffList.GetHeadPosition();
 
@@ -5273,6 +5398,8 @@ BOOL CDisk::ReadDisk()
 			}
 			else
 			{
+				QueryPerformanceCounter(&t2);
+
 				PDATA_INFO dataInfo = new DATA_INFO;
 				ZeroMemory(dataInfo,sizeof(DATA_INFO));
 				dataInfo->ullOffset = ullStartSectors * effData.wBytesPerSector;
@@ -5280,9 +5407,35 @@ BOOL CDisk::ReadDisk()
 				dataInfo->pData = new BYTE[dwLen];
 				memcpy(dataInfo->pData,pByte,dwLen);
 
-				if (m_WorkMode == WorkMode_ImageMake)
+				if (m_WorkMode == WorkMode_ImageMake && m_bDataCompress)
 				{
 					m_CompressQueue.AddTail(dataInfo);
+				}
+				else if (m_WorkMode == WorkMode_ImageMake)
+				{
+					// 不压缩，加上文件头和文件尾
+					PDATA_INFO compressData = new DATA_INFO;
+					ZeroMemory(compressData,sizeof(DATA_INFO));
+
+					compressData->dwDataSize = dataInfo->dwDataSize + sizeof(ULONGLONG) + sizeof(DWORD) + 1;
+					compressData->dwOldSize = dataInfo->dwDataSize;
+					compressData->pData = new BYTE[compressData->dwDataSize];
+					ZeroMemory(compressData->pData,compressData->dwDataSize);
+
+					compressData->pData[compressData->dwDataSize - 1] = 0xED; //结束标志
+
+					memcpy(compressData->pData,&dataInfo->ullOffset,sizeof(ULONGLONG));
+					memcpy(compressData->pData + sizeof(ULONGLONG),&compressData->dwDataSize,sizeof(DWORD));
+					memcpy(compressData->pData + sizeof(ULONGLONG) + sizeof(DWORD),pByte,dwLen);
+
+					AddDataQueueList(compressData);
+
+					delete []compressData->pData;
+					delete []compressData;
+
+					delete []dataInfo->pData;
+					delete dataInfo;
+
 				}
 				else
 				{
@@ -5301,10 +5454,10 @@ BOOL CDisk::ReadDisk()
 				ullStartSectors += dwSectors;
 				ullReadSectors += dwSectors;
 
-				QueryPerformanceCounter(&t2);
+				QueryPerformanceCounter(&t3);
 
 				dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-				dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+				dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 
 				m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 				m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
@@ -5400,6 +5553,22 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 
 	port->Active();
 
+	// 是否容量完全匹配
+	if (m_bMustSameCapacity && !m_bAllowCapGap)
+	{
+		if (port->GetTotalSize() != m_ullCapacity)
+		{
+			port->SetEndTime(CTime::GetCurrentTime());
+			port->SetResult(FALSE);
+			port->SetErrorCode(ErrorType_Custom,CustomError_Master_Target_Size_Not_Same);
+			port->SetPortState(PortState_Fail);
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop copy,custom errorcode=0x%X,the size not same with the master")
+				,port->GetPortName(),port->GetDiskNum(),CustomError_Master_Target_Size_Not_Same);
+
+			return FALSE;
+		}
+	}
+
 	// 判断容量
 	if (port->GetTotalSize() < m_ullValidSize)
 	{
@@ -5468,7 +5637,7 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 		QuickClean(hDisk,port,&dwErrorCode);
 	}
 
-	port->Active();
+//	BOOL bWriteLog = TRUE;
 
 	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
@@ -5540,6 +5709,27 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 
 		ULONGLONG ullStartSectors = dataInfo->ullOffset / dwBytesPerSector;
 		DWORD dwSectors = dataInfo->dwDataSize / dwBytesPerSector;
+
+		// 打印一个扇区
+// 		if (bWriteLog)
+// 		{
+// 			CString strSector,strByte;
+// 			CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Port %s - Sector %d"),port->GetPortName(),ullStartSectors);
+// 			for (int i = 0; i < 512;i++)
+// 			{
+// 				strByte.Format(_T("%02X "),dataInfo->pData[i]);
+// 				strSector += strByte;
+// 
+// 				if ((i+1) % 16 == 0 )
+// 				{
+// 					CUtils::WriteLogFile(m_hLogFile,FALSE,strSector);
+// 					strSector.Empty();
+// 				}
+// 
+// 			}
+// 
+// 			bWriteLog = FALSE;
+// 		}
 
 		QueryPerformanceCounter(&t1);
 		if (!WriteSectors(hDisk,ullStartSectors,dwSectors,dwBytesPerSector,dataInfo->pData,port->GetOverlapped(FALSE),&dwErrorCode))
@@ -6188,12 +6378,22 @@ BOOL CDisk::ReadLocalFiles()
 	ULONGLONG ullCompleteSize = 0;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	POSITION pos = m_MapCopyFiles.GetStartPosition();
 	ULONGLONG ullFileSize = 0;
@@ -6265,6 +6465,8 @@ BOOL CDisk::ReadLocalFiles()
 			}
 			else
 			{
+				QueryPerformanceCounter(&t2);
+
 				PDATA_INFO dataInfo = new DATA_INFO;
 				ZeroMemory(dataInfo,sizeof(DATA_INFO));
 				dataInfo->szFileName = new TCHAR[strDestFile.GetLength()+1];
@@ -6288,10 +6490,10 @@ BOOL CDisk::ReadLocalFiles()
 
 				ullCompleteSize += dwLen;
 
-				QueryPerformanceCounter(&t2);
+				QueryPerformanceCounter(&t3);
 
 				dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-				dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+				dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 
 				m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 				m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
@@ -6400,7 +6602,7 @@ BOOL CDisk::ReadRemoteFiles()
 	DWORD dwLen = 0;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	WSAOVERLAPPED ol = {0};
@@ -6409,6 +6611,16 @@ BOOL CDisk::ReadRemoteFiles()
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	// 发送DOWN PACKAGE命令
 	CString strPackageName = CUtils::GetFileName(m_MasterPort->GetFileName());
@@ -6428,7 +6640,7 @@ BOOL CDisk::ReadRemoteFiles()
 	memcpy(sendBuf,&downPkgIn,sizeof(CMD_IN));
 	memcpy(sendBuf + sizeof(CMD_IN),pkgName,strlen(pkgName));
 
-	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
+	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
 		// 判断队列是否达到限制值
@@ -6533,6 +6745,8 @@ BOOL CDisk::ReadRemoteFiles()
 			break;
 		}
 
+		QueryPerformanceCounter(&t2);
+
 		// CM_OUT + 文件名称 + '\0' + 文件内容 + 结束标志
 		int len = strlen((char *)pByte) + 1;
 		char *file = new char[len];
@@ -6587,15 +6801,15 @@ BOOL CDisk::ReadRemoteFiles()
 			ullCompleteSize = 0;
 		}
 
-		QueryPerformanceCounter(&t2);
+		QueryPerformanceCounter(&t3);
 
 		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+		dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
-		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
 	}
 
@@ -7424,14 +7638,24 @@ BOOL CDisk::ReadLocalImage()
 	DWORD dwLen = 0;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
 
-	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
+
+	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
 		// 判断队列是否达到限制值
@@ -7493,27 +7717,43 @@ BOOL CDisk::ReadLocalImage()
 			break;
 		}
 
+		QueryPerformanceCounter(&t2);
+
 		PDATA_INFO dataInfo = new DATA_INFO;
 		ZeroMemory(dataInfo,sizeof(DATA_INFO));
-		dataInfo->ullOffset = ullOffset;
+		dataInfo->ullOffset = *(PULONGLONG)pByte;
 		dataInfo->dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
 		dataInfo->pData = new BYTE[dataInfo->dwDataSize];
 		memcpy(dataInfo->pData,&pByte[PKG_HEADER_SIZE],dataInfo->dwDataSize);
-		m_CompressQueue.AddTail(dataInfo);
+
+		if (m_bDataCompress)
+		{
+			m_CompressQueue.AddTail(dataInfo);
+		}
+		else
+		{
+			AddDataQueueList(dataInfo);
+
+			m_pMasterHashMethod->update(dataInfo->pData,dataInfo->dwDataSize);
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+		}
+		
 		delete []pByte;
 
 		ullOffset += dwLen;
 		ullReadSize += dwLen;
 
-		QueryPerformanceCounter(&t2);
+		QueryPerformanceCounter(&t3);
 
 		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+		dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
-		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
 	}
 
@@ -7624,7 +7864,7 @@ BOOL CDisk::ReadRemoteImage()
 	DWORD dwLen = 0;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	WSAOVERLAPPED ol = {0};
@@ -7633,6 +7873,16 @@ BOOL CDisk::ReadRemoteImage()
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	// 发送COPY IMAGE命令
 	CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
@@ -7652,7 +7902,7 @@ BOOL CDisk::ReadRemoteImage()
 	memcpy(sendBuf,&copyImageIn,sizeof(CMD_IN));
 	memcpy(sendBuf + sizeof(CMD_IN),fileName,strlen(fileName));
 
-	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
+	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
 		// 判断队列是否达到限制值
@@ -7761,13 +8011,30 @@ BOOL CDisk::ReadRemoteImage()
 		// 去除尾部标志
 		dwLen -= 1;
 
+		QueryPerformanceCounter(&t2);
+
 		PDATA_INFO dataInfo = new DATA_INFO;
 		ZeroMemory(dataInfo,sizeof(DATA_INFO));
+
+		dataInfo->ullOffset = *(PULONGLONG)pByte;
 		dataInfo->dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
 		dataInfo->pData = new BYTE[dataInfo->dwDataSize];
 		memcpy(dataInfo->pData,&pByte[PKG_HEADER_SIZE],dataInfo->dwDataSize);
 
-		m_CompressQueue.AddTail(dataInfo);
+		if (m_bDataCompress)
+		{
+			m_CompressQueue.AddTail(dataInfo);
+		}
+		else
+		{
+			AddDataQueueList(dataInfo);
+
+			m_pMasterHashMethod->update(dataInfo->pData,dataInfo->dwDataSize);
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+		}
+		
 
 		// 写文件
 		if (m_hMaster != INVALID_HANDLE_VALUE)
@@ -7782,15 +8049,15 @@ BOOL CDisk::ReadRemoteImage()
 
 		ullReadSize += dwLen;
 
-		QueryPerformanceCounter(&t2);
+		QueryPerformanceCounter(&t3);
 
 		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+		dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
-		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
 	}
 
@@ -7913,8 +8180,18 @@ BOOL CDisk::Compress()
 	BOOL bResult = TRUE;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	QueryPerformanceFrequency(&freq);
 	while (!*m_lpCancel && m_MasterPort->GetResult())
@@ -7965,6 +8242,8 @@ BOOL CDisk::Compress()
 
 		if (ret == Z_OK)
 		{
+			QueryPerformanceCounter(&t2);
+
 			PDATA_INFO compressData = new DATA_INFO;
 			ZeroMemory(compressData,sizeof(DATA_INFO));
 
@@ -7982,10 +8261,10 @@ BOOL CDisk::Compress()
 			delete []compressData->pData;
 			delete []compressData;
 
-			QueryPerformanceCounter(&t2);
+			QueryPerformanceCounter(&t3);
 
 			dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-			dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+			dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 
 		}
 		else if (ret == Z_DATA_ERROR)
@@ -8041,8 +8320,18 @@ BOOL CDisk::Uncompress()
 
 	BOOL bResult = TRUE;
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	QueryPerformanceFrequency(&freq);
 
@@ -8088,6 +8377,8 @@ BOOL CDisk::Uncompress()
 
 		if (ret == Z_OK)
 		{
+			QueryPerformanceCounter(&t2);
+
 			PDATA_INFO uncompressData = new DATA_INFO;
 			ZeroMemory(uncompressData,sizeof(DATA_INFO));
 			uncompressData->ullOffset = *(PULONGLONG)pDest;
@@ -8113,10 +8404,10 @@ BOOL CDisk::Uncompress()
 			delete []uncompressData->pData;
 			delete uncompressData;
 
-			QueryPerformanceCounter(&t2);
+			QueryPerformanceCounter(&t3);
 
 			dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-			dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
+			dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
 
 		}
 		else if (ret == Z_DATA_ERROR)
@@ -8255,7 +8546,12 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 		{
 			continue;
 		}
-		*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+
+		if (m_bDataCompress)
+		{
+			*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+		}
+		
 		ullPkgIndex++;
 
 		QueryPerformanceCounter(&t1);
@@ -8343,6 +8639,7 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 		imgHead.ullCapacitySize = m_MasterPort->GetTotalSize();
 		imgHead.dwBytesPerSector = m_MasterPort->GetBytesPerSector();
 		memcpy(imgHead.szZipVer,ZIP_VERSION,strlen(ZIP_VERSION));
+		imgHead.byUnCompress = m_bDataCompress ? 0 : 1;
 		imgHead.ullPkgCount = ullPkgIndex;
 		imgHead.ullValidSize = m_MasterPort->GetValidSize();
 		imgHead.dwHashLen = m_pMasterHashMethod->getHashLength();
@@ -8458,7 +8755,12 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		{
 			continue;
 		}
-		*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+
+		if (m_bDataCompress)
+		{
+			*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+		}
+		
 		ullPkgIndex++;
 
 		QueryPerformanceCounter(&t1);
@@ -8599,6 +8901,7 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		imgHead.ullCapacitySize = m_MasterPort->GetTotalSize();
 		imgHead.dwBytesPerSector = m_MasterPort->GetBytesPerSector();
 		memcpy(imgHead.szZipVer,ZIP_VERSION,strlen(ZIP_VERSION));
+		imgHead.byUnCompress = m_bDataCompress ? 0 : 1;
 		imgHead.ullPkgCount = ullPkgIndex;
 		imgHead.ullValidSize = m_MasterPort->GetValidSize();
 		imgHead.dwHashLen = m_pMasterHashMethod->getHashLength();
@@ -10093,7 +10396,7 @@ void CDisk::AddDataQueueList( PDATA_INFO dataInfo )
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(pos1);
 		CPort *port = m_TargetPorts->GetNext(pos2);
 
-		if (port->GetResult() && port->GetPortState() == PortState_Active)
+		if (port->IsConnected() && port->GetResult() && port->GetPortState() == PortState_Active)
 		{
 			PDATA_INFO data = new DATA_INFO;
 			ZeroMemory(data,sizeof(DATA_INFO));
@@ -10123,7 +10426,7 @@ bool CDisk::IsReachLimitQty( int limit )
 	{
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(pos1);
 		CPort *port = m_TargetPorts->GetNext(pos2);
-		if (port->GetResult() && dataQueue->GetCount() > limit)
+		if (port->IsConnected() && port->GetResult() && dataQueue->GetCount() > limit)
 		{
 			bReached = true;
 			break;
@@ -10249,10 +10552,21 @@ void CDisk::SetSocket( SOCKET sClient,BOOL bServerFirst )
 	m_bServerFirst = bServerFirst;
 }
 
-void CDisk::SetMakeImageParm(BOOL bQuickImage, int compressLevel /*= Z_BEST_SPEED*/ )
+void CDisk::SetMakeImageParm(BOOL bQuickImage,BOOL bCompress, int compressLevel /*= Z_BEST_SPEED*/ )
 {
 	m_iCompressLevel = compressLevel;
 	m_bQuickImage = bQuickImage;
+	m_bDataCompress = bCompress;
+}
+
+void CDisk::SetQuickCopyParm(RANGE_FROM_TO *ranges,int count)
+{
+	m_ListRangeFromTo.RemoveAll();
+
+	for (int i = 0; i < count;i++)
+	{
+		m_ListRangeFromTo.AddTail(ranges[i]);
+	}
 }
 
 void CDisk::SetFullCopyParm(BOOL bAllowCapGap,UINT nPercent)
@@ -11140,5 +11454,30 @@ void CDisk::SetSpeedCheckParm( BOOL bCheckSpeed,double dbReaddSpeed,double dbWri
 	m_bCheckSpeed = bCheckSpeed;
 	m_dbMinReadSpeed = dbReaddSpeed;
 	m_dbMinWriteSpeed = dbWriteSpeed;
+}
+
+bool CDisk::IsTargetsReady()
+{
+	POSITION pos = m_TargetPorts->GetHeadPosition();
+	bool bReady = true;
+	while (pos)
+	{
+		CPort *port = m_TargetPorts->GetNext(pos);
+
+		if (port->IsConnected() && port->GetPortState() != PortState_Active)
+		{
+			bReady = false;
+			
+			break;
+		}
+
+	}
+
+	return bReady;
+}
+
+void CDisk::SetGlobalParm( BOOL bMustSameCapacity )
+{
+	m_bMustSameCapacity = bMustSameCapacity;
 }
 

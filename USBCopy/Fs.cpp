@@ -1,40 +1,6 @@
 ﻿#include "StdAfx.h"
 #include "Fs.h"
 
-
-#pragma pack(push,1)
-/****************************************************************************
-*     分区表项结构(16字节)
-****************************************************************************/
-typedef struct _STRUCT_PARTITION_ENTRY
-{
-	UCHAR BootIndicator;  // 能否启动标志
-	UCHAR StartHead;   // 该分区起始磁头号
-	UCHAR StartSector;  // 起始柱面号高2位：6位起始扇区号
-	UCHAR StartCylinder;  // 起始柱面号低8位
-	UCHAR PartitionType;  // 分区类型
-	UCHAR EndHead;   // 该分区终止磁头号
-	UCHAR EndSector;   // 终止柱面号高2位：6位终止扇区号
-	UCHAR EndCylinder;  // 终止柱面号低8位
-	ULONG StartLBA;   // 起始扇区号
-	ULONG TotalSector;  // 分区尺寸（总扇区数）
-}PARTITION_ENTRY,*PPARTITION_ENTRY;
-
-/****************************************************************************
-*     主引导记录(MBR)结构 
-****************************************************************************/
-typedef struct _STRUCT_MASTER_BOOT_RECORD
-{
-	UCHAR    BootCode[446];
-	PARTITION_ENTRY  Partition[4];
-	USHORT    Signature;
-}MASTER_BOOT_RECORD,*PMASTER_BOOT_RECORD;
-
-#pragma pack(pop)
-
-#define LODWORD(_qw)    ((DWORD)(_qw))
-#define HIDWORD(_qw)    ((DWORD)(((_qw) >> 32) & 0xffffffff))
-
 Fs::Fs()
 {
 	m_hDisk = INVALID_HANDLE_VALUE;

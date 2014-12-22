@@ -60,6 +60,7 @@ typedef enum _ENUM_CUSTOM_ERROR
 	CustomError_Get_Data_From_Server_Error,
 	CustomError_Image_Hash_Value_Changed,
 	CustomError_Enum_File_Failed,
+	CustomError_Master_Target_Size_Not_Same,
 
 	// MTP ERROR
 	CustomError_MTP_OpenDevice_Failed,
@@ -243,7 +244,7 @@ typedef struct _STRUCT_PARTITION_ENTRY
 ****************************************************************************/
 typedef struct _STRUCT_MASTER_BOOT_RECORD
 {
-	//UCHAR    BootCode[446];
+	UCHAR    BootCode[446];
 	PARTITION_ENTRY  Partition[4];
 	USHORT    Signature;
 }MASTER_BOOT_RECORD,*PMASTER_BOOT_RECORD;
@@ -344,6 +345,8 @@ typedef struct _STRUCT_RANGE_FROM_TO
 	ULONGLONG ullEndingLBA;
 }RANGE_FROM_TO,*PRANGE_FROM_TO;
 
+typedef CList<RANGE_FROM_TO,RANGE_FROM_TO &> CListRangeFromTo;
+
 // IMAGE define
 #define LEN_DIGEST 64
 #define SIZEOF_IMAGE_HEADER 1024
@@ -366,7 +369,8 @@ typedef struct _STRUCT_IMAGE_HEADER
 	DWORD	  dwMaxSizeOfPackage; //4
 	ULONGLONG ullCapacitySize; //8
 	DWORD     dwBytesPerSector; //4
-	char	  szZipVer[APP_VER_LENGTH]; //16
+	char	  szZipVer[APP_VER_LENGTH-1]; //15
+	BYTE      byUnCompress; // 1 是否压缩,为了兼容之前的IMAGE，0表示压缩，非0表示不压缩
 	ULONGLONG ullPkgCount; //8
 	ULONGLONG ullValidSize; //8
 	DWORD     dwHashLen; //4

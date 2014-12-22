@@ -26,6 +26,8 @@
 
 #include <afxdisp.h>        // MFC Automation classes
 
+#include "GlobalDef.h"
+
 #define SD_TF
 
 #define CLIENT_NAME         L"MPTCopy"

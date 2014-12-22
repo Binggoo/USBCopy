@@ -40,6 +40,8 @@ CWpdDevice::CWpdDevice(void)
 	m_iCompressLevel = Z_BEST_SPEED;
 
 	m_hImage = INVALID_HANDLE_VALUE;
+
+	m_bDataCompress = FALSE;
 }
 
 
@@ -157,11 +159,16 @@ void CWpdDevice::SetWorkMode( WorkMode workMode )
 	m_WorkMode = workMode;
 }
 
-void CWpdDevice::SetSocket( SOCKET sClient,BOOL bServerFirst,int compressLevel )
+void CWpdDevice::SetSocket( SOCKET sClient,BOOL bServerFirst)
 {
 	m_ClientSocket = sClient;
 	m_bServerFirst = bServerFirst;
+}
+
+void CWpdDevice::SetMakeImageParm(BOOL bCompress,int compressLevel)
+{
 	m_iCompressLevel = compressLevel;
+	m_bDataCompress = bCompress;
 }
 
 BOOL CWpdDevice::Start()
@@ -397,10 +404,15 @@ BOOL CWpdDevice::OnMakeImage()
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("MTP Copy(Master) - CreateReadWpdFilesThread,ThreadId=0x%04X,HANDLE=0x%04X")
 		,dwReadId,hReadThread);
 
-	HANDLE hCompressThread = CreateThread(NULL,0,CompressThreadProc,this,0,&dwCompressId);
+	HANDLE hCompressThread = NULL;
 
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Compress Image - CreateCompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
-		,dwCompressId,hCompressThread);
+	if (m_bDataCompress)
+	{
+		hCompressThread = CreateThread(NULL,0,CompressThreadProc,this,0,&dwCompressId);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Compress Image - CreateCompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
+			,dwCompressId,hCompressThread);
+	}
 
 	UINT nCount = 0;
 	UINT nCurrentTargetCount = GetCurrentTargetCount();
@@ -441,9 +453,12 @@ BOOL CWpdDevice::OnMakeImage()
 	}
 	delete []hWriteThreads;
 
-	//等待压缩线程结束
-	WaitForSingleObject(hCompressThread,INFINITE);
-	CloseHandle(hCompressThread);
+	if (m_bDataCompress)
+	{
+		//等待压缩线程结束
+		WaitForSingleObject(hCompressThread,INFINITE);
+		CloseHandle(hCompressThread);
+	}
 
 	//等待读磁盘线程结束
 	WaitForSingleObject(hReadThread,INFINITE);
@@ -917,8 +932,9 @@ BOOL CWpdDevice::OnCopyImage()
 	}
 
 	m_ullValidSize = imgHead.ullValidSize;
-	m_ullCapacity = imgHead.ullImageSize;
+	m_ullImageSize = imgHead.ullImageSize;
 	m_dwPkgOffset = imgHead.dwPkgOffset;
+	m_bDataCompress = (imgHead.byUnCompress == 0) ? TRUE : FALSE;
 
 	HashMethod hashMethod = (HashMethod)imgHead.dwHashType;
 
@@ -963,9 +979,16 @@ BOOL CWpdDevice::OnCopyImage()
 		,m_MasterPort->GetFileName(),dwReadId,hReadThread);
 
 	// 创建多个解压缩线程
-	HANDLE hUncompressThread = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Copy Image - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
-		,dwUncompressId,hUncompressThread);
+	HANDLE hUncompressThread = NULL;
+
+	if (m_bDataCompress)
+	{
+		hUncompressThread = CreateThread(NULL,0,UnCompressThreadProc,this,0,&dwUncompressId);
+
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Copy Image - CreateUncompressThread,ThreadId=0x%04X,HANDLE=0x%04X")
+			,dwUncompressId,hUncompressThread);
+
+	}
 
 	UINT nCount = 0;
 	UINT nCurrentTargetCount = GetCurrentTargetCount();
@@ -1007,9 +1030,12 @@ BOOL CWpdDevice::OnCopyImage()
 	}
 	delete []hWriteThreads;
 
-	// 等待解压缩线程结束
-	WaitForSingleObject(hUncompressThread,INFINITE);
-	CloseHandle(hUncompressThread);
+	if (m_bDataCompress)
+	{
+		// 等待解压缩线程结束
+		WaitForSingleObject(hUncompressThread,INFINITE);
+		CloseHandle(hUncompressThread);
+	}
 
 	//等待读磁盘线程结束
 	WaitForSingleObject(hReadThread,INFINITE);
@@ -1312,12 +1338,22 @@ BOOL CWpdDevice::ReadWpdFiles()
 	}
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	POSITION pos = m_MasterFileObjectsList.GetHeadPosition();
 	ULONGLONG ullFileSize = 0;
@@ -1397,6 +1433,8 @@ BOOL CWpdDevice::ReadWpdFiles()
 				break;
 			}
 
+			QueryPerformanceCounter(&t2);
+
 			PDATA_INFO dataInfo = new DATA_INFO;
 			ZeroMemory(dataInfo,sizeof(DATA_INFO));
 			dataInfo->szFileName = new TCHAR[strObjectID.GetLength() + 1];
@@ -1407,9 +1445,34 @@ BOOL CWpdDevice::ReadWpdFiles()
 			dataInfo->pData = new BYTE[dwLen];
 			memcpy(dataInfo->pData,pByte,dwLen);
 
-			if (m_WorkMode == WorkMode_ImageMake)
+			if (m_WorkMode == WorkMode_ImageMake && m_bDataCompress)
 			{
 				m_CompressQueue.AddTail(dataInfo);
+			}
+			else if (m_WorkMode == WorkMode_ImageMake)
+			{
+				// 不压缩，加上文件头和文件尾
+				PDATA_INFO compressData = new DATA_INFO;
+				ZeroMemory(compressData,sizeof(DATA_INFO));
+
+				compressData->dwDataSize = dataInfo->dwDataSize + sizeof(ULONGLONG) + sizeof(DWORD) + 1;
+				compressData->dwOldSize = dataInfo->dwDataSize;
+				compressData->pData = new BYTE[compressData->dwDataSize];
+				ZeroMemory(compressData->pData,compressData->dwDataSize);
+
+				compressData->pData[compressData->dwDataSize - 1] = 0xED; //结束标志
+
+				memcpy(compressData->pData,&dataInfo->ullOffset,sizeof(ULONGLONG));
+				memcpy(compressData->pData + sizeof(ULONGLONG),&compressData->dwDataSize,sizeof(DWORD));
+				memcpy(compressData->pData + sizeof(ULONGLONG) + sizeof(DWORD),pByte,dwLen);
+
+				AddDataQueueList(compressData);
+
+				delete []compressData->pData;
+				delete []compressData;
+
+				delete []dataInfo->pData;
+				delete dataInfo;
 			}
 			else
 			{
@@ -1430,10 +1493,10 @@ BOOL CWpdDevice::ReadWpdFiles()
 
 			ullCompleteSize += dwLen;
 
-			QueryPerformanceCounter(&t2);
+			QueryPerformanceCounter(&t3);
 
 			dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-			dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+			dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 
 			m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 			m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
@@ -2625,7 +2688,12 @@ BOOL CWpdDevice::WriteLocalImage( CPort *port,CDataQueue *pDataQueue )
 		{
 			continue;
 		}
-		*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+
+		if (m_bDataCompress)
+		{
+			*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+		}
+		
 		ullPkgIndex++;
 
 		QueryPerformanceCounter(&t1);
@@ -2706,6 +2774,8 @@ BOOL CWpdDevice::WriteLocalImage( CPort *port,CDataQueue *pDataQueue )
 		imgHead.ullCapacitySize = m_MasterPort->GetTotalSize();
 		imgHead.dwBytesPerSector = m_MasterPort->GetBytesPerSector();
 		memcpy(imgHead.szZipVer,ZIP_VERSION,strlen(ZIP_VERSION));
+		imgHead.byUnCompress = m_bDataCompress ? 0 : 1;
+
 		imgHead.ullPkgCount = ullPkgIndex;
 		imgHead.ullValidSize = m_MasterPort->GetValidSize();
 		imgHead.dwHashLen = m_pMasterHashMethod->getHashLength();
@@ -3097,7 +3167,12 @@ BOOL CWpdDevice::WriteRemoteImage( CPort *port,CDataQueue *pDataQueue )
 		{
 			continue;
 		}
-		*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+
+		if (m_bDataCompress)
+		{
+			*(PULONGLONG)dataInfo->pData = ullPkgIndex;
+		}
+		
 		ullPkgIndex++;
 
 		QueryPerformanceCounter(&t1);
@@ -3220,6 +3295,8 @@ BOOL CWpdDevice::WriteRemoteImage( CPort *port,CDataQueue *pDataQueue )
 		imgHead.ullCapacitySize = m_MasterPort->GetTotalSize();
 		imgHead.dwBytesPerSector = m_MasterPort->GetBytesPerSector();
 		memcpy(imgHead.szZipVer,ZIP_VERSION,strlen(ZIP_VERSION));
+		imgHead.byUnCompress = m_bDataCompress ? 0 : 1;
+
 		imgHead.ullPkgCount = ullPkgIndex;
 		imgHead.ullValidSize = m_MasterPort->GetValidSize();
 		imgHead.dwHashLen = m_pMasterHashMethod->getHashLength();
@@ -3331,17 +3408,27 @@ BOOL CWpdDevice::ReadLocalImage()
 	DWORD dwLen = 0;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
 
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
+
 	ULONGLONG ullReadSize = m_dwPkgOffset;
 	ULONGLONG ullOffset = m_dwPkgOffset;
 
-	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
+	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
 		// 判断队列是否达到限制值
@@ -3403,27 +3490,43 @@ BOOL CWpdDevice::ReadLocalImage()
 			break;
 		}
 
+		QueryPerformanceCounter(&t2);
+
 		PDATA_INFO dataInfo = new DATA_INFO;
 		ZeroMemory(dataInfo,sizeof(DATA_INFO));
-		dataInfo->ullOffset = ullOffset;
+		dataInfo->ullOffset = *(PULONGLONG)pByte;
 		dataInfo->dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
 		dataInfo->pData = new BYTE[dataInfo->dwDataSize];
 		memcpy(dataInfo->pData,&pByte[PKG_HEADER_SIZE],dataInfo->dwDataSize);
-		m_CompressQueue.AddTail(dataInfo);
+
 		delete []pByte;
+
+		if (m_bDataCompress)
+		{
+			m_CompressQueue.AddTail(dataInfo);
+		}
+		else
+		{
+			AddDataQueueList(dataInfo);
+
+			m_pMasterHashMethod->update(dataInfo->pData,dataInfo->dwDataSize);
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+		}
 
 		ullOffset += dwLen;
 		ullReadSize += dwLen;
 
-		QueryPerformanceCounter(&t2);
+		QueryPerformanceCounter(&t3);
 
 		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+		dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
-		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
 	}
 
@@ -3534,7 +3637,7 @@ BOOL CWpdDevice::ReadRemoteImage()
 	DWORD dwLen = 0;
 
 	// 计算精确速度
-	LARGE_INTEGER freq,t0,t1,t2;
+	LARGE_INTEGER freq,t0,t1,t2,t3;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
 
 	WSAOVERLAPPED ol = {0};
@@ -3543,6 +3646,16 @@ BOOL CWpdDevice::ReadRemoteImage()
 	QueryPerformanceFrequency(&freq);
 
 	m_MasterPort->Active();
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	// 发送COPY IMAGE命令
 	CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
@@ -3562,7 +3675,7 @@ BOOL CWpdDevice::ReadRemoteImage()
 	memcpy(sendBuf,&copyImageIn,sizeof(CMD_IN));
 	memcpy(sendBuf + sizeof(CMD_IN),fileName,strlen(fileName));
 
-	while (bResult && !*m_lpCancel && ullReadSize < m_ullCapacity && m_MasterPort->GetPortState() == PortState_Active)
+	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
 		// 判断队列是否达到限制值
@@ -3667,17 +3780,32 @@ BOOL CWpdDevice::ReadRemoteImage()
 			break;
 		}
 
+		QueryPerformanceCounter(&t2);
 
 		// 去除尾部标志
 		dwLen -= 1;
 
 		PDATA_INFO dataInfo = new DATA_INFO;
 		ZeroMemory(dataInfo,sizeof(DATA_INFO));
+
+		dataInfo->ullOffset = *(PULONGLONG)pByte;
 		dataInfo->dwDataSize = dwLen - PKG_HEADER_SIZE - 1;
 		dataInfo->pData = new BYTE[dataInfo->dwDataSize];
 		memcpy(dataInfo->pData,&pByte[PKG_HEADER_SIZE],dataInfo->dwDataSize);
 
-		m_CompressQueue.AddTail(dataInfo);
+		if (m_bDataCompress)
+		{
+			m_CompressQueue.AddTail(dataInfo);
+		}
+		else
+		{
+			AddDataQueueList(dataInfo);
+
+			m_pMasterHashMethod->update(dataInfo->pData,dataInfo->dwDataSize);
+
+			delete []dataInfo->pData;
+			delete dataInfo;
+		}
 
 		// 写文件
 		if (m_hImage != INVALID_HANDLE_VALUE)
@@ -3692,15 +3820,15 @@ BOOL CWpdDevice::ReadRemoteImage()
 
 		ullReadSize += dwLen;
 
-		QueryPerformanceCounter(&t2);
+		QueryPerformanceCounter(&t3);
 
 		dbTimeNoWait = (double)(t2.QuadPart - t1.QuadPart) / (double)freq.QuadPart; // 秒
-		dbTimeWait = (double)(t2.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
+		dbTimeWait = (double)(t3.QuadPart - t0.QuadPart) / (double)freq.QuadPart; // 秒
 		m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 		m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
-		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullCapacity);
+		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
 	}
 
@@ -3831,6 +3959,16 @@ BOOL CWpdDevice::Compress()
 	// 计算精确速度
 	LARGE_INTEGER freq,t0,t1,t2;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	QueryPerformanceFrequency(&freq);
 	while (!*m_lpCancel && m_MasterPort->GetResult())
@@ -3973,6 +4111,16 @@ BOOL CWpdDevice::Uncompress()
 	// 计算精确速度
 	LARGE_INTEGER freq,t0,t1,t2;
 	double dbTimeNoWait = 0.0,dbTimeWait = 0.0;
+
+	// 等待其他线程创建好,最多等5次
+	Sleep(100);
+
+	int nTimes = 5;
+	while (!IsTargetsReady() && nTimes > 0)
+	{
+		Sleep(100);
+		nTimes--;
+	}
 
 	QueryPerformanceFrequency(&freq);
 
@@ -4118,6 +4266,26 @@ UINT CWpdDevice::GetCurrentTargetCount()
 void CWpdDevice::SetCompareParm( BOOL bCompare,CompareMethod method )
 {
 	m_bCompare = bCompare;
+}
+
+bool CWpdDevice::IsTargetsReady()
+{
+	POSITION pos = m_TargetPorts->GetHeadPosition();
+	bool bReady = true;
+	while (pos)
+	{
+		CPort *port = m_TargetPorts->GetNext(pos);
+
+		if (port->IsConnected() && port->GetPortState() != PortState_Active)
+		{
+			bReady = false;
+
+			break;
+		}
+
+	}
+
+	return bReady;
 }
 
 

@@ -41,6 +41,17 @@
 //                            2.修改栈内存大小为10000000
 //                            3.修改针对NFGG的电源控制
 //v1.0.9.1 2014-12-03 Binggoo 1.为了避免造成内存不够用的情况，取消数据块扇区数为1024和512的设置。
+//         2014-12-18 Binggoo 2.把从MBR到第一个分区之间的数据都记为有效数据
+//v1.0.9.2 2014-12-18 Binggoo 1.EXT文件系统的Bitmap长度要取Block长度的整数倍。
+//                            2.解决磁盘比较选择By-Byte方式时，母盘不显示PASS的问题。
+//                            3.解决英文版快速拷贝设置时报错问题。
+//v1.1.0.0 2014-12-22 Binggoo 1.修改读写磁盘不经过系统缓存，直接对磁盘进行读写。
+//                            2.解决由于线程不同步导致的丢包问题。
+//                            3.新增母盘和子盘容量必须相同的全局参数。如果全盘拷贝中设置允许容量误差选项，此参数无效。
+//                            4.制作映像参数设置中加入数据是否压缩选项。
+//                            5.快速拷贝和快速映像中，用户可以自定义需要拷贝的区域，此功能可以用于母盘中存在特殊分区或无法分析的分区。
+//                            6.解决TS-117N当接入子盘后有可能导不出LOG的问题。
+//                            7.解决磁盘比对中加入按字节比对后选择HASH比对无效的问题。
 
 
 #include "stdafx.h"
@@ -130,6 +141,7 @@ CUSBCopyDlg::CUSBCopyDlg(CWnd* pParent /*=NULL*/)
 	m_bResult = TRUE;
 	m_bRunning = FALSE;
 	m_bUpdate = FALSE;
+	m_bExportLog = FALSE;
 	m_bBurnInTest = FALSE;
 	m_bStart = FALSE;
 	m_bLisence = FALSE;
@@ -177,6 +189,8 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_UPDATE_FUNCTION, &CUSBCopyDlg::OnUpdateFunction)
 	ON_MESSAGE(WM_SET_BURN_IN_TEXT, &CUSBCopyDlg::OnSetBurnInText)
 	ON_MESSAGE(WM_INIT_CURRENT_WORKMODE, &CUSBCopyDlg::OnInitCurrentWorkmode)
+	ON_MESSAGE(WM_EXPORT_LOG_START, &CUSBCopyDlg::OnExportLogStart)
+	ON_MESSAGE(WM_EXPORT_LOG_END, &CUSBCopyDlg::OnExportLogEnd)
 END_MESSAGE_MAP()
 
 
@@ -1919,10 +1933,12 @@ void CUSBCopyDlg::OnStart()
 
 	HashMethod hashMethod = (HashMethod)m_Config.GetInt(_T("Option"),_T("HashMethod"),0);
 	UINT nBlockSectors = m_Config.GetUInt(_T("Option"),_T("BlockSectors"),256); // 默认128KB
+	BOOL bMustSameCapacity = m_Config.GetBool(_T("Option"),_T("En_SameCapacity"),FALSE);
 
 	CDisk disk;
 	disk.Init(m_hWnd,&m_bCancel,m_hLogFile,&m_Command,nBlockSectors);
 	disk.SetWorkMode(m_WorkMode);
+	disk.SetGlobalParm(bMustSameCapacity);
 
 	CString strMsg,strWorkMode;
 	BOOL bResult = TRUE;
@@ -2079,6 +2095,31 @@ void CUSBCopyDlg::OnStart()
 			CString strFillValues = m_Config.GetString(_T("QuickCopy"),_T("FillValues"));
 			CompareCleanSeq seq = (CompareCleanSeq)m_Config.GetInt(_T("QuickCopy"),_T("CompareCleanSeq"),0);
 
+			int nNumOfArea = m_Config.GetInt(_T("QuickCopy"),_T("NumOfArea"),0);
+
+			PRANGE_FROM_TO ranges = NULL;
+
+			if (nNumOfArea > 0)
+			{
+				ranges = new RANGE_FROM_TO[nNumOfArea];
+
+				CString strKey;
+				ULONGLONG ullStartLBA = 0, ullEndLBA = 0;
+				for (int i = 0; i < nNumOfArea;i++)
+				{
+					strKey.Format(_T("StartLBA_%d"),i);
+
+					ullStartLBA = m_Config.GetUInt64(_T("QuickCopy"),strKey,0);
+
+					strKey.Format(_T("EndLBA_%d"),i);
+
+					ullEndLBA = m_Config.GetUInt64(_T("QuickCopy"),strKey,0);
+
+					ranges[i].ullStartLBA = ullStartLBA;
+					ranges[i].ullEndingLBA = ullEndLBA;
+				}
+			}
+
 			if (nCleanTimes < 0 || nCleanTimes > 3)
 			{
 				nCleanTimes = 1;
@@ -2131,6 +2172,12 @@ void CUSBCopyDlg::OnStart()
 			disk.SetHashMethod(bComputeHash,hashMethod);
 			disk.SetCompareParm(bCompare,compareMethod);
 			disk.SetCleanDiskFirst(bCleanDiskFirst,bCompareClean,seq,nCleanTimes,pCleanFillValues);
+			disk.SetQuickCopyParm(ranges,nNumOfArea);
+
+			if (ranges)
+			{
+				delete []ranges;
+			}
 			delete []pCleanFillValues;
 
 			bResult = disk.Start();
@@ -2375,7 +2422,33 @@ void CUSBCopyDlg::OnStart()
 			BOOL bServerFirst = m_Config.GetBool(_T("ImageMake"),_T("SavePath"),FALSE);
 			int compressLevel = m_Config.GetInt(_T("ImageMake"),_T("CompressLevel"),1);
 			UINT nImageMode = m_Config.GetInt(_T("ImageMake"),_T("SaveMode"),0);
+			BOOL bDataCompress = m_Config.GetBool(_T("ImageMake"),_T("En_DataCompress"),TRUE);
 			BOOL bMtpImage = (nImageMode == 2);
+
+			int nNumOfArea = m_Config.GetInt(_T("ImageMake"),_T("NumOfArea"),0);
+
+			PRANGE_FROM_TO ranges = NULL;
+
+			if (nNumOfArea > 0)
+			{
+				ranges = new RANGE_FROM_TO[nNumOfArea];
+
+				CString strKey;
+				ULONGLONG ullStartLBA = 0, ullEndLBA = 0;
+				for (int i = 0; i < nNumOfArea;i++)
+				{
+					strKey.Format(_T("StartLBA_%d"),i);
+
+					ullStartLBA = m_Config.GetUInt64(_T("ImageMake"),strKey,0);
+
+					strKey.Format(_T("EndLBA_%d"),i);
+
+					ullEndLBA = m_Config.GetUInt64(_T("ImageMake"),strKey,0);
+
+					ranges[i].ullStartLBA = ullStartLBA;
+					ranges[i].ullEndingLBA = ullEndLBA;
+				}
+			}
 
 			// 设置端口状态
 			m_MasterPort.SetHashMethod(hashMethod);
@@ -2423,7 +2496,8 @@ void CUSBCopyDlg::OnStart()
 				wpdDevice.SetMasterPort(&m_MasterPort);
 				wpdDevice.SetTargetPorts(&filePortList);
 				wpdDevice.SetHashMethod(TRUE,hashMethod);
-				wpdDevice.SetSocket(m_ClientSocket,bServerFirst,compressLevel);
+				wpdDevice.SetSocket(m_ClientSocket,bServerFirst);
+				wpdDevice.SetMakeImageParm(bDataCompress,compressLevel);
 
 				bResult = wpdDevice.Start();
 			}
@@ -2433,9 +2507,15 @@ void CUSBCopyDlg::OnStart()
 				disk.SetTargetPorts(&filePortList);
 				disk.SetHashMethod(TRUE,hashMethod);
 				disk.SetSocket(m_ClientSocket,bServerFirst);
-				disk.SetMakeImageParm(nImageMode,compressLevel);
+				disk.SetMakeImageParm(nImageMode,bDataCompress,compressLevel);
+				disk.SetQuickCopyParm(ranges,nNumOfArea);
 
 				bResult = disk.Start();
+			}
+
+			if (ranges)
+			{
+				delete []ranges;
 			}
 
 			CString strHashValue;
@@ -2597,7 +2677,7 @@ void CUSBCopyDlg::OnStart()
 				wpdDevice.SetTargetPorts(&m_TargetPorts);
 				wpdDevice.SetHashMethod(TRUE,hashMethod);
 				wpdDevice.SetCompareParm(bCompare,CompareMethod_Hash);
-				wpdDevice.SetSocket(m_ClientSocket,m_bServerFirst,1);
+				wpdDevice.SetSocket(m_ClientSocket,m_bServerFirst);
 
 				bResult = wpdDevice.Start();
 			}
@@ -3476,6 +3556,10 @@ CString CUSBCopyDlg::GetCustomErrorMsg( CustomError customError )
 		case CustomError_WriteSpeed_Slow:
 			strError = _T("Write speed slow.");
 			break;
+
+		case CustomError_Master_Target_Size_Not_Same:
+			strError = _T("Not same size.");
+			break;
 	}
 
 	return strError;
@@ -4091,7 +4175,7 @@ void CUSBCopyDlg::MatchDevice()
 
 				// 如果是TF卡拷贝机则必须重新上电，如果是USB拷贝机则不需要
 
-				if (m_nMachineType == MT_TS)
+				if (m_nMachineType == MT_TS && !m_bExportLog)
 				{
 					// 重新上电
 					m_Command.Power(port->GetPortNum(),FALSE);
@@ -4110,7 +4194,7 @@ void CUSBCopyDlg::MatchDevice()
 
 			// 如果是TF卡拷贝机则必须重新上电，如果是USB拷贝机则不需要
 
-			if (m_nMachineType == MT_TS)
+			if (m_nMachineType == MT_TS && !m_bExportLog)
 			{
 				// 重新上电
 				m_Command.Power(port->GetPortNum(),FALSE);
@@ -5295,5 +5379,19 @@ DWORD WINAPI CUSBCopyDlg::StopThreadProc( LPVOID lpParm )
 afx_msg LRESULT CUSBCopyDlg::OnInitCurrentWorkmode(WPARAM wParam, LPARAM lParam)
 {
 	InitialCurrentWorkMode();
+	return 0;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnExportLogStart(WPARAM wParam, LPARAM lParam)
+{
+	m_bExportLog = TRUE;
+	return 0;
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnExportLogEnd(WPARAM wParam, LPARAM lParam)
+{
+	m_bExportLog = FALSE;
 	return 0;
 }

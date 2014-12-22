@@ -101,7 +101,6 @@ BOOL CImageCopySetting::OnInitDialog()
 		GetDlgItem(IDC_COMBO_CLEAN_TIMES)->EnableWindow(m_bCleanDiskFirst);
 		GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(m_bCleanDiskFirst);
 		GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(m_bCleanDiskFirst);
-		GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(TRUE);
 		GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
 		GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 	}
@@ -161,7 +160,7 @@ void CImageCopySetting::OnBnClickedRadioDiskImage()
 	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(m_bCleanDiskFirst);
 	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(m_bCleanDiskFirst);
 
-	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(TRUE);
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
 }
 
 

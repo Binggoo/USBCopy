@@ -19,7 +19,8 @@ public:
 	void SetHashMethod(BOOL bComputeHash,HashMethod hashMethod);
 	void SetCompareParm(BOOL bCompare,CompareMethod method);
 	void SetWorkMode(WorkMode workMode);
-	void SetSocket(SOCKET sClient,BOOL bServerFirst,int compressLevel);
+	void SetSocket(SOCKET sClient,BOOL bServerFirst);
+	void SetMakeImageParm(BOOL bCompress,int compressLevel);
 
 	BOOL Start();
 
@@ -46,6 +47,7 @@ private:
 
 	// 2014-11-14 增加MTP Image Copy
 	BOOL m_bCompressComplete; //压缩线程和解压线程是否结束
+	BOOL m_bDataCompress;
 
 	//映像拷贝参数
 	SOCKET m_ClientSocket;
@@ -56,7 +58,7 @@ private:
 
 	// Image文件中的一些有用值
 	HANDLE    m_hImage;
-	ULONGLONG m_ullCapacity;
+	ULONGLONG m_ullImageSize;
 	DWORD     m_dwPkgOffset;
 
 	CListFileObjects m_MasterFolderObjectsList;
@@ -76,6 +78,8 @@ private:
 	void AddDataQueueList(PDATA_INFO dataInfo);
 	bool IsReachLimitQty(int limit);
 	UINT GetCurrentTargetCount();
+
+	bool IsTargetsReady();
 
 	// 线程
 	static DWORD WINAPI ReadWpdFilesThreadProc(LPVOID lpParm);

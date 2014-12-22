@@ -33,6 +33,10 @@ private:
 
 	int m_nCompareCleanSeqIndex;
 
+	CListCtrl m_ListCtrl;
+
+	void InitialListCtrl();
+
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV Ö§³Ö
 
@@ -51,4 +55,6 @@ public:
 	afx_msg void OnBnClickedCheckCleanDisk();
 	afx_msg void OnCbnSelchangeComboCleanTimes();
 	afx_msg void OnBnClickedRadioHashCompare();
+	afx_msg void OnBnClickedBtnAdd();
+	afx_msg void OnBnClickedBtnRemove();
 };

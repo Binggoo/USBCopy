@@ -24,6 +24,7 @@ CGlobalSetting::CGlobalSetting(CWnd* pParent /*=NULL*/)
 	, m_bCheckShowCursor(FALSE)
 	, m_bCheckBeep(FALSE)
 	, m_strEditServerIP(_T(""))
+	, m_bCheckSameCapacity(FALSE)
 {
 	m_pIni = NULL;
 	m_bSocketConnected = FALSE;
@@ -50,6 +51,7 @@ void CGlobalSetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_CHECK_SHOW_CURSOR, m_bCheckShowCursor);
 	DDX_Check(pDX, IDC_CHECK_BEEP, m_bCheckBeep);
 	DDX_Text(pDX, IDC_EDIT_SERVER_IP, m_strEditServerIP);
+	DDX_Check(pDX,IDC_CHECK_SAME_CAPACITY,m_bCheckSameCapacity);
 }
 
 
@@ -82,6 +84,8 @@ BOOL CGlobalSetting::OnInitDialog()
 //	m_ComboBoxBlockSectors.AddString(_T("512")); //256KB
 	m_ComboBoxBlockSectors.AddString(_T("256")); //128KB
 	m_ComboBoxBlockSectors.AddString(_T("128")); //64KB
+	m_ComboBoxBlockSectors.AddString(_T("64")); //32KB
+	m_ComboBoxBlockSectors.AddString(_T("32")); //16KB
 
 	m_ComboBoxKickOffTimeInterval.AddString(_T("5"));
 	m_ComboBoxKickOffTimeInterval.AddString(_T("10"));
@@ -125,6 +129,8 @@ BOOL CGlobalSetting::OnInitDialog()
 	m_iHashMethod = m_pIni->GetInt(_T("Option"),_T("HashMethod"),0);
 
 	m_strEditAlias = m_pIni->GetString(_T("Option"),_T("MachineAlias"),_T("PHIYO"));
+
+	m_bCheckSameCapacity = m_pIni->GetBool(_T("Option"),_T("En_SameCapacity"),FALSE);
 
 	CString strResText;
 	if (m_bSocketConnected)
@@ -190,6 +196,8 @@ void CGlobalSetting::OnBnClickedOk()
 	m_pIni->WriteInt(_T("Option"),_T("HashMethod"),m_iHashMethod);
 
 	m_pIni->WriteString(_T("Option"),_T("MachineAlias"),m_strEditAlias);
+
+	m_pIni->WriteBool(_T("Option"),_T("En_SameCapacity"),m_bCheckSameCapacity);
 
 	CDialogEx::OnOK();
 }

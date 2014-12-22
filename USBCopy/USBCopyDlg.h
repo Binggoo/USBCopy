@@ -74,6 +74,7 @@ private:
 	BOOL          m_bResult;
 	BOOL          m_bRunning;
 	BOOL          m_bUpdate;
+	BOOL          m_bExportLog;
 
 	CWinThread    *m_ThreadListen;
 
@@ -194,4 +195,6 @@ protected:
 	afx_msg LRESULT OnUpdateFunction(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnSetBurnInText(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnInitCurrentWorkmode(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnExportLogStart(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnExportLogEnd(WPARAM wParam, LPARAM lParam);
 };

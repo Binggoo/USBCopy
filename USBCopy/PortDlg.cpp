@@ -580,7 +580,6 @@ void CPortDlg::UpdateState()
 	SetDlgItemText(IDC_TEXT_SIZE,strSize);
 	SetDlgItemText(IDC_TEXT_SN,strSN);
 	m_ProgressCtrl.SetPos(iPercent);
-
 	
 
 	if (!strUSBType.IsEmpty())

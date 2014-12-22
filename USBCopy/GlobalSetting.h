@@ -43,6 +43,7 @@ private:
 	BOOL m_bCheckShowCursor;
 	BOOL m_bCheckBeep;
 	CString m_strEditServerIP;
+	BOOL m_bCheckSameCapacity;
 public:
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnCbnEditchangeComboScanDiskTime();

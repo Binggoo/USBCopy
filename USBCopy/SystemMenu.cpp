@@ -307,6 +307,8 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 
 	GetDlgItem(IDC_BTN_EXPORT_LOG)->EnableWindow(FALSE);
 
+	::SendMessage(GetParent()->GetSafeHwnd(),WM_EXPORT_LOG_START,0,0);
+
 	
 	// È«²¿¶Ïµç
 	m_pCommand->ResetPower();
@@ -424,6 +426,8 @@ void CSystemMenu::OnBnClickedButtonExportLog()
 	}
 	
 	GetDlgItem(IDC_BTN_EXPORT_LOG)->EnableWindow(TRUE);
+
+	::SendMessage(GetParent()->GetSafeHwnd(),WM_EXPORT_LOG_END,0,0);
 
 	CDialogEx::OnOK();
 	
