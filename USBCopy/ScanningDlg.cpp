@@ -625,8 +625,8 @@ void CScanningDlg::ScanningMTPDevice()
 					strModel.ReleaseBuffer();
 					strSN.ReleaseBuffer();
 
-					LPWSTR *ppwszObjectIDs = NULL;
-					DWORD dwObjects = EnumStorageIDs(pIPortableDevice,&ppwszObjectIDs);
+					LPWSTR ppwszObjectIDs[NUM_OBJECTS_TO_REQUEST] = {NULL};
+					DWORD dwObjects = EnumStorageIDs(pIPortableDevice,ppwszObjectIDs);
 
 					ULONGLONG ullTotalSize = 0,ullFreeSize = 0;
 					if (dwObjects > 0)
@@ -635,12 +635,10 @@ void CScanningDlg::ScanningMTPDevice()
 
 						for (DWORD index = 0; index < dwObjects;index++)
 						{
-							delete []ppwszObjectIDs[index];
+							//delete []ppwszObjectIDs[index];
+							CoTaskMemFree(ppwszObjectIDs[index]);
 							ppwszObjectIDs[index] = NULL;
 						}
-
-						delete []ppwszObjectIDs;
-						ppwszObjectIDs = NULL;
 					}
 
 

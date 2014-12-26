@@ -5431,7 +5431,7 @@ BOOL CDisk::ReadDisk()
 					AddDataQueueList(compressData);
 
 					delete []compressData->pData;
-					delete []compressData;
+					delete compressData;
 
 					delete []dataInfo->pData;
 					delete dataInfo;
@@ -8259,7 +8259,7 @@ BOOL CDisk::Compress()
 			AddDataQueueList(compressData);
 
 			delete []compressData->pData;
-			delete []compressData;
+			delete compressData;
 
 			QueryPerformanceCounter(&t3);
 

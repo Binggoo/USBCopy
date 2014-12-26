@@ -1469,7 +1469,7 @@ BOOL CWpdDevice::ReadWpdFiles()
 				AddDataQueueList(compressData);
 
 				delete []compressData->pData;
-				delete []compressData;
+				delete compressData;
 
 				delete []dataInfo->pData;
 				delete dataInfo;
@@ -1596,9 +1596,9 @@ BOOL CWpdDevice::WriteWpdFiles( CPort* port,CDataQueue *pDataQueue,CMapStringToS
 	}
 
 	// ªÒ»°Storage ID
-	LPWSTR *ppwszObjectIDs = NULL;
+	LPWSTR ppwszObjectIDs[NUM_OBJECTS_TO_REQUEST] = {NULL};
 	CString strStorageID;
-	DWORD dwObjects = EnumStorageIDs(pIPortableDevice,&ppwszObjectIDs);
+	DWORD dwObjects = EnumStorageIDs(pIPortableDevice,ppwszObjectIDs);
 
 	if (dwObjects == 0)
 	{
@@ -1616,12 +1616,10 @@ BOOL CWpdDevice::WriteWpdFiles( CPort* port,CDataQueue *pDataQueue,CMapStringToS
 
 	for (DWORD index = 0; index < dwObjects;index++)
 	{
-		delete []ppwszObjectIDs[index];
+		//delete []ppwszObjectIDs[index];
+		CoTaskMemFree(ppwszObjectIDs[index]);
 		ppwszObjectIDs[index] = NULL;
 	}
-
-	delete []ppwszObjectIDs;
-	ppwszObjectIDs = NULL;
 
 	// «Âø’DEVICE
 	CleanupDeviceStorage(pIPortableDevice,strStorageID);
@@ -4048,7 +4046,7 @@ BOOL CWpdDevice::Compress()
 			AddDataQueueList(compressData);
 
 			delete []compressData->pData;
-			delete []compressData;
+			delete compressData;
 
 			QueryPerformanceCounter(&t2);
 

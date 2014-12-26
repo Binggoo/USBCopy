@@ -27,7 +27,7 @@ HRESULT OpenDevice(IPortableDevice** ppDevice,LPCWSTR wszPnPDeviceID);
 HRESULT CloseDevice(IPortableDevice* pDevice);
 void GetDeviceModelAndSerialNumber(IPortableDevice* pDevice,LPWSTR pwszModelName,LPWSTR pwszSerialNumber);
 void GetStorageFreeAndTotalCapacity(IPortableDevice* pDevice,LPCTSTR wszObjectID,PULONGLONG pullFreeSize,PULONGLONG pullTotalSize);
-DWORD EnumStorageIDs(IPortableDevice* pDevice,LPWSTR **ppwszObjectIDs);
+DWORD EnumStorageIDs(IPortableDevice* pDevice,LPWSTR *ppwszObjectIDs);
 
 HRESULT ReadWpdFile(IStream *pStream,LPVOID lpBuffer,DWORD &dwNumberOfBytesToRead);
 HRESULT WriteWpdFile(IStream *pStream,LPCVOID lpBuffer,DWORD &dwNumberOfBytesToWrite);

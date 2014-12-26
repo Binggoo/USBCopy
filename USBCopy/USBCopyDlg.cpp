@@ -52,6 +52,7 @@
 //                            5.快速拷贝和快速映像中，用户可以自定义需要拷贝的区域，此功能可以用于母盘中存在特殊分区或无法分析的分区。
 //                            6.解决TS-117N当接入子盘后有可能导不出LOG的问题。
 //                            7.解决磁盘比对中加入按字节比对后选择HASH比对无效的问题。
+//v1.1.1.0 2014-12-26 Binggoo 1.解决MTP拷贝中MTP设备插有扩展卡报错的问题，目前不理会MTP设备中的扩展卡。
 
 
 #include "stdafx.h"
@@ -4258,8 +4259,8 @@ void CUSBCopyDlg::MatchMTPDevice()
 						strModel.ReleaseBuffer();
 						strSN.ReleaseBuffer();
 
-						LPWSTR *ppwszObjectIDs = NULL;
-						DWORD dwObjects = EnumStorageIDs(pIPortableDevice,&ppwszObjectIDs);
+						LPWSTR ppwszObjectIDs[NUM_OBJECTS_TO_REQUEST] = {NULL};
+						DWORD dwObjects = EnumStorageIDs(pIPortableDevice,ppwszObjectIDs);
 
 						ULONGLONG ullTotalSize = 0,ullFreeSize = 0;
 						if (dwObjects > 0)
@@ -4268,12 +4269,10 @@ void CUSBCopyDlg::MatchMTPDevice()
 
 							for (DWORD index = 0; index < dwObjects;index++)
 							{
-								delete []ppwszObjectIDs[index];
+								//delete []ppwszObjectIDs[index];
+								CoTaskMemFree(ppwszObjectIDs[index]);
 								ppwszObjectIDs[index] = NULL;
 							}
-
-							delete []ppwszObjectIDs;
-							ppwszObjectIDs = NULL;
 						}
 						
 

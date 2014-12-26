@@ -373,7 +373,7 @@ void GetStorageFreeAndTotalCapacity( IPortableDevice* pDevice,LPCTSTR wszObjectI
 	}
 }
 
-DWORD EnumStorageIDs( IPortableDevice* pDevice,LPWSTR **ppwszObjectIDs )
+DWORD EnumStorageIDs( IPortableDevice* pDevice,LPWSTR *ppwszObjectIDs )
 {
 	HRESULT                               hr = S_OK;
 	CComPtr<IPortableDeviceContent>       pContent;
@@ -406,22 +406,19 @@ DWORD EnumStorageIDs( IPortableDevice* pDevice,LPWSTR **ppwszObjectIDs )
 				&cFetched);               // Number of objects written to the PWSTR array
 			if (SUCCEEDED(hr))
 			{
-				if (cFetched > 0)
-				{
-					*ppwszObjectIDs = new LPWSTR[cFetched];
-				}
-
 				// Traverse the results of the Next() operation and recursively enumerate
 				// Remember to free all returned object identifiers using CoTaskMemFree()
 				for (DWORD dwIndex = 0; dwIndex < cFetched; dwIndex++)
 				{
-					size_t len = wcslen(szObjectIDArray[dwIndex]) + 1;
-					*ppwszObjectIDs[dwIndex] = new WCHAR[len];
-					wcscpy_s(*ppwszObjectIDs[dwIndex],len,szObjectIDArray[dwIndex]);
+// 					size_t len = wcslen(szObjectIDArray[dwIndex]) + 1;
+// 					*ppwszObjectIDs[dwIndex] = new WCHAR[len];
+// 					wcscpy_s(*ppwszObjectIDs[dwIndex],len,szObjectIDArray[dwIndex]);
+// 
+// 					// Free allocated PWSTRs after the recursive enumeration call has completed.
+// 					CoTaskMemFree(szObjectIDArray[dwIndex]);
+// 					szObjectIDArray[dwIndex] = NULL;
 
-					// Free allocated PWSTRs after the recursive enumeration call has completed.
-					CoTaskMemFree(szObjectIDArray[dwIndex]);
-					szObjectIDArray[dwIndex] = NULL;
+					ppwszObjectIDs[dwIndex] = szObjectIDArray[dwIndex];
 				}
 
 				return cFetched;
