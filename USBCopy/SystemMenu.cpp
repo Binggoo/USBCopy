@@ -245,7 +245,7 @@ void CSystemMenu::OnBnClickedButtonImageManager()
 	}
 
 	CImageManager imgManager;
-	imgManager.SetConfig(m_pIni);
+	imgManager.SetConfig(m_pIni,m_pCommand,m_nMachineType);
 	imgManager.DoModal();
 
 	CDialogEx::OnOK();

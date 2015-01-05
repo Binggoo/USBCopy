@@ -1,7 +1,7 @@
 #pragma once
 #include "afxcmn.h"
 #include "Ini.h"
-
+#include "PortCommand.h"
 // CImageManager ¶Ô»°¿ò
 
 class CImageManager : public CDialogEx
@@ -24,15 +24,24 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	virtual BOOL OnInitDialog();
-	void SetConfig(CIni *pIni);
+	void SetConfig(CIni *pIni,CPortCommand *pCommand,UINT nMachineType);
 	
 private:
 	CListCtrl m_ListImages;
 	CIni *m_pIni;
+	CPortCommand *m_pCommand;
+	UINT m_nTargetNum;
+	UINT m_nMachineType;
+
 	CString m_strImagePath;
 	CString m_strTotalSpace;
 	CString m_strUsedSpace;
 	CString m_strTotalImages;
+
+	void RunSynchImage();
+
+	static DWORD WINAPI RunSynchImageThreadProc(LPVOID lpParm);
+
 public:
 	afx_msg void OnBnClickedButtonDelete();
 	afx_msg void OnBnClickedBtnSync();

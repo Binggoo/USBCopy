@@ -52,6 +52,7 @@ BOOL CImageManager::OnInitDialog()
 	ASSERT(m_pIni);
 	m_strImagePath = m_pIni->GetString(_T("ImagePath"),_T("ImagePath"),_T("d:\\image"));
 	m_strImagePath.TrimRight(_T('\\'));
+	m_nTargetNum = m_pIni->GetInt(_T("TargetDrives"),_T("NumOfTargetDrives"),0);
 
 	// 获取使用容量和剩余容量
 	ULARGE_INTEGER   uiFreeBytesAvailableToCaller = {0}; 
@@ -80,9 +81,11 @@ BOOL CImageManager::OnInitDialog()
 	// 异常: OCX 属性页应返回 FALSE
 }
 
-void CImageManager::SetConfig( CIni *pIni )
+void CImageManager::SetConfig( CIni *pIni,CPortCommand *pCommand,UINT nMachineType )
 {
 	m_pIni = pIni;
+	m_pCommand = pCommand;
+	m_nMachineType = nMachineType;
 }
 
 DWORD CImageManager::EnumImage()
@@ -166,6 +169,17 @@ void CImageManager::OnBnClickedButtonDelete()
 void CImageManager::OnBnClickedBtnSync()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	AfxBeginThread((AFX_THREADPROC)RunSynchImageThreadProc,this);
+	
+}
+
+void CImageManager::RunSynchImage()
+{
+
+	GetDlgItem(IDC_BTN_SYNC)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BTN_DELETE)->EnableWindow(FALSE);
+	GetDlgItem(IDOK)->EnableWindow(FALSE);
+
 	STARTUPINFO si;
 	PROCESS_INFORMATION pi;
 	ZeroMemory(&si,sizeof(STARTUPINFO));
@@ -178,8 +192,39 @@ void CImageManager::OnBnClickedBtnSync()
 	CString strCmd = _T("SyncImage.exe");
 	if (CreateProcess(NULL,strCmd.GetBuffer(),NULL,NULL,FALSE,0,NULL,strPath,&si,&pi))
 	{
+
+		::SendMessage(GetParent()->GetParent()->GetSafeHwnd(),WM_EXPORT_LOG_START,0,0);
+		// 全部断电
+		m_pCommand->ResetPower();
+
+		WaitForSingleObject(pi.hProcess,INFINITE);
+
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
-		CDialogEx::OnOK();
+
+		if (m_nMachineType != MT_NGFF)
+		{
+			// 上电
+			for (UINT i = 0; i <= m_nTargetNum;i++)
+			{
+				m_pCommand->Power(i,TRUE);
+				Sleep(100);
+			}
+		}
+
+		::SendMessage(GetParent()->GetParent()->GetSafeHwnd(),WM_EXPORT_LOG_END,0,0);
 	}
+
+	GetDlgItem(IDC_BTN_SYNC)->EnableWindow(TRUE);
+	GetDlgItem(IDC_BTN_DELETE)->EnableWindow(TRUE);
+	GetDlgItem(IDOK)->EnableWindow(TRUE);
+}
+
+DWORD WINAPI CImageManager::RunSynchImageThreadProc( LPVOID lpParm )
+{
+	CImageManager *pDlg = (CImageManager *)lpParm;
+
+	pDlg->RunSynchImage();
+
+	return 1;
 }
