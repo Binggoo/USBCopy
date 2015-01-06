@@ -2228,7 +2228,7 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 					{
 						if (effData.ullSectors != 0)
 						{
-							*m_EffList.AddTail(effData);
+							m_EffList.AddTail(effData);
 						}
 
 						effData.ullStartSector += (effData.ullSectors + ntfsInfo.bySectorsPerCluster);
@@ -2238,11 +2238,11 @@ BOOL CDisk::AppendEffDataList( const PBYTE pDBR,FileSystem fileSystem,ULONGLONG 
 					ullClusterIndex++;
 				}
 
-				if (effData.ullSectors != 0)
-				{
-					*m_EffList.AddTail(effData);
-				}
+			}
 
+			if (effData.ullSectors != 0)
+			{
+				m_EffList.AddTail(effData);
 			}
 
 			delete []pBitmap;
