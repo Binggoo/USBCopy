@@ -55,6 +55,7 @@
 //v1.1.1.0 2014-12-26 Binggoo 1.解决MTP拷贝中MTP设备插有扩展卡报错的问题，目前不理会MTP设备中的扩展卡。
 //v1.1.2.0 2015-01-05 Binggoo 1.同步映像中加入映像的导入导出功能，可以从本地移动设备导入导出。
 //v1.1.3.0 2015-01-06 Binggoo 1.解决v1092版修改EXT文件系统时，改动到NTFS文件系统，导致NTFS文件系统数据分析重复的问题。
+//v1.1.4.0 2015-01-08 Binggoo 1.加入在选择拷贝之前擦除时，在擦除之前需要进行容量检查，容量检查不满足要求的子盘直接Fail，不进入擦除。
 
 
 #include "stdafx.h"
@@ -4174,6 +4175,7 @@ void CUSBCopyDlg::MatchDevice()
 			}
 			else
 			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,No disk"),port->GetPortName());
 				port->Initial();
 
 				// 如果是TF卡拷贝机则必须重新上电，如果是USB拷贝机则不需要

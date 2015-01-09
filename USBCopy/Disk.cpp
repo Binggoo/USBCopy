@@ -2693,6 +2693,76 @@ BOOL CDisk::OnCopyDisk()
 
 	m_bEnd = TRUE;
 
+	switch (m_WorkMode)
+	{
+	case WorkMode_FullCopy:
+		{
+			EFF_DATA effData;
+			effData.ullStartSector = 0;
+			effData.ullSectors = m_ullSectorNums;
+			effData.wBytesPerSector = (WORD)m_dwBytesPerSector;
+
+			m_EffList.AddTail(effData);
+
+			m_ullValidSize = GetValidSize();
+			SetValidSize(m_ullValidSize);
+		}
+
+		break;
+
+	case WorkMode_QuickCopy:
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze start......"));
+			if (!BriefAnalyze())
+			{
+				return FALSE;
+			}
+
+			// 是否有用户指定区域,如果存在直接加载列表后面
+			POSITION pos = m_ListRangeFromTo.GetHeadPosition();
+			while (pos)
+			{
+				RANGE_FROM_TO range = m_ListRangeFromTo.GetNext(pos);
+
+				CString strList;
+				strList.Format(_T("User custom area --- StartSector:%I64d  EndSector:%I64d")
+					,range.ullStartLBA,range.ullEndingLBA);
+
+				CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
+
+				if (range.ullStartLBA < m_ullSectorNums && range.ullEndingLBA <= m_ullCapacity)
+				{
+					EFF_DATA effData = {0};
+					effData.ullStartSector = range.ullStartLBA;
+					effData.ullSectors = range.ullEndingLBA - range.ullStartLBA;
+					effData.wBytesPerSector = BYTES_PER_SECTOR;
+
+					if (effData.ullSectors != 0)
+					{
+						m_EffList.AddTail(effData);
+					}
+				}
+			}
+
+			m_ullValidSize = GetValidSize();
+			SetValidSize(m_ullValidSize);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze end, valid data size=%I64d"),m_ullValidSize);
+
+		}
+		break;
+	}
+
+	CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Valid Data List:"));
+	CString strList;
+	POSITION pos = m_EffList.GetHeadPosition();
+	while (pos)
+	{
+		EFF_DATA effData = m_EffList.GetNext(pos);
+		strList.Format(_T("StartSector:%I64d  Sectors:%I64d  BytesPerSector:%d"),effData.ullStartSector,effData.ullSectors,effData.wBytesPerSector);
+		CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
+	}
+
 	// 是否要执行全盘擦除
 	if (m_bCleanDiskFirst)
 	{
@@ -2897,76 +2967,6 @@ BOOL CDisk::OnCopyDisk()
 		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Clean disk completed"));
-	}
-
-	switch (m_WorkMode)
-	{
-	case WorkMode_FullCopy:
-		{
-			EFF_DATA effData;
-			effData.ullStartSector = 0;
-			effData.ullSectors = m_ullSectorNums;
-			effData.wBytesPerSector = (WORD)m_dwBytesPerSector;
-
-			m_EffList.AddTail(effData);
-
-			m_ullValidSize = GetValidSize();
-			SetValidSize(m_ullValidSize);
-		}
-
-		break;
-
-	case WorkMode_QuickCopy:
-		{
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze start......"));
-			if (!BriefAnalyze())
-			{
-				return FALSE;
-			}
-
-			// 是否有用户指定区域,如果存在直接加载列表后面
-			POSITION pos = m_ListRangeFromTo.GetHeadPosition();
-			while (pos)
-			{
-				RANGE_FROM_TO range = m_ListRangeFromTo.GetNext(pos);
-
-				CString strList;
-				strList.Format(_T("User custom area --- StartSector:%I64d  EndSector:%I64d")
-					,range.ullStartLBA,range.ullEndingLBA);
-
-				CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
-
-				if (range.ullStartLBA < m_ullSectorNums && range.ullEndingLBA <= m_ullCapacity)
-				{
-					EFF_DATA effData = {0};
-					effData.ullStartSector = range.ullStartLBA;
-					effData.ullSectors = range.ullEndingLBA - range.ullStartLBA;
-					effData.wBytesPerSector = BYTES_PER_SECTOR;
-
-					if (effData.ullSectors != 0)
-					{
-						m_EffList.AddTail(effData);
-					}
-				}
-			}
-
-			m_ullValidSize = GetValidSize();
-			SetValidSize(m_ullValidSize);
-
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze end, valid data size=%I64d"),m_ullValidSize);
-
-		}
-		break;
-	}
-
-	CUtils::WriteLogFile(m_hLogFile,FALSE,_T("Valid Data List:"));
-	CString strList;
-	POSITION pos = m_EffList.GetHeadPosition();
-	while (pos)
-	{
-		EFF_DATA effData = m_EffList.GetNext(pos);
-		strList.Format(_T("StartSector:%I64d  Sectors:%I64d  BytesPerSector:%d"),effData.ullStartSector,effData.ullSectors,effData.wBytesPerSector);
-		CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
 	}
 
 	HANDLE hReadThread = CreateThread(NULL,0,ReadDiskThreadProc,this,0,&dwReadId);
@@ -3185,6 +3185,125 @@ BOOL CDisk::OnCopyImage()
 	DWORD dwErrorCode = 0;
 	DWORD dwLen = SIZEOF_IMAGE_HEADER;
 
+	if (m_bServerFirst)
+	{
+		USES_CONVERSION;
+		CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
+		char *fileName = W2A(strImageName);
+
+		dwLen = sizeof(CMD_IN) + strlen(fileName) + 2;
+
+		BYTE *bufSend = new BYTE[dwLen];
+		ZeroMemory(bufSend,dwLen);
+		bufSend[dwLen - 1] = END_FLAG;
+
+		CMD_IN queryImageIn = {0};
+		queryImageIn.dwCmdIn = CMD_QUERY_IMAGE_IN;
+		queryImageIn.dwSizeSend = dwLen;
+
+		memcpy(bufSend,&queryImageIn,sizeof(CMD_IN));
+		memcpy(bufSend + sizeof(CMD_IN),fileName,strlen(fileName));
+
+		if (!Send(m_ClientSocket,(char *)bufSend,dwLen,NULL,&dwErrorCode))
+		{
+			delete []bufSend;
+
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,system errorcode=%ld,%s")
+				,strImageName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+
+			return FALSE;
+		}
+
+		delete []bufSend;
+
+		QUERY_IMAGE_OUT queryImageOut = {0};
+		dwLen = sizeof(QUERY_IMAGE_OUT);
+		if (!Recv(m_ClientSocket,(char *)&queryImageOut,dwLen,NULL,&dwErrorCode))
+		{
+
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,system errorcode=%ld,%s")
+				,strImageName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			return FALSE;
+		}
+
+
+		if (queryImageOut.dwErrorCode != 0 || queryImageOut.dwCmdOut != CMD_QUERY_IMAGE_OUT || queryImageOut.dwSizeSend != dwLen)
+		{
+
+			dwErrorCode = CustomError_Get_Data_From_Server_Error;
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_Custom,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,custom errorcode=0x%X,get data from server error")
+				,strImageName,dwErrorCode);
+
+			return FALSE;
+		}
+
+		memcpy(&imgHead,queryImageOut.byHead,SIZEOF_IMAGE_HEADER);
+
+		if (m_hMaster != INVALID_HANDLE_VALUE)
+		{
+			dwLen = SIZEOF_IMAGE_HEADER;
+			WriteFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(FALSE),&dwErrorCode);
+		}
+
+	}
+	else
+	{
+		if (!ReadFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
+		{
+			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
+			m_MasterPort->SetPortState(PortState_Fail);
+			m_MasterPort->SetResult(FALSE);
+			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
+
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read Image Head error,filename=%s,system errorcode=%ld,%s")
+				,m_MasterPort->GetFileName(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+			return FALSE;
+		}
+	}
+
+	m_ullValidSize = imgHead.ullValidSize;
+	m_ullSectorNums = imgHead.ullCapacitySize / imgHead.dwBytesPerSector;
+	m_ullCapacity = imgHead.ullCapacitySize;
+	m_ullImageSize = imgHead.ullImageSize;
+	m_dwBytesPerSector = imgHead.dwBytesPerSector;
+	m_bDataCompress = (imgHead.byUnCompress == 0) ? TRUE : FALSE;
+
+	HashMethod hashMethod = (HashMethod)imgHead.dwHashType;
+
+	memcpy(m_ImageHash,imgHead.byImageDigest,imgHead.dwHashLen);
+
+	SetValidSize(m_ullValidSize);
+	SetHashMethod(m_bComputeHash,hashMethod);
+
+	m_MasterPort->SetHashMethod(hashMethod);
+	POSITION pos = m_TargetPorts->GetHeadPosition();
+	while (pos)
+	{
+		CPort *port = m_TargetPorts->GetNext(pos);
+		if (port->IsConnected())
+		{
+			port->SetHashMethod(hashMethod);
+		}
+	}
+
 
 	BOOL bResult = FALSE;
 	DWORD dwReadId,dwWriteId,dwVerifyId,dwUncompressId;
@@ -3332,125 +3451,6 @@ BOOL CDisk::OnCopyImage()
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Clean disk completed"));
 
-	}
-
-	if (m_bServerFirst)
-	{
-		USES_CONVERSION;
-		CString strImageName = CUtils::GetFileName(m_MasterPort->GetFileName());
-		char *fileName = W2A(strImageName);
-
-		dwLen = sizeof(CMD_IN) + strlen(fileName) + 2;
-
-		BYTE *bufSend = new BYTE[dwLen];
-		ZeroMemory(bufSend,dwLen);
-		bufSend[dwLen - 1] = END_FLAG;
-
-		CMD_IN queryImageIn = {0};
-		queryImageIn.dwCmdIn = CMD_QUERY_IMAGE_IN;
-		queryImageIn.dwSizeSend = dwLen;
-
-		memcpy(bufSend,&queryImageIn,sizeof(CMD_IN));
-		memcpy(bufSend + sizeof(CMD_IN),fileName,strlen(fileName));
-
-		if (!Send(m_ClientSocket,(char *)bufSend,dwLen,NULL,&dwErrorCode))
-		{
-			delete []bufSend;
-
-			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
-			m_MasterPort->SetPortState(PortState_Fail);
-			m_MasterPort->SetResult(FALSE);
-			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
-
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,system errorcode=%ld,%s")
-				,strImageName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-
-
-			return FALSE;
-		}
-
-		delete []bufSend;
-
-		QUERY_IMAGE_OUT queryImageOut = {0};
-		dwLen = sizeof(QUERY_IMAGE_OUT);
-		if (!Recv(m_ClientSocket,(char *)&queryImageOut,dwLen,NULL,&dwErrorCode))
-		{
-
-			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
-			m_MasterPort->SetPortState(PortState_Fail);
-			m_MasterPort->SetResult(FALSE);
-			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
-
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,system errorcode=%ld,%s")
-				,strImageName,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-
-			return FALSE;
-		}
-
-
-		if (queryImageOut.dwErrorCode != 0 || queryImageOut.dwCmdOut != CMD_QUERY_IMAGE_OUT || queryImageOut.dwSizeSend != dwLen)
-		{
-
-			dwErrorCode = CustomError_Get_Data_From_Server_Error;
-			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
-			m_MasterPort->SetPortState(PortState_Fail);
-			m_MasterPort->SetResult(FALSE);
-			m_MasterPort->SetErrorCode(ErrorType_Custom,dwErrorCode);
-
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Query image from server error,filename=%s,custom errorcode=0x%X,get data from server error")
-				,strImageName,dwErrorCode);
-
-			return FALSE;
-		}
-
-		memcpy(&imgHead,queryImageOut.byHead,SIZEOF_IMAGE_HEADER);
-
-		if (m_hMaster != INVALID_HANDLE_VALUE)
-		{
-			dwLen = SIZEOF_IMAGE_HEADER;
-			WriteFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(FALSE),&dwErrorCode);
-		}
-
-	}
-	else
-	{
-		if (!ReadFileAsyn(m_hMaster,0,dwLen,(LPBYTE)&imgHead,m_MasterPort->GetOverlapped(TRUE),&dwErrorCode))
-		{
-			m_MasterPort->SetEndTime(CTime::GetCurrentTime());
-			m_MasterPort->SetPortState(PortState_Fail);
-			m_MasterPort->SetResult(FALSE);
-			m_MasterPort->SetErrorCode(ErrorType_System,dwErrorCode);
-
-			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read Image Head error,filename=%s,system errorcode=%ld,%s")
-				,m_MasterPort->GetFileName(),dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
-
-			return FALSE;
-		}
-	}
-
-	m_ullValidSize = imgHead.ullValidSize;
-	m_ullSectorNums = imgHead.ullCapacitySize / imgHead.dwBytesPerSector;
-	m_ullCapacity = imgHead.ullCapacitySize;
-	m_ullImageSize = imgHead.ullImageSize;
-	m_dwBytesPerSector = imgHead.dwBytesPerSector;
-	m_bDataCompress = (imgHead.byUnCompress == 0) ? TRUE : FALSE;
-
-	HashMethod hashMethod = (HashMethod)imgHead.dwHashType;
-
-	memcpy(m_ImageHash,imgHead.byImageDigest,imgHead.dwHashLen);
-
-	SetValidSize(m_ullValidSize);
-	SetHashMethod(m_bComputeHash,hashMethod);
-
-	m_MasterPort->SetHashMethod(hashMethod);
-	POSITION pos = m_TargetPorts->GetHeadPosition();
-	while (pos)
-	{
-		CPort *port = m_TargetPorts->GetNext(pos);
-		if (port->IsConnected())
-		{
-			port->SetHashMethod(hashMethod);
-		}
 	}
 
 	HANDLE hReadThread = CreateThread(NULL,0,ReadImageThreadProc,this,0,&dwReadId);
@@ -8995,6 +8995,63 @@ BOOL CDisk::CleanDisk( CPort *port )
 	ULONGLONG ullSectorNums = port->GetTotalSize() / dwBytePerSector;
 
 	port->Active();
+
+	if (m_bCleanDiskFirst)
+	{
+		// 是否容量完全匹配
+		if (m_bMustSameCapacity && !m_bAllowCapGap)
+		{
+			if (port->GetTotalSize() != m_ullCapacity)
+			{
+				port->SetEndTime(CTime::GetCurrentTime());
+				port->SetResult(FALSE);
+				port->SetErrorCode(ErrorType_Custom,CustomError_Master_Target_Size_Not_Same);
+				port->SetPortState(PortState_Fail);
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop copy,custom errorcode=0x%X,the size not same with the master")
+					,port->GetPortName(),port->GetDiskNum(),CustomError_Master_Target_Size_Not_Same);
+
+				return FALSE;
+			}
+		}
+
+		// 判断容量
+		if (port->GetTotalSize() < m_ullValidSize)
+		{
+			// 比允许的误差还要小
+			if (!m_bAllowCapGap || port->GetTotalSize() < m_ullValidSize * (100-m_nCapGapPercent)/100)
+			{
+				port->SetEndTime(CTime::GetCurrentTime());
+				port->SetResult(FALSE);
+				port->SetErrorCode(ErrorType_Custom,CustomError_Target_Small);
+				port->SetPortState(PortState_Fail);
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop copy,custom errorcode=0x%X,target is small")
+					,port->GetPortName(),port->GetDiskNum(),CustomError_Target_Small);
+
+				return FALSE;
+			}	
+		}
+		else
+		{
+			//有效资料的最大扇区有没有超过子盘容量
+			POSITION pos = m_EffList.GetHeadPosition();
+			while (pos)
+			{
+				EFF_DATA effData = m_EffList.GetNext(pos);
+
+				if ( (effData.ullStartSector + effData.ullSectors) * effData.wBytesPerSector > port->GetTotalSize() )
+				{
+					port->SetEndTime(CTime::GetCurrentTime());
+					port->SetResult(FALSE);
+					port->SetErrorCode(ErrorType_Custom,CustomError_Target_Small);
+					port->SetPortState(PortState_Fail);
+					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Port %s,Disk %d - Stop copy,custom errorcode=0x%X,target is small")
+						,port->GetPortName(),port->GetDiskNum(),CustomError_Target_Small);
+
+					return FALSE;
+				}
+			}
+		}
+	}
 
 	HANDLE hDisk = GetHandleOnPhysicalDrive(port->GetDiskNum(),FILE_FLAG_OVERLAPPED,&dwErrorCode);
 
