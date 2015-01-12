@@ -2969,6 +2969,11 @@ BOOL CDisk::OnCopyDisk()
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Clean disk completed"));
 	}
 
+	// 开始拷贝之前，清空DataQueue中的数据
+	ClearDataQueueList();
+
+	SetValidSize(m_ullValidSize);
+
 	HANDLE hReadThread = CreateThread(NULL,0,ReadDiskThreadProc,this,0,&dwReadId);
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Disk Copy(Master) - CreateReadDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
@@ -2984,7 +2989,7 @@ BOOL CDisk::OnCopyDisk()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-		dataQueue->Clear();
+//		dataQueue->Clear();
 		if (port->IsConnected() && port->GetResult())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -3042,6 +3047,9 @@ BOOL CDisk::OnCopyDisk()
 		{
 			m_bComputeHash = FALSE;
 
+			// 开始拷贝之前，清空DataQueue中的数据
+			ClearDataQueueList();
+
 			hReadThread = CreateThread(NULL,0,ReadDiskThreadProc,this,0,&dwReadId);
 
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Read Disk(Master) - CreateReadDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
@@ -3054,7 +3062,7 @@ BOOL CDisk::OnCopyDisk()
 			{
 				CPort *port = m_TargetPorts->GetNext(pos);
 				CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-				dataQueue->Clear();
+//				dataQueue->Clear();
 				if (port->IsConnected() && port->GetResult())
 				{
 					LPVOID_PARM lpVoid = new VOID_PARM;
@@ -3453,6 +3461,11 @@ BOOL CDisk::OnCopyImage()
 
 	}
 
+	// 开始拷贝之前，清空DataQueue中的数据
+	ClearDataQueueList();
+
+	SetValidSize(m_ullValidSize);
+
 	HANDLE hReadThread = CreateThread(NULL,0,ReadImageThreadProc,this,0,&dwReadId);
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Copy Image(%s) - CreateReadImageThread,ThreadId=0x%04X,HANDLE=0x%04X")
@@ -3478,7 +3491,7 @@ BOOL CDisk::OnCopyImage()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-		dataQueue->Clear();
+//		dataQueue->Clear();
 		if (port->IsConnected() && port->GetResult())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -3534,6 +3547,9 @@ BOOL CDisk::OnCopyImage()
 			m_bComputeHash = FALSE;
 			m_bServerFirst = FALSE;
 
+			// 开始拷贝之前，清空DataQueue中的数据
+			ClearDataQueueList();
+
 			hReadThread = CreateThread(NULL,0,ReadImageThreadProc,this,0,&dwReadId);
 
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Verfiy Image(%s) - CreateReadImageThread,ThreadId=0x%04X,HANDLE=0x%04X")
@@ -3554,7 +3570,7 @@ BOOL CDisk::OnCopyImage()
 			{
 				CPort *port = m_TargetPorts->GetNext(pos);
 				CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-				dataQueue->Clear();
+//				dataQueue->Clear();
 				if (port->IsConnected() && port->GetResult())
 				{
 					LPVOID_PARM lpVoid = new VOID_PARM;
@@ -3741,6 +3757,9 @@ BOOL CDisk::OnMakeImage()
 		CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
 	}
 
+	// 开始拷贝之前，清空DataQueue中的数据
+	ClearDataQueueList();
+
 	BOOL bResult = FALSE;
 	DWORD dwReadId,dwWriteId,dwCompressId,dwErrorCode;
 
@@ -3768,7 +3787,7 @@ BOOL CDisk::OnMakeImage()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-		dataQueue->Clear();
+//		dataQueue->Clear();
 		if (port->IsConnected() && port->GetResult())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -3872,6 +3891,9 @@ BOOL CDisk::OnCompareDisk()
 	{
 		m_bComputeHash = FALSE;
 
+		// 开始拷贝之前，清空DataQueue中的数据
+		ClearDataQueueList();
+
 		hMasterVerifyThread = CreateThread(NULL,0,ReadDiskThreadProc,this,0,&dwVerifyId);
 
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Disk Compare(Master) - CreateReadDiskThread,ThreadId=0x%04X,HANDLE=0x%04X")
@@ -3883,7 +3905,7 @@ BOOL CDisk::OnCompareDisk()
 		{
 			CPort *port = m_TargetPorts->GetNext(pos);
 			CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-			dataQueue->Clear();
+//			dataQueue->Clear();
 			if (port->IsConnected() && port->GetResult())
 			{
 				LPVOID_PARM lpVoid = new VOID_PARM;
@@ -4323,6 +4345,9 @@ BOOL CDisk::OnCopyFiles()
 		CUtils::WriteLogFile(m_hLogFile,FALSE,strList);
 	}
 
+	// 开始拷贝之前，清空DataQueue中的数据
+	ClearDataQueueList();
+
 	BOOL bResult = FALSE;
 	DWORD dwReadId,dwWriteId,dwVerifyId,dwErrorCode;
 
@@ -4341,7 +4366,7 @@ BOOL CDisk::OnCopyFiles()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-		dataQueue->Clear();
+//		dataQueue->Clear();
 		if (port->IsConnected() && port->GetResult())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -4389,6 +4414,9 @@ BOOL CDisk::OnCopyFiles()
 		{
 			m_bComputeHash = FALSE;
 
+			// 开始拷贝之前，清空DataQueue中的数据
+			ClearDataQueueList();
+
 			hReadThread = CreateThread(NULL,0,ReadFilesThreadProc,this,0,&dwReadId);
 
 			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("File Copy(Master) - CreateReadFilesThread,ThreadId=0x%04X,HANDLE=0x%04X")
@@ -4401,7 +4429,7 @@ BOOL CDisk::OnCopyFiles()
 			{
 				CPort *port = m_TargetPorts->GetNext(pos);
 				CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-				dataQueue->Clear();
+//				dataQueue->Clear();
 				if (port->IsConnected() && port->GetResult())
 				{
 					LPVOID_PARM lpVoid = new VOID_PARM;
@@ -5028,6 +5056,9 @@ BOOL CDisk::OnDiffCopy()
 		::SendMessage(m_hWnd,WM_UPDATE_FUNCTION,(WPARAM)function,0);
 	}
 
+	// 开始拷贝之前，清空DataQueue中的数据
+	ClearDataQueueList();
+
 	// 开始拷贝文件
 	bResult = FALSE;
 	DWORD dwReadId,dwWriteId,dwVerifyId;
@@ -5047,7 +5078,7 @@ BOOL CDisk::OnDiffCopy()
 	{
 		CPort *port = m_TargetPorts->GetNext(pos);
 		CDataQueue *dataQueue = m_DataQueueList.GetNext(posQueue);
-		dataQueue->Clear();
+//		dataQueue->Clear();
 		if (port->IsConnected() && port->GetResult())
 		{
 			LPVOID_PARM lpVoid = new VOID_PARM;
@@ -11536,5 +11567,19 @@ bool CDisk::IsTargetsReady()
 void CDisk::SetGlobalParm( BOOL bMustSameCapacity )
 {
 	m_bMustSameCapacity = bMustSameCapacity;
+}
+
+void CDisk::ClearDataQueueList()
+{
+	POSITION pos = m_DataQueueList.GetHeadPosition();
+	while (pos)
+	{
+		CDataQueue *dataQueue = m_DataQueueList.GetNext(pos);
+
+		if (dataQueue)
+		{
+			dataQueue->Clear();
+		}
+	}
 }
 

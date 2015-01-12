@@ -28,6 +28,7 @@ Administrator
 PDEVICELIST _pStorageListHead = NULL;
 PDEVICELIST _pVolumeListHead = NULL;
 PDEVICELIST _pWPDListHead = NULL;
+PDEVICELIST _pUSBListHead = NULL;
 
 
 /******************************************************************************
@@ -248,6 +249,42 @@ void Cleanup_WPDInfo(PDEVICELIST pDevList)
 		{
 			FREE(pWPDDevInfo);
 			pWPDDevInfo = NULL;
+		}
+	}
+
+
+	FREE(pDevList);
+	pDevList = NULL;
+}
+
+/******************************************************************************
+* Cleanup_WPDInfo
+******************************************************************************/
+void Cleanup_USBInfo(PDEVICELIST pDevList)
+{
+	PUSBDEVIEINFO pUSBDevInfo;
+
+	if(pDevList->pDevInfo)
+	{
+		pUSBDevInfo = (PUSBDEVIEINFO)(pDevList->pDevInfo);
+
+		//FREE 所有的子项
+		if (pUSBDevInfo->pszDeviceID)
+		{
+			FREE(pUSBDevInfo->pszDeviceID);
+			pUSBDevInfo->pszDeviceID = NULL;
+		}
+
+		if(pUSBDevInfo->pszLocationPath)
+		{
+			FREE(pUSBDevInfo->pszLocationPath);
+			pUSBDevInfo->pszLocationPath = NULL;
+		}
+
+		if (pUSBDevInfo)
+		{
+			FREE(pUSBDevInfo);
+			pUSBDevInfo = NULL;
 		}
 	}
 
@@ -558,7 +595,7 @@ VOID EnumWPD(LPBOOL flag)
 	if (hDevInfo == INVALID_HANDLE_VALUE)
 	{
 		//::AfxMessageBox(_T("SetupDiGetClassDevs FAIL!"));
-		OutputDebugString(_T("EnumStorage - SetupDiGetClassDevs"));
+		OutputDebugString(_T("EnumWPD - SetupDiGetClassDevs"));
 		return;
 	}
 
@@ -637,7 +674,7 @@ VOID EnumWPD(LPBOOL flag)
 		}
 		else
 		{
-			OutputDebugString(_T("EnumStorage - SetupDiEnumDeviceInfo"));
+			OutputDebugString(_T("EnumWPD - SetupDiEnumDeviceInfo"));
 			break;
 		}
 
@@ -696,7 +733,7 @@ PSTORAGEDEVIEINFO
 }
 
 PWPDDEVIEINFO 
-	MatchWPDDeivceID(PTSTR pszDeviceID)
+	MatchWPDDeviceID(PTSTR pszDeviceID)
 {
 	OutputDebugString(_T("MatchWPDDeivceID"));
 	OutputDebugString(pszDeviceID);
@@ -881,7 +918,7 @@ BOOL GetDriveProperty( HANDLE hDevice, PSTORAGE_DEVICE_DESCRIPTOR pDevDesc )
 
 VOID CleanupStorageDeviceList( PDEVICELIST pDevList )
 {
-	if (pDevList->pNext != NULL)
+	if (pDevList && pDevList->pNext != NULL)
 	{
 		//已存在StorageList,销毁全部数据，重新生成
 		DevList_Walk(pDevList->pNext,
@@ -905,7 +942,7 @@ VOID CleanupStorage()
 
 VOID CleanupVolumeDeviceList( PDEVICELIST pDevList )
 {
-	if (pDevList->pNext != NULL)
+	if (pDevList && pDevList->pNext != NULL)
 	{
 		//已存在StorageList,销毁全部数据，重新生成
 		DevList_Walk(pDevList->pNext,
@@ -973,7 +1010,7 @@ VOID CleanWPDDeviceInfo(PWPDDEVIEINFO pWPDDevInfo)
 
 VOID CleanupWPDDeviceList(PDEVICELIST pDevList)
 {
-	if (pDevList->pNext != NULL)
+	if (pDevList && pDevList->pNext != NULL)
 	{
 		//已存在StorageList,销毁全部数据，重新生成
 		DevList_Walk(pDevList->pNext,
@@ -986,4 +1023,284 @@ VOID CleanupWPDDeviceList(PDEVICELIST pDevList)
 VOID CleanupWPD()
 {
 	CleanupWPDDeviceList(_pWPDListHead);
+}
+
+VOID EnumUSB( LPBOOL flag )
+{
+	HDEVINFO                            hDevInfo;
+	SP_DEVINFO_DATA                     spDevInfoData;
+	PUSBDEVIEINFO                       pUSBDevInfo = NULL;
+
+	int     nIndex = 0;
+
+	//生成USBList
+	if(_pUSBListHead == NULL)
+	{
+		//_pStorageListHead 不存在，申请一个新节点
+		_pUSBListHead = DevList_AllocNewNode();
+		if(NULL == _pUSBListHead)
+		{
+			return;
+		}
+	}
+	//如果_pWPDListHead 中已存在数据，需要销毁
+	CleanupUSBDeviceList(_pUSBListHead);
+
+	// 取得一个该GUID相关的设备信息集句柄
+	hDevInfo = SetupDiGetClassDevs((LPGUID)&GUID_DEVCLASS_USB,             // class GUID
+		NULL,                                        // 无关键字
+		NULL,                                        // 不指定父窗口句柄
+		DIGCF_PRESENT);      // 目前存在的设备
+
+	// 失败...
+	if (hDevInfo == INVALID_HANDLE_VALUE)
+	{
+		//::AfxMessageBox(_T("SetupDiGetClassDevs FAIL!"));
+		OutputDebugString(_T("EnumUSB - SetupDiGetClassDevs"));
+		return;
+	}
+
+	while ( !*flag )
+	{
+		spDevInfoData.cbSize = sizeof (SP_DEVINFO_DATA);
+		//获取DevInfoData
+		if(SetupDiEnumDeviceInfo(hDevInfo,nIndex,&spDevInfoData))
+		{
+			DWORD DataT;
+			LPTSTR pszDeviceID = NULL;
+			LPTSTR pszLocationPath = NULL;
+			DWORD buffersize = 0;
+
+			while ( !SetupDiGetDeviceInstanceId(
+				hDevInfo, 
+				&spDevInfoData, 
+				pszDeviceID, 
+				buffersize, 
+				&buffersize))
+			{
+				DWORD dwError = GetLastError() ;
+				if(  dwError == ERROR_INSUFFICIENT_BUFFER )
+				{
+					// Change the buffer size.
+					if( pszDeviceID ) 
+					{
+						FREE(pszDeviceID );
+					}
+
+					pszDeviceID = (LPTSTR)ALLOC(buffersize * sizeof(TCHAR));
+				}
+				else
+				{
+					// Insert error handling here.
+					break;
+				}
+			}
+
+			buffersize = 0;
+			while( !SetupDiGetDeviceRegistryProperty(
+				hDevInfo,
+				&spDevInfoData,
+				SPDRP_LOCATION_PATHS,
+				&DataT,
+				(PBYTE)pszLocationPath,
+				buffersize,
+				&buffersize ) )
+			{
+				DWORD dwError = GetLastError() ;
+				if(  dwError == ERROR_INSUFFICIENT_BUFFER )
+				{
+					// Change the buffer size.
+					if(pszLocationPath)
+					{
+						FREE(pszLocationPath);
+					}
+
+					pszLocationPath = (LPTSTR)ALLOC(buffersize * sizeof(TCHAR));
+				}
+				else
+				{
+					// Insert error handling here.
+					break;
+				}
+			}
+
+			if (pszDeviceID && pszLocationPath)
+			{
+				pUSBDevInfo = (PUSBDEVIEINFO)ALLOC(sizeof(USBDEVIEINFO));
+				if (pUSBDevInfo == NULL)
+				{
+					if (pszDeviceID)
+					{
+						FREE(pszDeviceID);
+					}
+
+					if (pszLocationPath)
+					{
+						FREE(pszLocationPath);
+					}
+
+					break;
+				}
+
+				size_t szLen;
+
+				if (pszDeviceID)
+				{
+					szLen = _tcslen(pszDeviceID) + 1;
+					pUSBDevInfo->pszDeviceID = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+					_tcscpy_s(pUSBDevInfo->pszDeviceID,szLen,pszDeviceID);
+
+					FREE(pszDeviceID);
+				}
+
+				if (pszLocationPath)
+				{
+					szLen = _tcslen(pszLocationPath) + 1;
+					pUSBDevInfo->pszLocationPath = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+					_tcscpy_s(pUSBDevInfo->pszLocationPath,szLen,pszLocationPath);
+
+					FREE(pszLocationPath);
+				}
+
+				//插入到USBList
+				DevList_AddNode(_pUSBListHead,(PVOID)pUSBDevInfo);
+			}
+			else
+			{
+				if (pszDeviceID)
+				{
+					FREE(pszDeviceID);
+				}
+
+				if (pszLocationPath)
+				{
+					FREE(pszLocationPath);
+				}
+			}
+
+			
+
+			nIndex += 1;
+		}
+		else
+		{
+			OutputDebugString(_T("EnumUSB - SetupDiEnumDeviceInfo"));
+			break;
+		}
+
+	}
+
+	SetupDiDestroyDeviceInfoList (hDevInfo);
+}
+
+PUSBDEVIEINFO MatchUSBDeviceID( PTSTR pszDeviceID )
+{
+	OutputDebugString(_T("MatchUSBDeviceID"));
+	OutputDebugString(pszDeviceID);
+	if(NULL == pszDeviceID)
+	{
+		return NULL;
+	}
+
+	PDEVICELIST pListNode = _pUSBListHead->pNext;
+
+	PUSBDEVIEINFO pUSB = NULL;
+
+	while(pListNode)
+	{
+		if(pListNode->pDevInfo)
+		{
+			//设备节点存在
+			if(0 == _tcscmp(((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID,pszDeviceID))
+			{
+				//找到了匹配的字串
+				pUSB = (PUSBDEVIEINFO)(pListNode->pDevInfo);
+				break;
+			}
+		}
+
+		pListNode = pListNode->pNext;
+	}
+
+	pListNode = _pUSBListHead->pNext;
+
+	while(pListNode && pUSB)
+	{
+		if(pListNode->pDevInfo)
+		{
+			//设备的位置路径相同，deviceID不同的设备
+			if(0 != _tcscmp(((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID,pszDeviceID)
+				&& 0 == _tcsncmp(((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszLocationPath,pUSB->pszLocationPath,_tcslen(pUSB->pszLocationPath)))
+			{
+				//找到了匹配的字串
+				//找到了匹配的字串
+				PUSBDEVIEINFO pUSBDevInfo = (PUSBDEVIEINFO)ALLOC(sizeof(USBDEVIEINFO));
+				if(NULL == pUSBDevInfo)
+				{
+					//申请内测空间失败
+					break;
+				}
+				//申请内存空间，存在设备的ParentDeviceID和设备盘符
+				size_t szLen;
+
+				if (((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID != NULL)
+				{
+					szLen = _tcslen(((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID) + 1;
+					pUSBDevInfo->pszDeviceID = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+					_tcscpy_s(pUSBDevInfo->pszDeviceID,szLen,((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszDeviceID);
+				}
+
+				if (((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszLocationPath != NULL)
+				{
+					szLen = _tcslen(((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszLocationPath) + 1;
+					pUSBDevInfo->pszLocationPath = (PTSTR)ALLOC(szLen * sizeof(TCHAR));
+					_tcscpy_s(pUSBDevInfo->pszLocationPath,szLen,((PUSBDEVIEINFO)(pListNode->pDevInfo))->pszLocationPath);
+				}
+
+				return pUSBDevInfo;
+			}
+		}
+
+		pListNode = pListNode->pNext;
+	}
+
+	return NULL;
+}
+
+VOID CleanUSBDeviceInfo( PUSBDEVIEINFO pUSBDevInfo )
+{
+	if (pUSBDevInfo)
+	{
+		if (pUSBDevInfo->pszLocationPath)
+		{
+			FREE(pUSBDevInfo->pszLocationPath);
+			pUSBDevInfo->pszLocationPath = NULL;
+		}
+
+		if (pUSBDevInfo->pszDeviceID)
+		{
+			FREE(pUSBDevInfo->pszDeviceID);
+			pUSBDevInfo->pszDeviceID = NULL;
+		}
+
+		FREE(pUSBDevInfo);
+		pUSBDevInfo = NULL;
+	}
+}
+
+VOID CleanupUSBDeviceList( PDEVICELIST pDevList )
+{
+	if (pDevList && pDevList->pNext != NULL)
+	{
+		//已存在StorageList,销毁全部数据，重新生成
+		DevList_Walk(pDevList->pNext,
+			Cleanup_USBInfo);
+
+		pDevList->pNext = NULL;
+	}
+}
+
+VOID CleanupUSB()
+{
+	CleanupUSBDeviceList(_pUSBListHead);
 }

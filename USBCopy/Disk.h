@@ -222,6 +222,8 @@ private:
 
 	bool IsTargetsReady();
 
+	void ClearDataQueueList();
+
 	int EnumFile(CString strSource);
 
 	UINT GetCurrentTargetCount();

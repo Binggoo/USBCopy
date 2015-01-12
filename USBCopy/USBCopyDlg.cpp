@@ -55,7 +55,10 @@
 //v1.1.1.0 2014-12-26 Binggoo 1.解决MTP拷贝中MTP设备插有扩展卡报错的问题，目前不理会MTP设备中的扩展卡。
 //v1.1.2.0 2015-01-05 Binggoo 1.同步映像中加入映像的导入导出功能，可以从本地移动设备导入导出。
 //v1.1.3.0 2015-01-06 Binggoo 1.解决v1092版修改EXT文件系统时，改动到NTFS文件系统，导致NTFS文件系统数据分析重复的问题。
-//v1.1.4.0 2015-01-08 Binggoo 1.加入在选择拷贝之前擦除时，在擦除之前需要进行容量检查，容量检查不满足要求的子盘直接Fail，不进入擦除。
+//v1.1.4.0 2015-01-12 Binggoo 1.加入在选择拷贝之前擦除时，在擦除之前需要进行容量检查，容量检查不满足要求的子盘直接Fail，不进入擦除。
+//                            2.解决映像拷贝时，不选擦除比对也会进行擦除比对的问题。
+//                            3.解决设置拷贝之前擦除，拷贝完成之后显示不同步的问题。
+//v1.1.5.0 2015-01-12 Binggoo 1.解决部分平板用USB存储模式时不能识别的问题。
 
 
 #include "stdafx.h"
@@ -1753,7 +1756,8 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 
 	if (nIndex > 0)
 	{
-		m_ProgressCtrl.SetPos(iMinPercent);
+		int nPercent = (int)(ullMinCompleteSize * 100 / ullMaxValidSize);
+		m_ProgressCtrl.SetPos(nPercent);
 
 		CString strText;
 		strText.Format(_T("%s / %s"),CUtils::AdjustFileSize(ullMinCompleteSize),CUtils::AdjustFileSize(ullMaxValidSize));
@@ -2582,7 +2586,7 @@ void CUSBCopyDlg::OnStart()
 			UINT nImageType = m_Config.GetBool(_T("ImageCopy"),_T("ImageType"),0);
 
 			BOOL bCleanDiskFirst = m_Config.GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE);
-			BOOL bCompareClean = m_Config.GetBool(_T("ImageCopy"),_T("En_CleanDiskFirst"),FALSE);
+			BOOL bCompareClean = m_Config.GetBool(_T("ImageCopy"),_T("En_CompareClean"),FALSE);
 			UINT nCleanTimes = m_Config.GetUInt(_T("ImageCopy"),_T("CleanTimes"),1);
 			CString strFillValues = m_Config.GetString(_T("ImageCopy"),_T("FillValues"));
 			CompareCleanSeq seq = (CompareCleanSeq)m_Config.GetInt(_T("ImageCopy"),_T("CompareCleanSeq"),0);
@@ -3838,6 +3842,12 @@ void CUSBCopyDlg::EnumDevice()
 		}
 		else
 		{
+
+			if (!m_bRunning && m_nMachineType == MT_USB)
+			{
+				EnumUSB(&m_bRunning);
+			}
+
 			if (!m_bRunning)
 			{
 				EnumStorage(&m_bRunning);
@@ -3855,6 +3865,7 @@ void CUSBCopyDlg::EnumDevice()
 
 			CleanupStorage();
 			CleanupVolume();
+			CleanupUSB();
 		}
 		
 	}
@@ -3927,6 +3938,24 @@ void CUSBCopyDlg::MatchDevice()
 		if (pUsbDeviceInfo)
 		{
 			pStorageList = MatchStorageDeivceIDs(pUsbDeviceInfo->DeviceID);
+
+			if (pStorageList != NULL)
+			{
+				if (pStorageList->pNext == NULL && m_nMachineType == MT_USB)
+				{
+					PUSBDEVIEINFO pUSB = MatchUSBDeviceID(pUsbDeviceInfo->DeviceID);
+
+					if (pUSB)
+					{
+						CleanupStorageDeviceList(pStorageList);
+
+						pStorageList = MatchStorageDeivceIDs(pUSB->pszDeviceID);
+
+						CleanUSBDeviceInfo(pUSB);
+					}
+				}
+				
+			}
 
 			if (pStorageList)
 			{
@@ -4247,7 +4276,7 @@ void CUSBCopyDlg::MatchMTPDevice()
 
 		if (pUsbDeviceInfo)
 		{
-			pWPDDevInfo = MatchWPDDeivceID(pUsbDeviceInfo->DeviceID);
+			pWPDDevInfo = MatchWPDDeviceID(pUsbDeviceInfo->DeviceID);
 
 			if (pWPDDevInfo)
 			{

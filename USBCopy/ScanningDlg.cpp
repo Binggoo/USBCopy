@@ -223,6 +223,23 @@ void CScanningDlg::ScanningDevice()
 
 			if (pStorageList)
 			{
+				if (pStorageList->pNext == NULL && m_nMachineType == MT_USB)
+				{
+					PUSBDEVIEINFO pUSB = MatchUSBDeviceID(pUsbDeviceInfo->DeviceID);
+
+					if (pUSB)
+					{
+						CleanupStorageDeviceList(pStorageList);
+
+						pStorageList = MatchStorageDeivceIDs(pUSB->pszDeviceID);
+
+						CleanUSBDeviceInfo(pUSB);
+					}
+				}
+			}
+
+			if (pStorageList)
+			{
 				PDEVICELIST pListNode = pStorageList->pNext;
 				while (pListNode)
 				{
@@ -611,7 +628,7 @@ void CScanningDlg::ScanningMTPDevice()
 
 		if (pUsbDeviceInfo)
 		{
-			pWPDDevInfo = MatchWPDDeivceID(pUsbDeviceInfo->DeviceID);
+			pWPDDevInfo = MatchWPDDeviceID(pUsbDeviceInfo->DeviceID);
 
 			if (pWPDDevInfo)
 			{
@@ -699,11 +716,17 @@ void CScanningDlg::EnumDevice()
 		}
 		else
 		{
+			if (m_nMachineType == MT_USB)
+			{
+				EnumUSB(&m_bStop);
+			}
+
 			EnumStorage(&m_bStop);
 			EnumVolume(&m_bStop);
 			ScanningDevice();
 			CleanupStorage();
 			CleanupVolume();
+			CleanupUSB();
 		}
 
 		if (IsAllConnected())

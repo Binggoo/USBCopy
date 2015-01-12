@@ -32,6 +32,12 @@ typedef struct
 
 typedef struct
 {
+	PTSTR   pszDeviceID;
+	PTSTR   pszLocationPath;
+}USBDEVIEINFO,*PUSBDEVIEINFO;
+
+typedef struct
+{
 	int nDiskNum;
 	PTSTR pszVolumePath;
 	ULONG PartitionNumber;
@@ -43,6 +49,7 @@ typedef struct
 VOID EnumStorage(LPBOOL flag);
 VOID EnumVolume(LPBOOL flag);
 VOID EnumWPD(LPBOOL flag);
+VOID EnumUSB(LPBOOL flag);
 
 PSTORAGEDEVIEINFO 
 	MatchStorageDeivceID(PTSTR pszDeviceID);
@@ -51,19 +58,24 @@ PDEVICELIST
 
 PDEVICELIST MatchVolumeDeviceDiskNums(int nDiskNum);
 
-PWPDDEVIEINFO MatchWPDDeivceID(PTSTR pszDeviceID);
+PWPDDEVIEINFO MatchWPDDeviceID(PTSTR pszDeviceID);
+
+PUSBDEVIEINFO MatchUSBDeviceID(PTSTR pszDeviceID);
 
 VOID CleanStorageDevieInfo( PSTORAGEDEVIEINFO pStoDevInfo );
 VOID CleanVolumeDeviceInfo(PVOLUMEDEVICEINFO pVolumeDevInfo);
 VOID CleanWPDDeviceInfo(PWPDDEVIEINFO pWPDDevInfo);
+VOID CleanUSBDeviceInfo(PUSBDEVIEINFO pUSBDevInfo);
 
 VOID CleanupStorageDeviceList(PDEVICELIST pDevList);
 VOID CleanupVolumeDeviceList(PDEVICELIST pDevList);
 VOID CleanupWPDDeviceList(PDEVICELIST pDevList);
+VOID CleanupUSBDeviceList(PDEVICELIST pDevList);
 
 VOID CleanupStorage();
 VOID CleanupVolume();
 VOID CleanupWPD();
+VOID CleanupUSB();
 
 BOOL GetDriveProperty(HANDLE hDevice, PSTORAGE_DEVICE_DESCRIPTOR pDevDesc);
 
