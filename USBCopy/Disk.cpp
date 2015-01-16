@@ -9353,6 +9353,10 @@ BOOL CDisk::CleanDisk( CPort *port )
 		{
 			port->SetPortState(PortState_Pass);
 		}
+		else
+		{
+			port->SetPortState(PortState_Stop);
+		}
 	}
 	else
 	{
@@ -10186,6 +10190,10 @@ BOOL CDisk::CompareClean(CPort *port)
 		if (m_bEnd)
 		{
 			port->SetPortState(PortState_Pass);
+		}
+		else
+		{
+			port->SetPortState(PortState_Stop);
 		}
 	}
 	else

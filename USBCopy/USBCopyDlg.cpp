@@ -59,6 +59,8 @@
 //                            2.解决映像拷贝时，不选擦除比对也会进行擦除比对的问题。
 //                            3.解决设置拷贝之前擦除，拷贝完成之后显示不同步的问题。
 //v1.1.5.0 2015-01-12 Binggoo 1.解决部分平板用USB存储模式时不能识别的问题。
+//         2015-01-15 Binggoo 2.解决v1.1.4.0修改遗留问题。
+//         2015-01-16 Binggoo 3.解决拷贝之前擦除中有不同容量的卡会出现显示进度不同步的问题。
 
 
 #include "stdafx.h"
@@ -1756,8 +1758,11 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 
 	if (nIndex > 0)
 	{
-		int nPercent = (int)(ullMinCompleteSize * 100 / ullMaxValidSize);
-		m_ProgressCtrl.SetPos(nPercent);
+		if (ullMaxValidSize > 0)
+		{
+			int nPercent = (int)(ullMinCompleteSize * 100 / ullMaxValidSize);
+			m_ProgressCtrl.SetPos(nPercent);
+		}
 
 		CString strText;
 		strText.Format(_T("%s / %s"),CUtils::AdjustFileSize(ullMinCompleteSize),CUtils::AdjustFileSize(ullMaxValidSize));
