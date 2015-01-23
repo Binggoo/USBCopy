@@ -61,6 +61,8 @@
 //v1.1.5.0 2015-01-12 Binggoo 1.解决部分平板用USB存储模式时不能识别的问题。
 //         2015-01-15 Binggoo 2.解决v1.1.4.0修改遗留问题。
 //         2015-01-16 Binggoo 3.解决拷贝之前擦除中有不同容量的卡会出现显示进度不同步的问题。
+//v1.1.6.0 2015-01-23 Binggoo 1.调整发送使能闪烁命令的位置。
+//                            2.调整发送切屏命令的顺序
 
 
 #include "stdafx.h"
@@ -3692,6 +3694,9 @@ BOOL CUSBCopyDlg::DestroyWindow()
 
 void CUSBCopyDlg::InitialMachine()
 {
+	// 切屏
+	m_Command.SwitchScreen();
+
 	//初始化上电
 	m_Command.ResetPower();
 
@@ -3706,11 +3711,8 @@ void CUSBCopyDlg::InitialMachine()
 		}
 	}
 
-	// 切屏
-	m_Command.SwitchScreen();
-
-	// 使能闪烁命令
-	m_Command.EnableFlashLight();
+// 	// 使能闪烁命令
+// 	m_Command.EnableFlashLight();
 }
 
 DWORD CUSBCopyDlg::InitialMachineThreadProc( LPVOID lpParm )
@@ -4423,8 +4425,8 @@ afx_msg LRESULT CUSBCopyDlg::OnResetPower(WPARAM wParam, LPARAM lParam)
 		Sleep(100);
 	}
 
-	// 使能闪烁命令
-	m_Command.EnableFlashLight();
+// 	// 使能闪烁命令
+// 	m_Command.EnableFlashLight();
 	return 0;
 }
 
