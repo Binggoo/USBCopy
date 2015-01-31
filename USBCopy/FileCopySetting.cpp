@@ -18,6 +18,8 @@ CFileCopySetting::CFileCopySetting(CWnd* pParent /*=NULL*/)
 	, m_bCheckComputeHash(FALSE)
 	, m_bCheckCompare(FALSE)
 	, m_nCompareMethodIndex(0)
+	, m_bCheckCopyAllFiles(FALSE)
+	, m_bCleanupTarget(FALSE)
 {
 	m_pIni = NULL;
 	m_strMasterPath = _T("M:\\");
@@ -34,6 +36,8 @@ void CFileCopySetting::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_CHECK_COMPUTE_HASH, m_bCheckComputeHash);
 	DDX_Check(pDX, IDC_CHECK_COMPARE, m_bCheckCompare);
 	DDX_Radio(pDX,IDC_RADIO_HASH_COMPARE,m_nCompareMethodIndex);
+	DDX_Check(pDX, IDC_CHECK_ALL_FILES, m_bCheckCopyAllFiles);
+	DDX_Check(pDX, IDC_CHECK_CLEAR_UP_TARGETS, m_bCleanupTarget);
 }
 
 
@@ -46,6 +50,7 @@ BEGIN_MESSAGE_MAP(CFileCopySetting, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_COMPARE, &CFileCopySetting::OnBnClickedCheckCompare)
 	ON_BN_CLICKED(IDOK, &CFileCopySetting::OnBnClickedOk)
 	ON_BN_CLICKED(IDC_RADIO_HASH_COMPARE, &CFileCopySetting::OnBnClickedRadioHashCompare)
+	ON_BN_CLICKED(IDC_CHECK_ALL_FILES, &CFileCopySetting::OnBnClickedCheckAllFiles)
 END_MESSAGE_MAP()
 
 
@@ -62,6 +67,8 @@ BOOL CFileCopySetting::OnInitDialog()
 	m_bCheckComputeHash = m_pIni->GetBool(_T("FileCopy"),_T("En_ComputeHash"),FALSE);
 	m_bCheckCompare = m_pIni->GetBool(_T("FileCopy"),_T("En_Compare"),FALSE);
 	m_nCompareMethodIndex = m_pIni->GetInt(_T("FileCopy"),_T("CompareMethod"),0);
+	m_bCheckCopyAllFiles = m_pIni->GetBool(_T("FileCopy"),_T("En_CopyAllFiles"),TRUE);
+	m_bCleanupTarget = m_pIni->GetBool(_T("FileCopy"),_T("En_CleanupTargets"),FALSE);
 
 	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCheckCompare);
 	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
@@ -72,6 +79,14 @@ BOOL CFileCopySetting::OnInitDialog()
 		{
 			m_nCompareMethodIndex = 1;
 		}
+	}
+
+	if (m_bCheckCopyAllFiles)
+	{
+		m_ListCtrl.EnableWindow(FALSE);
+		GetDlgItem(IDC_BTN_ADD_FILE)->EnableWindow(FALSE);
+		GetDlgItem(IDC_BTN_ADD_FOLDER)->EnableWindow(FALSE);
+		GetDlgItem(IDC_BTN_DEL)->EnableWindow(FALSE);
 	}
 
 	InitialListCtrl();
@@ -191,9 +206,13 @@ void CFileCopySetting::UpdateListCtrl()
 		nItem++;
 	}
 
-	GetDlgItem(IDC_BTN_ADD_FILE)->EnableWindow(TRUE);
-	GetDlgItem(IDC_BTN_ADD_FOLDER)->EnableWindow(TRUE);
-	GetDlgItem(IDC_BTN_DEL)->EnableWindow(TRUE);
+	if (!m_bCheckCopyAllFiles)
+	{
+		GetDlgItem(IDC_BTN_ADD_FILE)->EnableWindow(TRUE);
+		GetDlgItem(IDC_BTN_ADD_FOLDER)->EnableWindow(TRUE);
+		GetDlgItem(IDC_BTN_DEL)->EnableWindow(TRUE);
+	}
+	
 	GetDlgItem(IDOK)->EnableWindow(TRUE);
 }
 
@@ -239,57 +258,6 @@ void CFileCopySetting::OnBnClickedBtnAddFolder()
 	GetDlgItem(IDC_BTN_DEL)->EnableWindow(FALSE);
 	GetDlgItem(IDOK)->EnableWindow(FALSE);
 
-	int nCount = m_ListCtrl.GetItemCount();
-
-	/* WinPE 下用不了
-	BROWSEINFO broInfo = {0};
-	TCHAR      szDisName[MAX_PATH] = {0};
-
-	CString strTitle = _T("Please select a folder : ");
-	UINT    ulFalgs = BIF_DONTGOBELOWDOMAIN
-		| BIF_BROWSEFORCOMPUTER | BIF_RETURNONLYFSDIRS | BIF_RETURNFSANCESTORS;
-
-	broInfo.hwndOwner = this->m_hWnd;
-	broInfo.pidlRoot  = NULL;
-	broInfo.pszDisplayName = szDisName;
-	broInfo.lpszTitle = strTitle;
-	broInfo.ulFlags   = ulFalgs;
-	broInfo.lpfn      = BrowseCallbackProc;
-	broInfo.lParam    = (LPARAM)(LPCTSTR)m_strMasterPath;
-	broInfo.iImage    = IDR_MAINFRAME;
-
-	LPITEMIDLIST pIDList = SHBrowseForFolder(&broInfo);
-	if (pIDList != NULL)
-	{
-		memset(szDisName, 0, sizeof(szDisName));
-		SHGetPathFromIDList(pIDList, szDisName);
-		CString strFolder(szDisName);
-
-		if (strFolder.Find(m_strMasterPath) != 0)
-		{
-			MessageBox(_T("Please select folder in master M."));
-		}
-		else
-		{
-			ULONGLONG ullSize = CUtils::GetFolderSize(strFolder);
-
-			m_ListCtrl.InsertItem(nCount,strFolder.Right(strFolder.GetLength() - 3));
-			m_ListCtrl.SetItemText(nCount,1,_T("Folder"));
-			m_ListCtrl.SetItemText(nCount,2,CUtils::AdjustFileSize(ullSize));
-			m_ListCtrl.SetItemText(nCount,3,_T("YES"));
-		}
-
-		LPMALLOC pMalloc;
-		//Retrieve a pointer to the shell's IMalloc interface
-		if (SUCCEEDED(SHGetMalloc(&pMalloc)))
-		{
-			// free the PIDL that SHBrowseForFolder returned to us.
-			pMalloc->Free(pIDList);
-			// release the shell's IMalloc interface
-			(void)pMalloc->Release();
-		}
-	}
-	*/
     CXFolderDialog dlg(m_strMasterPath);
 
 	if (dlg.DoModal() == IDOK)
@@ -307,22 +275,29 @@ void CFileCopySetting::OnBnClickedBtnAddFolder()
 
 			if (IsAdded(strItem))
 			{
+				GetDlgItem(IDC_BTN_ADD_FILE)->EnableWindow(TRUE);
+				GetDlgItem(IDC_BTN_ADD_FOLDER)->EnableWindow(TRUE);
+				GetDlgItem(IDC_BTN_DEL)->EnableWindow(TRUE);
+				GetDlgItem(IDOK)->EnableWindow(TRUE);
 				return;
 			}
 
 			ULONGLONG ullSize = CUtils::GetFolderSize(strFolder);
-
+			int nCount = m_ListCtrl.GetItemCount();
 			m_ListCtrl.InsertItem(nCount,strItem);
 			m_ListCtrl.SetItemText(nCount,1,_T("Folder"));
 			m_ListCtrl.SetItemText(nCount,2,CUtils::AdjustFileSize(ullSize));
 			m_ListCtrl.SetItemText(nCount,3,_T("YES"));
 		}
 	}
+	
 
 	GetDlgItem(IDC_BTN_ADD_FILE)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BTN_ADD_FOLDER)->EnableWindow(TRUE);
 	GetDlgItem(IDC_BTN_DEL)->EnableWindow(TRUE);
 	GetDlgItem(IDOK)->EnableWindow(TRUE);
+
+	SetForegroundWindow();
 }
 
 
@@ -424,6 +399,8 @@ void CFileCopySetting::OnBnClickedOk()
 	m_pIni->WriteBool(_T("FileCopy"),_T("En_ComputeHash"),m_bCheckComputeHash);
 	m_pIni->WriteBool(_T("FileCopy"),_T("En_Compare"),m_bCheckCompare);
 	m_pIni->WriteInt(_T("FileCopy"),_T("CompareMethod"),m_nCompareMethodIndex);
+	m_pIni->WriteBool(_T("FileCopy"),_T("En_CopyAllFiles"),m_bCheckCopyAllFiles);
+	m_pIni->WriteBool(_T("FileCopy"),_T("En_CleanupTargets"),m_bCleanupTarget);
 
 	UINT nNumOfFolders = m_pIni->GetUInt(_T("FileCopy"),_T("NumOfFolders"),0);
 	UINT nNumOfFiles = m_pIni->GetUInt(_T("FileCopy"),_T("NumOfFiles"),0);
@@ -516,4 +493,16 @@ void CFileCopySetting::OnBnClickedRadioHashCompare()
 	m_bCheckComputeHash = TRUE;
 
 	UpdateData(FALSE);
+}
+
+
+void CFileCopySetting::OnBnClickedCheckAllFiles()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+
+	m_ListCtrl.EnableWindow(!m_bCheckCopyAllFiles);
+	GetDlgItem(IDC_BTN_ADD_FILE)->EnableWindow(!m_bCheckCopyAllFiles);
+	GetDlgItem(IDC_BTN_ADD_FOLDER)->EnableWindow(!m_bCheckCopyAllFiles);
+	GetDlgItem(IDC_BTN_DEL)->EnableWindow(!m_bCheckCopyAllFiles);
 }

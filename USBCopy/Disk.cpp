@@ -68,7 +68,7 @@ CDisk::CDisk(void)
 	// 2014-11-12 新增
 	m_bAllowCapGap = FALSE;
 	m_nCapGapPercent = 0;
-	m_bQuickImage = TRUE;
+	m_nImageType = QUICK_IMAGE;
 	m_bCleanDiskFirst = FALSE;
 	m_nCleanTimes = 0;
 	m_pCleanValues = NULL;
@@ -94,6 +94,7 @@ CDisk::CDisk(void)
 	m_bMustSameCapacity = FALSE;
 	m_bDataCompress = FALSE;
 
+	m_bCleanupTargets = TRUE;
 }
 
 
@@ -3694,7 +3695,8 @@ BOOL CDisk::OnCopyImage()
 
 BOOL CDisk::OnMakeImage()
 {
-	if (m_bQuickImage)
+	// 暂时不考虑文件映像
+	if (QUICK_IMAGE == m_nImageType)
 	{
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Analyze start......"));
 		if (!BriefAnalyze())
@@ -4296,6 +4298,7 @@ BOOL CDisk::OnCopyFiles()
 	m_bServerFirst = FALSE;
 	m_ullValidSize = 0;
 	m_MapCopyFiles.RemoveAll();
+	m_CopyFolderArray.RemoveAll();
 
 	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("Files statistic start......"));
 
@@ -6436,7 +6439,7 @@ BOOL CDisk::ReadLocalFiles()
 		// 目标文件为去掉盘符剩余的文件
 		strDestFile = strSourceFile.Right(strSourceFile.GetLength() - 2);
 
-		HANDLE hFile = GetHandleOnFile(strSourceFile,OPEN_EXISTING,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+		HANDLE hFile = GetHandleOnFile(strSourceFile,OPEN_EXISTING,FILE_FLAG_OVERLAPPED|FILE_FLAG_NO_BUFFERING,&dwErrorCode);
 
 		if (hFile == INVALID_HANDLE_VALUE)
 		{
@@ -6479,6 +6482,9 @@ BOOL CDisk::ReadLocalFiles()
 			if (ullFileSize - ullCompleteSize < dwLen)
 			{
 				dwLen = (DWORD)(ullFileSize - ullCompleteSize);
+
+				// 判断是否是一个整的扇区,以FILE_FLAG_NO_BUFFERING标志打开文件必须扇区对齐
+				dwLen = (dwLen + BYTES_PER_SECTOR - 1) / BYTES_PER_SECTOR * BYTES_PER_SECTOR;			
 			}
 
 			PBYTE pByte = new BYTE[dwLen];
@@ -6980,6 +6986,26 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 
 	CString strVolume = volumeArray.GetAt(0);
 
+	// 删除
+	if (m_bCleanupTargets)
+	{
+		DeleteDirectory(strVolume);
+	}
+
+	//创建文件夹
+	int nFolderCout = m_CopyFolderArray.GetCount();
+	for (int i = 0; i < nFolderCout;i++)
+	{
+		CString strPath,strFolder;
+		strFolder = m_CopyFolderArray.GetAt(i);
+		strPath.Format(_T("%s\\%s"),strVolume,strFolder.Right(strFolder.GetLength() - 3));
+
+		if (!PathFileExists(strPath))
+		{
+			SHCreateDirectory(NULL,strPath);
+		}	
+	}
+
 	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
 		QueryPerformanceCounter(&t0);
@@ -7445,7 +7471,7 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 				hFile = INVALID_HANDLE_VALUE;
 			}
 
-			hFile = GetHandleOnFile(strCurrentFileName,OPEN_EXISTING,FILE_FLAG_OVERLAPPED,&dwErrorCode);
+			hFile = GetHandleOnFile(strCurrentFileName,OPEN_EXISTING,FILE_FLAG_OVERLAPPED|FILE_FLAG_NO_BUFFERING,&dwErrorCode);
 			if (hFile == INVALID_HANDLE_VALUE)
 			{
 				bResult = FALSE;
@@ -7462,11 +7488,13 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 			strOldFileName = strCurrentFileName;
 		}
 
-		PBYTE pByte = new BYTE[dataInfo->dwDataSize];
-		ZeroMemory(pByte,dataInfo->dwDataSize);
+		// 长度为512的整数倍
+		DWORD dwLen = (dataInfo->dwDataSize + BYTES_PER_SECTOR - 1) / BYTES_PER_SECTOR * BYTES_PER_SECTOR;
+		PBYTE pByte = new BYTE[dwLen];
+		ZeroMemory(pByte,dwLen);
 
 		QueryPerformanceCounter(&t1);
-		if (!ReadFileAsyn(hFile,dataInfo->ullOffset,dataInfo->dwDataSize,pByte,port->GetOverlapped(TRUE),&dwErrorCode))
+		if (!ReadFileAsyn(hFile,dataInfo->ullOffset,dwLen,pByte,port->GetOverlapped(TRUE),&dwErrorCode))
 		{
 			bResult = FALSE;
 
@@ -7482,7 +7510,7 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 		else
 		{
 			// 比较
-			for (DWORD i = 0; i < dataInfo->dwDataSize;i++)
+			for (DWORD i = 0; i < dwLen;i++)
 			{
 				if (pByte[i] != dataInfo->pData[i])
 				{
@@ -7506,7 +7534,7 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 
 			port->AppendUsedWaitTimeS(dbTimeWait);
 			port->AppendUsedNoWaitTimeS(dbTimeNoWait);
-			port->AppendCompleteSize(dataInfo->dwDataSize);
+			port->AppendCompleteSize(dwLen);
 
 			delete []pByte;
 			delete []dataInfo->pData;
@@ -7564,15 +7592,7 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 
 	if (bResult)
 	{
-		if (m_bCompare)
-		{
-			port->SetPortState(PortState_Active);
-		}
-		else
-		{
-			port->SetPortState(PortState_Pass);
-		}
-
+		port->SetPortState(PortState_Pass);
 	}
 	else
 	{
@@ -7764,6 +7784,12 @@ BOOL CDisk::ReadLocalImage()
 		else
 		{
 			AddDataQueueList(dataInfo);
+
+			EFF_DATA effData;
+			effData.ullStartSector = dataInfo->ullOffset/BYTES_PER_SECTOR;
+			effData.ullSectors = dataInfo->dwDataSize/BYTES_PER_SECTOR;
+			effData.wBytesPerSector = BYTES_PER_SECTOR;
+			m_EffList.AddTail(effData);
 
 			m_pMasterHashMethod->update(dataInfo->pData,dataInfo->dwDataSize);
 
@@ -8657,7 +8683,7 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 		imgHead.ullImageSize = liSize.QuadPart;
 		memcpy(imgHead.szAppVersion,APP_VERSION,strlen(APP_VERSION));
 
-		if (m_bQuickImage)
+		if (m_nImageType)
 		{
 			imgHead.dwImageType = QUICK_IMAGE;
 		}
@@ -8919,7 +8945,7 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 		imgHead.ullImageSize = ullOffset;
 		memcpy(imgHead.szAppVersion,APP_VERSION,strlen(APP_VERSION));
 
-		if (m_bQuickImage)
+		if (m_nImageType)
 		{
 			imgHead.dwImageType = QUICK_IMAGE;
 		}
@@ -10537,8 +10563,9 @@ void CDisk::SetCompareMode( CompareMode compareMode)
 	m_CompareMode = compareMode;
 }
 
-void CDisk::SetFileAndFolder( const CStringArray &fileArray,const CStringArray &folderArray )
+void CDisk::SetFileAndFolder(BOOL bCleanupTarget, const CStringArray &fileArray,const CStringArray &folderArray )
 {
+	m_bCleanupTargets = bCleanupTarget;
 	m_FileArray.Copy(fileArray);
 	m_FodlerArray.Copy(folderArray);
 }
@@ -10565,6 +10592,7 @@ int CDisk::EnumFile( CString strSource )
 		{
 			nCount++;
 			nCount += EnumFile(ff.GetFilePath());
+			m_CopyFolderArray.Add(ff.GetFilePath());
 		}
 		else
 		{
@@ -10648,10 +10676,10 @@ void CDisk::SetSocket( SOCKET sClient,BOOL bServerFirst )
 	m_bServerFirst = bServerFirst;
 }
 
-void CDisk::SetMakeImageParm(BOOL bQuickImage,BOOL bCompress, int compressLevel /*= Z_BEST_SPEED*/ )
+void CDisk::SetMakeImageParm(int nImageType,BOOL bCompress, int compressLevel /*= Z_BEST_SPEED*/ )
 {
 	m_iCompressLevel = compressLevel;
-	m_bQuickImage = bQuickImage;
+	m_nImageType = nImageType;
 	m_bDataCompress = bCompress;
 }
 

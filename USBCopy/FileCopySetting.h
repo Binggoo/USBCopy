@@ -30,6 +30,8 @@ private:
 	BOOL m_bCheckComputeHash;
 	BOOL m_bCheckCompare;
 	int m_nCompareMethodIndex; // 0 - hash比对， 1 - byte 比对
+	BOOL m_bCheckCopyAllFiles;
+	BOOL m_bCleanupTarget;
 
 	void InitialListCtrl();
 
@@ -53,4 +55,5 @@ public:
 	afx_msg void OnBnClickedCheckCompare();
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedRadioHashCompare();
+	afx_msg void OnBnClickedCheckAllFiles();
 };

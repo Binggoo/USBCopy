@@ -218,7 +218,8 @@ typedef enum _ENUM_IMAGE_TYPE
 {
 	FULL_IMAGE,
 	QUICK_IMAGE,
-	MTP_IMAGE
+	MTP_IMAGE,
+	FILE_IMAGE
 }ImageType;
 
 #pragma pack(push,1)

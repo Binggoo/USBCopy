@@ -51,6 +51,7 @@ BEGIN_MESSAGE_MAP(CImageCopySetting, CDialogEx)
 	ON_BN_CLICKED(IDC_CHECK_CLEAN_DISK_FIRST, &CImageCopySetting::OnBnClickedCheckCleanDisk)
 	ON_CBN_SELCHANGE(IDC_COMBO_CLEAN_TIMES, &CImageCopySetting::OnCbnSelchangeComboCleanTimes)
 	ON_BN_CLICKED(IDC_CHECK_COMPARE, &CImageCopySetting::OnBnClickedCheckCompare)
+	ON_BN_CLICKED(IDC_RADIO_FILE_IMAGE, &CImageCopySetting::OnBnClickedRadioFileImage)
 END_MESSAGE_MAP()
 
 
@@ -230,5 +231,45 @@ void CImageCopySetting::OnBnClickedCheckCompare()
 	// TODO: 在此添加控件通知处理程序代码
 	UpdateData(TRUE);
 	GetDlgItem(IDC_RADIO_HASH_COMPARE)->EnableWindow(m_bCheckCompare);
-	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
+
+	// MTP映像和文件映像
+	if (m_nRadioImageTypeIndex == 1 || m_nRadioImageTypeIndex == 2)
+	{
+		GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(FALSE);
+		if (m_bCheckCompare)
+		{
+			m_nCompareMethodIndex = 0;
+		}
+
+		UpdateData(FALSE);
+	}
+	else
+	{
+		GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(m_bCheckCompare);
+	}
+	
+}
+
+
+void CImageCopySetting::OnBnClickedRadioFileImage()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData(TRUE);
+	GetDlgItem(IDC_CHECK_CLEAN_DISK_FIRST)->EnableWindow(FALSE);
+	GetDlgItem(IDC_CHECK_CLEAN_COMPARE)->EnableWindow(FALSE);
+
+	GetDlgItem(IDC_EDIT_FILL_VALUE)->EnableWindow(FALSE);
+	m_ComboBoxCleanTimes.EnableWindow(FALSE);
+
+	GetDlgItem(IDC_RADIO_BYTE_COMPARE)->EnableWindow(FALSE);
+
+	GetDlgItem(IDC_RADIO_CLEAN_IN)->EnableWindow(FALSE);
+	GetDlgItem(IDC_RADIO_CLEAN_AFTER)->EnableWindow(FALSE);
+
+	if (m_bCheckCompare)
+	{
+		m_nCompareMethodIndex = 0;
+	}
+
+	UpdateData(FALSE);
 }

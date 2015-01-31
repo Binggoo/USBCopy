@@ -41,4 +41,5 @@ public:
 	afx_msg void OnBnClickedCheckCleanDisk();
 	afx_msg void OnCbnSelchangeComboCleanTimes();
 	afx_msg void OnBnClickedCheckCompare();
+	afx_msg void OnBnClickedRadioFileImage();
 };

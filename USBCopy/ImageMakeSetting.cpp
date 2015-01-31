@@ -45,6 +45,7 @@ BEGIN_MESSAGE_MAP(CImageMakeSetting, CDialogEx)
 	ON_BN_CLICKED(IDC_RADIO_FULL, &CImageMakeSetting::OnBnClickedRadioFull)
 	ON_BN_CLICKED(IDC_RADIO_QUICK, &CImageMakeSetting::OnBnClickedRadioQuick)
 	ON_BN_CLICKED(IDC_RADIO_MTP, &CImageMakeSetting::OnBnClickedRadioMtp)
+	ON_BN_CLICKED(IDC_RADIO_FILE, &CImageMakeSetting::OnBnClickedRadioFile)
 END_MESSAGE_MAP()
 
 
@@ -278,6 +279,16 @@ void CImageMakeSetting::OnBnClickedRadioQuick()
 
 
 void CImageMakeSetting::OnBnClickedRadioMtp()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	GetDlgItem(IDC_EDIT_START_LBA)->EnableWindow(FALSE);
+	GetDlgItem(IDC_EDIT_END_LBA)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BTN_ADD)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BTN_REMOVE)->EnableWindow(FALSE);
+}
+
+
+void CImageMakeSetting::OnBnClickedRadioFile()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	GetDlgItem(IDC_EDIT_START_LBA)->EnableWindow(FALSE);

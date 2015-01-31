@@ -155,6 +155,7 @@ private:
 	void OnStop();
 
 	BOOL IsLisence();
+	void CleanRecord();
 
 public:
 	afx_msg void OnSize(UINT nType, int cx, int cy);

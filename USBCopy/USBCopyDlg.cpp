@@ -63,6 +63,10 @@
 //         2015-01-16 Binggoo 3.解决拷贝之前擦除中有不同容量的卡会出现显示进度不同步的问题。
 //v1.1.6.0 2015-01-23 Binggoo 1.调整发送使能闪烁命令的位置。
 //                            2.调整发送切屏命令的顺序
+//v1.1.7.0 2015-01-30 Binggoo 1.文件拷贝中加入拷贝全盘文件以及清空目标盘参数。
+//                            2.文件拷贝读文件时，采用无缓存方式读文件，防止从系统缓存中读造成速度过大。
+//                            3.log文件超过1G后自动删除，自动删除超过半年的record文件。
+//         2015-01-31 Binggoo 4.解决拷贝无压缩映像时，选择Hash比对出错的问题。
 
 
 #include "stdafx.h"
@@ -2438,7 +2442,7 @@ void CUSBCopyDlg::OnStart()
 			int compressLevel = m_Config.GetInt(_T("ImageMake"),_T("CompressLevel"),1);
 			UINT nImageMode = m_Config.GetInt(_T("ImageMake"),_T("SaveMode"),0);
 			BOOL bDataCompress = m_Config.GetBool(_T("ImageMake"),_T("En_DataCompress"),TRUE);
-			BOOL bMtpImage = (nImageMode == 2);
+			//BOOL bMtpImage = (nImageMode == 2);
 
 			int nNumOfArea = m_Config.GetInt(_T("ImageMake"),_T("NumOfArea"),0);
 
@@ -2472,21 +2476,30 @@ void CUSBCopyDlg::OnStart()
 
 			strImagePath.TrimRight(_T('\\'));
 
-			if (bMtpImage)
+			switch (nImageMode)
 			{
-				if (strImageName.Right(4).CompareNoCase(_T(".MTP")) != 0)
-				{
-					strImageName += _T(".MTP");
-				}
-			}
-			else
-			{
+			case FULL_IMAGE: //磁盘映像
+			case QUICK_IMAGE:
 				if (strImageName.Right(4).CompareNoCase(_T(".IMG")) != 0)
 				{
 					strImageName += _T(".IMG");
 				}
+				break;
+
+			case MTP_IMAGE: //MTP映像
+				if (strImageName.Right(4).CompareNoCase(_T(".MTP")) != 0)
+				{
+					strImageName += _T(".MTP");
+				}
+				break;
+
+			case FILE_IMAGE: //文件映像
+				if (strImageName.Right(4).CompareNoCase(_T(".FIL")) != 0)
+				{
+					strImageName += _T(".FIL");
+				}
+				break;
 			}
-			
 
 			CString strTempFile,strImageFile;
 			strTempFile.Format(_T("%s\\%s.$$$"),strImagePath,strImageName.Left(strImageName.GetLength() - 4));
@@ -2502,7 +2515,7 @@ void CUSBCopyDlg::OnStart()
 			PortList filePortList;
 			filePortList.AddTail(&m_FilePort);
 
-			if (bMtpImage)
+			if (nImageMode == MTP_IMAGE)
 			{
 				CWpdDevice wpdDevice;
 				wpdDevice.Init(m_hWnd,&m_bCancel,m_hLogFile,&m_Command);
@@ -2598,7 +2611,7 @@ void CUSBCopyDlg::OnStart()
 			CString strFillValues = m_Config.GetString(_T("ImageCopy"),_T("FillValues"));
 			CompareCleanSeq seq = (CompareCleanSeq)m_Config.GetInt(_T("ImageCopy"),_T("CompareCleanSeq"),0);
 
-			BOOL bMtpImage = (nImageType == 1);
+			//BOOL bMtpImage = (nImageType == 1);
 
 			if (nCleanTimes < 0 || nCleanTimes > 3)
 			{
@@ -2636,19 +2649,28 @@ void CUSBCopyDlg::OnStart()
 			CString strImageName = m_Config.GetString(_T("ImagePath"),_T("ImageName"));
 			strImagePath.TrimRight(_T('\\'));
 
-			if (bMtpImage)
+			switch (nImageType)
 			{
-				if (strImageName.Right(4).CompareNoCase(_T(".MTP")) != 0)
-				{
-					strImageName += _T(".MTP");
-				}
-			}
-			else
-			{
+			case 0: //磁盘映像
 				if (strImageName.Right(4).CompareNoCase(_T(".IMG")) != 0)
 				{
 					strImageName += _T(".IMG");
 				}
+				break;
+
+			case 1: //MTP映像
+				if (strImageName.Right(4).CompareNoCase(_T(".MTP")) != 0)
+				{
+					strImageName += _T(".MTP");
+				}
+				break;
+
+			case 2: //文件映像
+				if (strImageName.Right(4).CompareNoCase(_T(".FIL")) != 0)
+				{
+					strImageName += _T(".FIL");
+				}
+				break;
 			}
 
 			CString strImageFile,strTempFile;
@@ -2682,7 +2704,7 @@ void CUSBCopyDlg::OnStart()
 			}
 
 			// if
-			if (bMtpImage)  //MTP Image
+			if (1 == nImageType)  //MTP Image
 			{
 				CWpdDevice wpdDevice;
 				wpdDevice.Init(m_hWnd,&m_bCancel,m_hLogFile,&m_Command);
@@ -2778,6 +2800,8 @@ void CUSBCopyDlg::OnStart()
 			BOOL bComputeHash = m_Config.GetBool(_T("FileCopy"),_T("En_ComputeHash"),FALSE);
 			BOOL bCompare = m_Config.GetBool(_T("FileCopy"),_T("En_Compare"),FALSE);
 			CompareMethod compareMethod = (CompareMethod)m_Config.GetInt(_T("FileCopy"),_T("CompareMethod"),0);
+			BOOL bCopyAllFiles = m_Config.GetBool(_T("FileCopy"),_T("En_CopyAllFiles"),TRUE);
+			BOOL bCleanupTargets = m_Config.GetBool(_T("FileCopy"),_T("En_CleanupTargets"),FALSE);
 			
 			UINT nNumOfFolders = m_Config.GetUInt(_T("FileCopy"),_T("NumOfFolders"),0);
 			UINT nNumOfFiles = m_Config.GetUInt(_T("FileCopy"),_T("NumOfFiles"),0);
@@ -2786,51 +2810,61 @@ void CUSBCopyDlg::OnStart()
 			CStringArray filesArray,folderArray;
 			CString strKey,strFile,strPath;
 
-			for (UINT i = 0;i < nNumOfFolders;i++)
+			if (bCopyAllFiles)
 			{
-				strKey.Format(_T("Folder_%d"),i);
-				strFile = m_Config.GetString(_T("FileCopy"),strKey);
+				strPath = MASTER_PATH;
 
-				if (strFile.IsEmpty())
-				{
-					continue;
-				}
-
-				strPath = MASTER_PATH + strFile;
-
-				if (PathFileExists(strPath))
-				{
-					folderArray.Add(strPath);
-				}
-				else
-				{
-					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("File Copy,folder %s doesn't exist."),strPath);
-				}
-
+				folderArray.Add(strPath);
 			}
-
-			for (UINT i = 0;i < nNumOfFiles;i++)
+			else
 			{
-				strKey.Format(_T("File_%d"),i);
-				strFile = m_Config.GetString(_T("FileCopy"),strKey);
-
-				if (strFile.IsEmpty())
+				for (UINT i = 0;i < nNumOfFolders;i++)
 				{
-					continue;
+					strKey.Format(_T("Folder_%d"),i);
+					strFile = m_Config.GetString(_T("FileCopy"),strKey);
+
+					if (strFile.IsEmpty())
+					{
+						continue;
+					}
+
+					strPath = MASTER_PATH + strFile;
+
+					if (PathFileExists(strPath))
+					{
+						folderArray.Add(strPath);
+					}
+					else
+					{
+						CUtils::WriteLogFile(m_hLogFile,TRUE,_T("File Copy,folder %s doesn't exist."),strPath);
+					}
+
 				}
 
-				strPath = MASTER_PATH + strFile;
-
-				if (PathFileExists(strPath))
+				for (UINT i = 0;i < nNumOfFiles;i++)
 				{
-					filesArray.Add(strPath);
-				}
-				else
-				{
-					CUtils::WriteLogFile(m_hLogFile,TRUE,_T("File Copy,file %s doesn't exist."),strPath);
-				}
+					strKey.Format(_T("File_%d"),i);
+					strFile = m_Config.GetString(_T("FileCopy"),strKey);
 
+					if (strFile.IsEmpty())
+					{
+						continue;
+					}
+
+					strPath = MASTER_PATH + strFile;
+
+					if (PathFileExists(strPath))
+					{
+						filesArray.Add(strPath);
+					}
+					else
+					{
+						CUtils::WriteLogFile(m_hLogFile,TRUE,_T("File Copy,file %s doesn't exist."),strPath);
+					}
+
+				}
 			}
+			
 
 			// 设置端口状态
 			m_MasterPort.SetHashMethod(hashMethod);
@@ -2853,7 +2887,7 @@ void CUSBCopyDlg::OnStart()
 			disk.SetTargetPorts(&m_TargetPorts);
 			disk.SetHashMethod(bComputeHash,hashMethod);
 			disk.SetCompareParm(bCompare,compareMethod);
-			disk.SetFileAndFolder(filesArray,folderArray);
+			disk.SetFileAndFolder(bCleanupTargets,filesArray,folderArray);
 
 			bResult = disk.Start();
 
@@ -3713,6 +3747,8 @@ void CUSBCopyDlg::InitialMachine()
 
 // 	// 使能闪烁命令
 // 	m_Command.EnableFlashLight();
+
+	CleanRecord();
 }
 
 DWORD CUSBCopyDlg::InitialMachineThreadProc( LPVOID lpParm )
@@ -4370,6 +4406,18 @@ afx_msg LRESULT CUSBCopyDlg::OnUpdateSoftware(WPARAM wParam, LPARAM lParam)
 void CUSBCopyDlg::BackupLogfile( HANDLE hFile ,DWORD dwFileSize)
 {
 	CString strBackipFile = m_strAppPath + LOG_FILE_BAK;
+
+	if (PathFileExists(strBackipFile))
+	{
+		CFileStatus status;
+
+		CFile::GetStatus(strBackipFile,status);
+
+		if (status.m_size > 1 * 1024 * 1024 * 1024)
+		{
+			DeleteFile(strBackipFile);
+		}
+	}
 
 	HANDLE hBackup = CreateFile(strBackipFile,
 								GENERIC_WRITE | GENERIC_READ,
@@ -5433,4 +5481,30 @@ afx_msg LRESULT CUSBCopyDlg::OnExportLogEnd(WPARAM wParam, LPARAM lParam)
 {
 	m_bExportLog = FALSE;
 	return 0;
+}
+
+void CUSBCopyDlg::CleanRecord()
+{
+	CString strRecordFile = m_strAppPath + _T("\\RECORD_*.txt");
+
+	CFileFind find;
+	BOOL bFind = find.FindFile(strRecordFile);
+	CTime time = CTime::GetCurrentTime();
+	while (bFind)
+	{
+		bFind = find.FindNextFile();
+
+		CFileStatus status;
+		CFile::GetStatus(find.GetFilePath(),status);
+
+		CTimeSpan span = time - status.m_mtime;
+
+		//删除超过半年的log文件
+		if (span.GetDays() > 180)
+		{
+			DeleteFile(find.GetFilePath());
+		}
+	}
+
+	find.Close();
 }

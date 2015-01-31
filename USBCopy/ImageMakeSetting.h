@@ -42,4 +42,5 @@ public:
 	afx_msg void OnBnClickedRadioFull();
 	afx_msg void OnBnClickedRadioQuick();
 	afx_msg void OnBnClickedRadioMtp();
+	afx_msg void OnBnClickedRadioFile();
 };

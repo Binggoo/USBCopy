@@ -40,9 +40,9 @@ public:
 	void SetGlobalParm(BOOL bMustSameCapacity);
 	void SetCleanMode(CleanMode cleanMode,int nFillValue,BOOL bCompareClean,CompareCleanSeq seq);
 	void SetCompareMode(CompareMode compareMode);
-	void SetFileAndFolder(const CStringArray &fileArray,const CStringArray &folderArray);
+	void SetFileAndFolder(BOOL bCleanupTarget,const CStringArray &fileArray,const CStringArray &folderArray);
 	void SetFormatParm(CString strVolumeLabel,FileSystem fileSystem,DWORD dwClusterSize,BOOL bQuickFormat);
-	void SetMakeImageParm(BOOL bQuickImage,BOOL bCompress,int compressLevel);
+	void SetMakeImageParm(int nImageType,BOOL bCompress,int compressLevel);
 	void SetFullCopyParm(BOOL bAllowCapGap,UINT nPercent);
 	void SetQuickCopyParm(RANGE_FROM_TO *ranges,int count);
 	void SetCleanDiskFirst(BOOL bCleanDiskFist,BOOL bCompareClean,CompareCleanSeq seq,int times,int *values);
@@ -108,6 +108,7 @@ private:
 	CStringArray  m_FodlerArray;
 
 	CMapStringToULL m_MapCopyFiles;
+	CStringArray m_CopyFolderArray;
 
 	// 格式化参数
 	BOOL m_bQuickFormat;
@@ -124,7 +125,7 @@ private:
 	BOOL   m_bServerFirst;
 
 	//映像制作参数
-	BOOL m_bQuickImage;
+	int m_nImageType;
 	int m_iCompressLevel;
 
 	UINT m_nBlockSectors;
@@ -148,6 +149,9 @@ private:
 	BOOL m_bMustSameCapacity;
 	CListRangeFromTo m_ListRangeFromTo;
 	BOOL m_bDataCompress;
+
+	// 2015-01-30 增加全盘文件拷贝
+	BOOL m_bCleanupTargets;
 
 
 	// 20140-10-14 新增增量拷贝
