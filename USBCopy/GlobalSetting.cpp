@@ -5,7 +5,7 @@
 #include "USBCopy.h"
 #include "GlobalSetting.h"
 #include "afxdialogex.h"
-
+#include "Utils.h"
 
 // CGlobalSetting ¶Ô»°¿ò
 
@@ -261,16 +261,29 @@ void CGlobalSetting::OnBnClickedBtnConnect()
 	}
 	else
 	{
-		m_bSocketConnected = ::SendMessage(GetParent()->GetParent()->GetSafeHwnd(),WM_CONNECT_SOCKET,0,0);
+		DWORD dwErrorCode = ::SendMessage(GetParent()->GetParent()->GetSafeHwnd(),WM_CONNECT_SOCKET,0,0);
 
-		if (!m_bSocketConnected)
+		if (dwErrorCode != 0)
 		{
-			strResText.LoadString(IDS_MSG_CONNECT_FAIL);
+			strResText = CUtils::GetErrorMsg(dwErrorCode);
 			MessageBox(strResText);
 
 			GetDlgItem(IDC_BTN_CONNECT)->EnableWindow(TRUE);
 			return;
 		}
+
+		/*
+		if (!m_bSocketConnected)
+		{
+			strResText.LoadString(IDS_MSG_CONNECT_FAIL);
+			
+		}
+		*/
+
+		m_pIni->WriteString(_T("RemoteServer"),_T("ServerIP"),m_strEditServerIP);
+		m_pIni->WriteUInt(_T("RemoteServer"),_T("ListenPort"),m_nListenPort);
+
+		CDialogEx::OnOK();
 	}
 
 	if (m_bSocketConnected)

@@ -16,6 +16,7 @@
 #define TIMER_UPDATE_STATISTIC 1
 #define TIMER_SEND_BITMAP      2
 #define TIMER_LISENCE          3
+#define TIMER_CONNECT_SERVER   4
 
 // CUSBCopyDlg dialog
 class CUSBCopyDlg : public CDialogEx
@@ -84,6 +85,7 @@ private:
 	SOCKET m_ClientSocket;
 	BOOL   m_bSockeConnected;
 	BOOL   m_bServerFirst;  // 仅仅在Copy Image时有用
+	CCriticalSection m_CSConnectSever;
 
 	BOOL  m_bStart; //用于标记当前是开始状态还是结束状态
 
@@ -118,7 +120,7 @@ private:
 	void InitialBurnInTest(UINT cycle,UINT nCycleCount);
 
 	// 网络部分
-	BOOL CreateSocketConnect();
+	DWORD CreateSocketConnect();
 	BOOL SyncTime();
 
 	void EnableControls(BOOL bEnable);

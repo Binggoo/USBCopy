@@ -67,6 +67,9 @@
 //                            2.文件拷贝读文件时，采用无缓存方式读文件，防止从系统缓存中读造成速度过大。
 //                            3.log文件超过1G后自动删除，自动删除超过半年的record文件。
 //         2015-01-31 Binggoo 4.解决拷贝无压缩映像时，选择Hash比对出错的问题。
+//v1.1.8.0 2015-02-09 Binggoo 1.解决连接服务器程序出错的问题。
+//                            2.网络意外中断后每隔5s自动重连。
+//                            3.软件还原中添加恢复出厂设置可选项。
 
 
 #include "stdafx.h"
@@ -103,6 +106,7 @@
 #include "FullRWTest.h"
 #include "FadePickerSetting.h"
 #include "SpeedCheckSetting.h"
+#include <mstcpip.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -1630,8 +1634,10 @@ void CUSBCopyDlg::OnTimer(UINT_PTR nIDEvent)
 			m_bLisence = TRUE;
 			m_bEnableButton = TRUE;
 		}
+		break;
 		
-
+	case TIMER_CONNECT_SERVER:
+		AfxBeginThread((AFX_THREADPROC)ConnectSocketThreadProc,this);
 		break;
 	}
 
@@ -4872,8 +4878,16 @@ BOOL CUSBCopyDlg::PreTranslateMessage(MSG* pMsg)
 	return CDialogEx::PreTranslateMessage(pMsg);
 }
 
-BOOL CUSBCopyDlg::CreateSocketConnect()
+DWORD CUSBCopyDlg::CreateSocketConnect()
 {
+
+	if (m_bSockeConnected)
+	{
+		return 0;
+	}
+
+	m_CSConnectSever.Lock();
+
 	CString strIpAddr = m_Config.GetString(_T("RemoteServer"),_T("ServerIP"));
 	UINT nPort = m_Config.GetUInt(_T("RemoteServer"),_T("ListenPort"),7788);
 
@@ -4888,10 +4902,45 @@ BOOL CUSBCopyDlg::CreateSocketConnect()
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSASocket failed with system error code:%d,%s")
 			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
 
-		return FALSE;
+		m_CSConnectSever.Unlock();
+		return dwErrorCode;
 	}
 
-	WSAAsyncSelect(m_ClientSocket,this->m_hWnd,WM_SOCKET_MSG,FD_CLOSE);
+	BOOL bKeepAlive = TRUE;
+	if (setsockopt(m_ClientSocket,SOL_SOCKET,SO_KEEPALIVE,(char *)&bKeepAlive,sizeof(bKeepAlive)) == SOCKET_ERROR)
+	{
+		DWORD dwErrorCode = WSAGetLastError();
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("setsockopt failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		closesocket(m_ClientSocket);
+
+		m_CSConnectSever.Unlock();
+		return dwErrorCode;
+	}
+
+	// set KeepAlive parameter
+	tcp_keepalive alive_in;
+	tcp_keepalive alive_out;
+	alive_in.keepalivetime    = 500;  // 0.5s
+	alive_in.keepaliveinterval  = 1000; //1s
+	alive_in.onoff                       = TRUE;
+	unsigned long ulBytesReturn = 0;
+	int nRet = WSAIoctl(m_ClientSocket, SIO_KEEPALIVE_VALS, &alive_in, sizeof(alive_in),
+		&alive_out, sizeof(alive_out), &ulBytesReturn, NULL, NULL);
+	if (nRet == SOCKET_ERROR)
+	{
+		DWORD dwErrorCode = WSAGetLastError();
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("WSAIoctl failed with system error code:%d,%s")
+			,dwErrorCode,CUtils::GetErrorMsg(dwErrorCode));
+
+		closesocket(m_ClientSocket);
+
+		m_CSConnectSever.Unlock();
+		return dwErrorCode;
+	}
+
+	WSAAsyncSelect(m_ClientSocket,this->m_hWnd,WM_SOCKET_MSG,FD_CLOSE | FD_CONNECT);
 
 	SOCKADDR_IN ServerAddr = {0};
 	ServerAddr.sin_family = AF_INET;
@@ -4909,7 +4958,8 @@ BOOL CUSBCopyDlg::CreateSocketConnect()
 
 		closesocket(m_ClientSocket);
 
-		return FALSE;
+		m_CSConnectSever.Unlock();
+		return dwErrorCode;
 	}
 
 	if (connect(m_ClientSocket,(PSOCKADDR)&ServerAddr,sizeof(ServerAddr)) == SOCKET_ERROR)
@@ -4923,15 +4973,16 @@ BOOL CUSBCopyDlg::CreateSocketConnect()
 
 			closesocket(m_ClientSocket);
 
-			return FALSE;
+			m_CSConnectSever.Unlock();
+			return dwErrorCode;
 		}
 		
 	}
 
-	CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) success."),strIpAddr,nPort);
+	// CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) success."),strIpAddr,nPort);
 
-
-	return TRUE;
+	m_CSConnectSever.Unlock();
+	return 0;
 }
 
 BOOL CUSBCopyDlg::SyncTime()
@@ -4974,7 +5025,7 @@ BOOL CUSBCopyDlg::SyncTime()
 		SystemTime.wMilliseconds = 0; //设置时间时不需要
 		SystemTime.wDayOfWeek = -1;  //设置时间时不需要
 
-		SetSystemTime(&SystemTime);
+		SetLocalTime(&SystemTime);
 	}
 	else
 	{
@@ -4989,8 +5040,9 @@ BOOL CUSBCopyDlg::SyncTime()
 
 afx_msg LRESULT CUSBCopyDlg::OnConnectSocket(WPARAM wParam, LPARAM lParam)
 {
-	m_bSockeConnected = CreateSocketConnect();
+	DWORD dwErrorCode = CreateSocketConnect();
 
+	/*
 	if (m_bSockeConnected)
 	{
 		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time with server..."));
@@ -5012,8 +5064,9 @@ afx_msg LRESULT CUSBCopyDlg::OnConnectSocket(WPARAM wParam, LPARAM lParam)
 	{
 		SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
 	}
+	*/
 
-	return m_bSockeConnected;
+	return dwErrorCode;
 }
 
 
@@ -5038,6 +5091,8 @@ afx_msg LRESULT CUSBCopyDlg::OnSocketMsg(WPARAM wParam, LPARAM lParam)
 {
 	WORD event = WSAGETSELECTEVENT(lParam);
 	WORD err = WSAGETSELECTERROR(lParam);
+	CString strIpAddr = m_Config.GetString(_T("RemoteServer"),_T("ServerIP"));
+	UINT nPort = m_Config.GetUInt(_T("RemoteServer"),_T("ListenPort"),7788);
 
 	switch (event)
 	{
@@ -5045,13 +5100,42 @@ afx_msg LRESULT CUSBCopyDlg::OnSocketMsg(WPARAM wParam, LPARAM lParam)
 		m_bSockeConnected = FALSE;
 		closesocket(m_ClientSocket);
 		m_ClientSocket = INVALID_SOCKET;
-
+		CUtils::WriteLogFile(m_hLogFile,TRUE,_T("disconnect server(%s:%d) with system error code:%d,%s.")
+			,strIpAddr,nPort,err,CUtils::GetErrorMsg(err));
 		SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
 
+		SetTimer(TIMER_CONNECT_SERVER,5000,NULL);
 		break;
 
 	case FD_CONNECT:
+		
+		if (err == 0)
+		{
+			KillTimer(TIMER_CONNECT_SERVER);
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) success."),strIpAddr,nPort);
+			SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: YES"));
 
+			m_bSockeConnected = TRUE;
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time with server..."));
+
+			if (SyncTime())
+			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time success."));
+			}
+			else
+			{
+				CUtils::WriteLogFile(m_hLogFile,TRUE,_T("synchronize time failed."));
+			}
+		}
+		else
+		{
+			CUtils::WriteLogFile(m_hLogFile,TRUE,_T("connect server(%s:%d) failed failed with system error code:%d,%s")
+				,strIpAddr,nPort,err,CUtils::GetErrorMsg(err));
+			SetDlgItemText(IDC_TEXT_CONNECT,_T("CONNECTED: NO"));
+
+			m_bSockeConnected = FALSE;
+		}
+		
 		break;
 	}
 	return 0;
@@ -5417,7 +5501,8 @@ DWORD WINAPI CUSBCopyDlg::ConnectSocketThreadProc( LPVOID lpParm )
 {
 	CUSBCopyDlg *pDlg = (CUSBCopyDlg *)lpParm;
 	
-	pDlg->OnConnectSocket(0,0);
+	//pDlg->OnConnectSocket(0,0);
+	pDlg->CreateSocketConnect();
 
 	return 0;
 }

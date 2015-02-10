@@ -142,18 +142,32 @@ void CSoftwareRecovery::OnBnClickedOk()
 	// TODO: 在此添加控件通知处理程序代码
 
 	POSITION pos = m_SoftwareList.GetFirstSelectedItemPosition();
+	BOOL bDefaultSetting = ((CButton *)GetDlgItem(IDC_CHECK_DEFAULT_SETTING))->GetCheck();
 
-	if (pos == NULL)
+	CString strMsg,strTile,strFileName;
+	strTile.LoadString(IDS_FACTORY_RESTORE);
+
+	if (pos == NULL && !bDefaultSetting)
 	{
 		return;
 	}
+	else if (pos && !bDefaultSetting)
+	{
+		int nSelectItem = m_SoftwareList.GetNextSelectedItem(pos);
+		strFileName = CString((TCHAR *)m_SoftwareList.GetItemData(nSelectItem));
 
-	int nSelectItem = m_SoftwareList.GetNextSelectedItem(pos);
-	CString strFileName = CString((TCHAR *)m_SoftwareList.GetItemData(nSelectItem));
+		strMsg.LoadString(IDS_MSG_RESTORE_SOFTWARE);
+	}
+	else if (pos == NULL && bDefaultSetting)
+	{
+		strMsg.LoadString(IDS_MSG_FACTORY_RESTORE);
+	}
+	else
+	{
+		strMsg.LoadString(IDS_MSG_RESTORE_SOFT_SETTING);
+	}
 
-	CString strMsg,strTile;
-	strMsg.LoadString(IDS_MSG_FACTORY_RESTORE);
-	strTile.LoadString(IDS_FACTORY_RESTORE);
+
 	if (IDYES == MessageBox(strMsg,strTile
 		,MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING))
 	{
@@ -167,8 +181,17 @@ void CSoftwareRecovery::OnBnClickedOk()
 		CFile file(strRestoreCmd,CFile::modeCreate | CFile::modeWrite);
 		file.Write("@echo off\r\n",strlen("@echo off\r\n"));
 		file.Write("ping -n 3 127.0.0.1 > nul\r\n",strlen("ping -n 3 127.0.0.1 > nul\r\n"));
-		file.Write("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n",strlen("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n"));
-		file.Write(copy,strlen(copy));
+
+		if (bDefaultSetting)
+		{
+			file.Write("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n",strlen("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n"));
+		}
+
+		if (pos)
+		{
+			file.Write(copy,strlen(copy));
+		}
+
 		file.Write("start \"\" \"USBCopy.exe\"\r\n",strlen("start \"\" \"USBCopy.exe\"\r\n"));
 		file.Write("del restore.cmd\r\n",strlen("del restore.cmd\r\n"));
 		file.Flush();
