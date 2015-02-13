@@ -200,6 +200,7 @@
     <ClInclude Include="MD5.h" />
     <ClInclude Include="MoreFunction.h" />
     <ClInclude Include="MTPCopySetting.h" />
+    <ClInclude Include="MyDatabase.h" />
     <ClInclude Include="MyMessageBox.h" />
     <ClInclude Include="PackageName.h" />
     <ClInclude Include="Password.h" />
@@ -263,6 +264,7 @@
     <ClCompile Include="MD5.cpp" />
     <ClCompile Include="MoreFunction.cpp" />
     <ClCompile Include="MTPCopySetting.cpp" />
+    <ClCompile Include="MyDatabase.cpp" />
     <ClCompile Include="MyMessageBox.cpp" />
     <ClCompile Include="PackageName.cpp" />
     <ClCompile Include="Password.cpp" />

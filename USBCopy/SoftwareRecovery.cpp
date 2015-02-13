@@ -147,13 +147,14 @@ void CSoftwareRecovery::OnBnClickedOk()
 	CString strMsg,strTile,strFileName;
 	strTile.LoadString(IDS_FACTORY_RESTORE);
 
+	int nSelectItem = -1;
 	if (pos == NULL && !bDefaultSetting)
 	{
 		return;
 	}
 	else if (pos && !bDefaultSetting)
 	{
-		int nSelectItem = m_SoftwareList.GetNextSelectedItem(pos);
+		nSelectItem = m_SoftwareList.GetNextSelectedItem(pos);
 		strFileName = CString((TCHAR *)m_SoftwareList.GetItemData(nSelectItem));
 
 		strMsg.LoadString(IDS_MSG_RESTORE_SOFTWARE);
@@ -187,7 +188,7 @@ void CSoftwareRecovery::OnBnClickedOk()
 			file.Write("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n",strlen("copy FactoryDefault.ini USBCopy.ini /y > nul\r\n"));
 		}
 
-		if (pos)
+		if (nSelectItem != -1)
 		{
 			file.Write(copy,strlen(copy));
 		}

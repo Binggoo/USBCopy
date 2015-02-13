@@ -4,24 +4,42 @@
 
 CDataQueue::CDataQueue(void)
 {
-
+// 	m_hSemaphoneIn = CreateSemaphore(NULL,MAX_LENGTH_OF_DATA_QUEUE,MAX_LENGTH_OF_DATA_QUEUE,NULL);
+// 
+// 	m_hSemaphoneOut = CreateSemaphore(NULL,0,MAX_LENGTH_OF_DATA_QUEUE,NULL);
 }
 
 
 CDataQueue::~CDataQueue(void)
 {
 	Clear();
+
+// 	if (m_hSemaphoneIn)
+// 	{
+// 		CloseHandle(m_hSemaphoneIn);
+// 	}
+// 
+// 	if (m_hSemaphoneOut)
+// 	{
+// 		CloseHandle(m_hSemaphoneOut);
+// 	}
 }
 
 void CDataQueue::AddTail( PDATA_INFO dataInfo )
 {
+//	WaitForSingleObject(m_hSemaphoneIn,SEMAPHONE_TIME_OUT);
+
 	m_cs.Lock();
 	m_DataQueue.AddTail(dataInfo);
+
+//	ReleaseSemaphore(m_hSemaphoneOut,1,NULL);
 	m_cs.Unlock();
 }
 
 PDATA_INFO CDataQueue::GetHead()
 {
+//	WaitForSingleObject(m_hSemaphoneOut,SEMAPHONE_TIME_OUT);
+
 	m_cs.Lock();
 	PDATA_INFO dataInfo = NULL;
 
@@ -36,6 +54,8 @@ PDATA_INFO CDataQueue::GetHead()
 
 PDATA_INFO CDataQueue::GetHeadRemove()
 {
+//	WaitForSingleObject(m_hSemaphoneOut,SEMAPHONE_TIME_OUT);
+
 	m_cs.Lock();
 	PDATA_INFO temp = NULL;
 	PDATA_INFO dataInfo = NULL;
@@ -74,6 +94,8 @@ PDATA_INFO CDataQueue::GetHeadRemove()
 		}
 		
 		m_DataQueue.RemoveHead();
+
+//		ReleaseSemaphore(m_hSemaphoneIn,1,NULL);
 	}	
 	m_cs.Unlock();
 	return temp;
@@ -108,6 +130,8 @@ void CDataQueue::RemoveHead()
 		dataInfo = NULL;
 
 		m_DataQueue.RemoveHead();
+
+//		ReleaseSemaphore(m_hSemaphoneIn,1,NULL);
 	}
 	m_cs.Unlock();
 }
@@ -116,6 +140,7 @@ void CDataQueue::Clear()
 {
 	m_cs.Lock();
 	POSITION pos = m_DataQueue.GetHeadPosition();
+	long count = m_DataQueue.GetCount();
 	while (pos)
 	{
 		PDATA_INFO dataInfo = m_DataQueue.GetNext(pos);
@@ -137,9 +162,11 @@ void CDataQueue::Clear()
 			delete dataInfo;
 			dataInfo = NULL;
 		}
-		
 	}
 	m_DataQueue.RemoveAll();
+
+//	ReleaseSemaphore(m_hSemaphoneIn,count,NULL);
+
 	m_cs.Unlock();
 }
 

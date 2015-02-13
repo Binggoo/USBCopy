@@ -5382,10 +5382,11 @@ BOOL CDisk::ReadDisk()
 		while (bResult && !*m_lpCancel && ullReadSectors < effData.ullSectors && ullStartSectors < m_ullSectorNums)
 		{
 			QueryPerformanceCounter(&t0);
+
 			// 判断队列是否达到限制值
 			while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE) && !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 			{
-				SwitchToThread();
+				//SwitchToThread();
 				Sleep(5);
 			}
 
@@ -5497,6 +5498,13 @@ BOOL CDisk::ReadDisk()
 				m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 				m_MasterPort->AppendCompleteSize(dwLen);
 
+				/*
+				if (IsAllFailed(errType,&dwErrorCode))
+				{
+					bResult = FALSE;
+					break;
+				}
+				*/
 			}
 
 		}
@@ -5528,7 +5536,7 @@ BOOL CDisk::ReadDisk()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -5676,13 +5684,16 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
 		QueryPerformanceCounter(&t0);
+
+		
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult() && !port->IsKickOff())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
+		
 
 		if (!m_MasterPort->GetResult())
 		{
@@ -5720,11 +5731,21 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 			bResult = TRUE;
 			break;
 		}
+		
 
 		PDATA_INFO dataInfo = pDataQueue->GetHeadRemove();
 
 		if (dataInfo == NULL)
 		{
+			/*
+			if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active && m_bCompressComplete)
+			{
+				dwErrorCode = 0;
+				bResult = TRUE;
+				break;
+			}
+			*/
+
 			continue;
 		}
 
@@ -5791,6 +5812,13 @@ BOOL CDisk::WriteDisk( CPort *port, CDataQueue *pDataQueue)
 
 			delete []dataInfo->pData;
 			delete dataInfo;
+
+			/*
+			if (port->GetCompleteSize() >= port->GetValidSize())
+			{
+				break;
+			}
+			*/
 		}
 
 	}
@@ -6114,7 +6142,7 @@ BOOL CDisk::VerifyDisk( CPort *port,CHashMethod *pHashMethod )
 		{
 			while (m_MasterPort->GetPortState() == PortState_Active)
 			{
-				SwitchToThread();
+				//SwitchToThread();
 				Sleep(5);
 			}
 
@@ -6216,11 +6244,12 @@ BOOL CDisk::VerifyDisk( CPort *port,CDataQueue *pDataQueue )
 	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
 		QueryPerformanceCounter(&t0);
+
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult() && !port->IsKickOff())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -6265,6 +6294,14 @@ BOOL CDisk::VerifyDisk( CPort *port,CDataQueue *pDataQueue )
 
 		if (dataInfo == NULL)
 		{
+			/*
+			if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active && m_bCompressComplete)
+			{
+				dwErrorCode = 0;
+				bResult = TRUE;
+				break;
+			}
+			*/
 			continue;
 		}
 
@@ -6334,6 +6371,13 @@ BOOL CDisk::VerifyDisk( CPort *port,CDataQueue *pDataQueue )
 			{
 				break;
 			}
+
+			/*
+			if (port->GetCompleteSize() >= port->GetValidSize())
+			{
+				break;
+			}
+			*/
 		}
 
 	}
@@ -6458,10 +6502,11 @@ BOOL CDisk::ReadLocalFiles()
 		do
 		{
 			QueryPerformanceCounter(&t0);
+
 			// 判断队列是否达到限制值
 			while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE) && !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 			{
-				SwitchToThread();
+				//SwitchToThread();
 				Sleep(5);
 			}
 
@@ -6535,6 +6580,14 @@ BOOL CDisk::ReadLocalFiles()
 				m_MasterPort->AppendUsedWaitTimeS(dbTimeWait);
 				m_MasterPort->AppendUsedNoWaitTimeS(dbTimeNoWait);
 				m_MasterPort->AppendCompleteSize(dwLen);
+
+				/*
+				if (IsAllFailed(errType,&dwErrorCode))
+				{
+					bResult = FALSE;
+					break;
+				}
+				*/
 			}
 
 		}while (bResult && !*m_lpCancel && ullCompleteSize < ullFileSize && m_MasterPort->GetPortState() == PortState_Active);
@@ -6578,7 +6631,7 @@ BOOL CDisk::ReadLocalFiles()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -6680,11 +6733,12 @@ BOOL CDisk::ReadRemoteFiles()
 	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
+
 		// 判断队列是否达到限制值
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -6848,6 +6902,14 @@ BOOL CDisk::ReadRemoteFiles()
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
 		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
+		/*
+		if (IsAllFailed(errType,&dwErrorCode))
+		{
+			bResult = FALSE;
+			break;
+		}
+		*/
+
 	}
 
 	WSACloseEvent(ol.hEvent);
@@ -6899,7 +6961,7 @@ BOOL CDisk::ReadRemoteFiles()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -7009,10 +7071,11 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
 		QueryPerformanceCounter(&t0);
+		
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult() && !port->IsKickOff())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -7057,6 +7120,15 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 
 		if (dataInfo == NULL)
 		{
+			/*
+			if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active)
+			{
+				dwErrorCode = 0;
+				bResult = TRUE;
+				break;
+			}
+			*/
+
 			continue;
 		}
 
@@ -7122,6 +7194,11 @@ BOOL CDisk::WriteFiles(CPort *port,CDataQueue *pDataQueue)
 			delete []dataInfo->pData;
 			delete []dataInfo->szFileName;
 			delete dataInfo;
+
+			if (port->GetCompleteSize() >= port->GetValidSize())
+			{
+				break;
+			}
 		}
 
 	}
@@ -7408,10 +7485,11 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 	while (!*m_lpCancel && m_MasterPort->GetResult() && port->GetResult() && bResult && !port->IsKickOff())
 	{
 		QueryPerformanceCounter(&t0);
+
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult() && !port->IsKickOff())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -7456,6 +7534,14 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 
 		if (dataInfo == NULL)
 		{
+			/*
+			if (pDataQueue->GetCount() <= 0 && m_MasterPort->GetPortState() != PortState_Active)
+			{
+				dwErrorCode = 0;
+				bResult = TRUE;
+				break;
+			}
+			*/
 			continue;
 		}
 
@@ -7545,6 +7631,13 @@ BOOL CDisk::VerifyFiles( CPort *port,CDataQueue *pDataQueue )
 			{
 				break;
 			}
+
+			/*
+			if (port->GetCompleteSize() >= port->GetValidSize())
+			{
+				break;
+			}
+			*/
 		}
 
 	}
@@ -7709,11 +7802,12 @@ BOOL CDisk::ReadLocalImage()
 	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
+
 		// 判断队列是否达到限制值
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -7812,6 +7906,13 @@ BOOL CDisk::ReadLocalImage()
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
 		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
+		/*
+		if (IsAllFailed(errType,&dwErrorCode))
+		{
+			bResult = FALSE;
+			break;
+		}
+		*/
 	}
 
 	if (*m_lpCancel)
@@ -7839,7 +7940,7 @@ BOOL CDisk::ReadLocalImage()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -7962,11 +8063,12 @@ BOOL CDisk::ReadRemoteImage()
 	while (bResult && !*m_lpCancel && ullReadSize < m_ullImageSize && m_MasterPort->GetPortState() == PortState_Active)
 	{
 		QueryPerformanceCounter(&t0);
+
 		// 判断队列是否达到限制值
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -8116,6 +8218,14 @@ BOOL CDisk::ReadRemoteImage()
 		// 因为是压缩数据，长度比实际长度短，所以要根据速度计算
 		m_MasterPort->SetCompleteSize(m_MasterPort->GetValidSize() * ullReadSize / m_ullImageSize);
 
+		/*
+		if (IsAllFailed(errType,&dwErrorCode))
+		{
+			bResult = FALSE;
+			break;
+		}
+		*/
+
 	}
 
 	WSACloseEvent(ol.hEvent);
@@ -8161,7 +8271,7 @@ BOOL CDisk::ReadRemoteImage()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -8259,7 +8369,7 @@ BOOL CDisk::Compress()
 			&& m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active)
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -8400,7 +8510,7 @@ BOOL CDisk::Uncompress()
 			&& m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active)
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -8564,7 +8674,7 @@ BOOL CDisk::WriteLocalImage(CPort *port,CDataQueue *pDataQueue)
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -8773,7 +8883,7 @@ BOOL CDisk::WriteRemoteImage(CPort *port,CDataQueue *pDataQueue)
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 

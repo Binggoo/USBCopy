@@ -9,7 +9,8 @@ typedef struct _STRUCT_DATA_INFO
 	LPBYTE    pData;
 }DATA_INFO,*PDATA_INFO;
 typedef CList<PDATA_INFO,PDATA_INFO> DATA_QUEUE;
-#define MAX_LENGTH_OF_DATA_QUEUE  2000
+#define MAX_LENGTH_OF_DATA_QUEUE  200
+#define SEMAPHONE_TIME_OUT        2000
 
 class CDataQueue
 {
@@ -27,6 +28,8 @@ public:
 private:
 	DATA_QUEUE m_DataQueue;
 	CCriticalSection m_cs;
+// 	HANDLE m_hSemaphoneIn;
+// 	HANDLE m_hSemaphoneOut;
 };
 
 typedef CList<CDataQueue *,CDataQueue *> CDataQueueList;

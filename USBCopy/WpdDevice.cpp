@@ -1392,7 +1392,7 @@ BOOL CWpdDevice::ReadWpdFiles()
 			// 判断队列是否达到限制值
 			while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE) && !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 			{
-				SwitchToThread();
+				//SwitchToThread();
 				Sleep(5);
 			}
 
@@ -1530,7 +1530,7 @@ BOOL CWpdDevice::ReadWpdFiles()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -1707,7 +1707,7 @@ BOOL CWpdDevice::WriteWpdFiles( CPort* port,CDataQueue *pDataQueue,CMapStringToS
 		while(pDataQueue->GetCount() <= 0 && !*m_lpCancel && m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active && port->GetResult() && !port->IsKickOff())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -2647,7 +2647,7 @@ BOOL CWpdDevice::WriteLocalImage( CPort *port,CDataQueue *pDataQueue )
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -3126,7 +3126,7 @@ BOOL CWpdDevice::WriteRemoteImage( CPort *port,CDataQueue *pDataQueue )
 			&& (m_MasterPort->GetPortState() == PortState_Active || !m_bCompressComplete)
 			&& port->GetResult())
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -3433,7 +3433,7 @@ BOOL CWpdDevice::ReadLocalImage()
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -3553,7 +3553,7 @@ BOOL CWpdDevice::ReadLocalImage()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -3680,7 +3680,7 @@ BOOL CWpdDevice::ReadRemoteImage()
 		while (IsReachLimitQty(MAX_LENGTH_OF_DATA_QUEUE)
 			&& !*m_lpCancel && !IsAllFailed(errType,&dwErrorCode))
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -3879,7 +3879,7 @@ BOOL CWpdDevice::ReadRemoteImage()
 	// 所有数据都拷贝完
 	while (!m_bCompressComplete)
 	{
-		SwitchToThread();
+		//SwitchToThread();
 		Sleep(100);
 	}
 
@@ -3977,7 +3977,7 @@ BOOL CWpdDevice::Compress()
 			&& m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active)
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 
@@ -4130,7 +4130,7 @@ BOOL CWpdDevice::Uncompress()
 			&& m_MasterPort->GetResult() 
 			&& m_MasterPort->GetPortState() == PortState_Active)
 		{
-			SwitchToThread();
+			//SwitchToThread();
 			Sleep(5);
 		}
 

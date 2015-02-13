@@ -70,6 +70,9 @@
 //v1.1.8.0 2015-02-09 Binggoo 1.解决连接服务器程序出错的问题。
 //                            2.网络意外中断后每隔5s自动重连。
 //                            3.软件还原中添加恢复出厂设置可选项。
+//                            4.修改磁盘比对时，母盘参与进度显示。
+//         2015-02-13 Binggoo 5.数据队列中添加和移除通过信号量来管控。
+//                            6.恢复到原来管控队列的方式。
 
 
 #include "stdafx.h"
@@ -1673,6 +1676,14 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 	}
 	*/
 
+	if (m_WorkMode == WorkMode_DiskCompare)
+	{
+		iMinPercent = m_MasterPort.GetPercent();
+		ullMinCompleteSize = m_MasterPort.GetCompleteSize();
+		ullMaxValidSize = m_MasterPort.GetValidSize();
+		nIndex++;
+	}
+
 	// 以下几种模式不做速度比分比和剩余时间统计
 	if (m_WorkMode == WorkMode_Speed_Check)
 	{
@@ -1815,6 +1826,10 @@ void CUSBCopyDlg::UpdateStatisticInfo()
 		}
 
 	}
+// 	else
+// 	{
+// 		m_ProgressCtrl.SetPos(100);
+// 	}
 }
 
 BOOL CUSBCopyDlg::IsReady()
