@@ -53,13 +53,14 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>D:\Binggoo\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Binggoo\common;D:\Binggoo\common\sqlite3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>D:\Binggoo\common;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\Binggoo\common;D:\Binggoo\common\sqlite3;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <StackReserveSize>10000000</StackReserveSize>
+      <AdditionalDependencies>sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -83,16 +84,17 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>D:\Binggoo\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\Binggoo\common;D:\Binggoo\common\sqlite3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>D:\Binggoo\common;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\Binggoo\common;D:\Binggoo\common\sqlite3;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>libc.lib;msvcrt.lib;libcd.lib;libcmtd.lib;msvcrtd.lib</IgnoreSpecificDefaultLibraries>
       <StackReserveSize>10000000</StackReserveSize>
+      <AdditionalDependencies>sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -167,6 +169,8 @@
     <ClInclude Include="..\..\..\Binggoo\common\BtnST.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Ini.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Lisence.h" />
+    <ClInclude Include="..\..\..\Binggoo\common\sqlite3\CppSQLite3U.h" />
+    <ClInclude Include="..\..\..\Binggoo\common\sqlite3\sqlite3.h" />
     <ClInclude Include="..\..\..\Binggoo\common\Utils.h" />
     <ClInclude Include="..\..\..\Binggoo\common\zlib.h" />
     <ClInclude Include="BurnIn.h" />
@@ -234,6 +238,7 @@
     <ClCompile Include="..\..\..\Binggoo\common\BtnST.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Ini.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Lisence.cpp" />
+    <ClCompile Include="..\..\..\Binggoo\common\sqlite3\CppSQLite3U.cpp" />
     <ClCompile Include="..\..\..\Binggoo\common\Utils.cpp" />
     <ClCompile Include="BurnIn.cpp" />
     <ClCompile Include="Checksum32.cpp" />
