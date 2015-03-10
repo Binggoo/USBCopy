@@ -13,6 +13,8 @@
 #include "MoreFunction.h"
 #include "ExportLog.h"
 #include "MyMessageBox.h"
+#include "LoadConfig.h"
+#include "SaveConfig.h"
 
 // CSystemMenu 对话框
 
@@ -50,6 +52,8 @@ BEGIN_MESSAGE_MAP(CSystemMenu, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_MORE, &CSystemMenu::OnBnClickedBtnMore)
 	ON_WM_SHOWWINDOW()
 	ON_BN_CLICKED(IDC_BTN_SHUTDOWN, &CSystemMenu::OnBnClickedBtnShutdown)
+	ON_BN_CLICKED(IDC_BTN_LOAD_CONFIG, &CSystemMenu::OnBnClickedBtnLoadConfig)
+	ON_BN_CLICKED(IDC_BTN_SAVE_CONFIG, &CSystemMenu::OnBnClickedBtnSaveConfig)
 END_MESSAGE_MAP()
 
 
@@ -107,6 +111,14 @@ BOOL CSystemMenu::OnInitDialog()
 	//m_BtnShutDown.SetFlat(FALSE);
 	m_BtnShutDown.DrawBorder(FALSE);
 	SetDlgItemText(IDC_BTN_SHUTDOWN,_T(""));
+
+	m_BtnLoadConfig.SubclassDlgItem(IDC_BTN_LOAD_CONFIG,this);
+	m_BtnLoadConfig.SetFlat(FALSE);
+	m_BtnLoadConfig.SetBitmaps(IDB_LOAD,RGB(255,255,255));
+
+	m_BtnSaveConfig.SubclassDlgItem(IDC_BTN_SAVE_CONFIG,this);
+	m_BtnSaveConfig.SetFlat(FALSE);
+	m_BtnSaveConfig.SetBitmaps(IDB_SAVE,RGB(255,255,255));
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE
@@ -573,5 +585,52 @@ void CSystemMenu::OnBnClickedBtnShutdown()
 		}
 		
 	}
+	CDialogEx::OnOK();
+}
+
+
+void CSystemMenu::OnBnClickedBtnLoadConfig()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CString strInitialPath = m_strAppPath + _T("\\config");
+
+	if (!PathFileExists(strInitialPath))
+	{
+		SHCreateDirectory(NULL,strInitialPath);
+	}
+
+// 	CFileDialog load(TRUE,_T("ini"),NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,_T("Config(*.ini)|*.ini||"));
+// 	load.m_ofn.lpstrInitialDir = strInitialPath;
+
+	CLoadConfig load;
+	if (load.DoModal() == IDOK)
+	{
+		m_pIni->SetPathName(load.GetPathName());
+		//PostMessage
+		::PostMessage(GetParent()->GetSafeHwnd(),WM_LOAD_CONFIG,0,0);
+	}
+
+	CDialogEx::OnOK();
+}
+
+
+void CSystemMenu::OnBnClickedBtnSaveConfig()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CString strInitialPath = m_strAppPath + _T("\\config");
+
+	if (!PathFileExists(strInitialPath))
+	{
+		SHCreateDirectory(NULL,strInitialPath);
+	}
+
+// 	CFileDialog save(FALSE,_T("ini"),NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,_T("Config(*.ini)|*.ini||"));
+// 	save.m_ofn.lpstrInitialDir = strInitialPath;
+
+	CSaveConfig save;
+	save.SetSourcePath(m_pIni->GetPathName());
+	save.SetDestPath(strInitialPath);
+	save.DoModal();
+
 	CDialogEx::OnOK();
 }

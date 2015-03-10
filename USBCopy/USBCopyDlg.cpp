@@ -73,6 +73,8 @@
 //                            4.修改磁盘比对时，母盘参与进度显示。
 //         2015-02-13 Binggoo 5.数据队列中添加和移除通过信号量来管控。
 //                            6.恢复到原来管控队列的方式。
+//         2015-03-05 Binggoo 7.减少读数据时申请内存次数。
+//         2015-03-10 Binggoo 8.加入加载配置文件和保存配置文件功能。
 
 
 #include "stdafx.h"
@@ -213,6 +215,7 @@ BEGIN_MESSAGE_MAP(CUSBCopyDlg, CDialogEx)
 	ON_MESSAGE(WM_INIT_CURRENT_WORKMODE, &CUSBCopyDlg::OnInitCurrentWorkmode)
 	ON_MESSAGE(WM_EXPORT_LOG_START, &CUSBCopyDlg::OnExportLogStart)
 	ON_MESSAGE(WM_EXPORT_LOG_END, &CUSBCopyDlg::OnExportLogEnd)
+	ON_MESSAGE(WM_LOAD_CONFIG, &CUSBCopyDlg::OnLoadConfig)
 END_MESSAGE_MAP()
 
 
@@ -326,8 +329,19 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	}
 
 	// 把配置文件设置回USBCopy.ini
-	CString strConfigPath = m_strAppPath + CONFIG_NAME;
-	m_Config.SetPathName(strConfigPath);
+	m_strConfigPath = m_strAppPath + CONFIG_NAME;
+	m_Config.SetPathName(m_strConfigPath);
+
+	// 获取最近加载的配置
+	CString strRecentConfig = m_Config.GetString(_T("AppSetting"),_T("RecentConfig"));
+
+	if (!strRecentConfig.IsEmpty() && PathFileExists(strRecentConfig))
+	{
+		m_Config.SetPathName(strRecentConfig);
+		m_strConfigPath = strRecentConfig;
+	}
+
+	m_Config.WriteString(_T("Option"),_T("MachineAlias"),strAlias);
 
 	int cx = m_Config.GetInt(_T("AppSetting"),_T("Width"),DEFAULT_WIDTH);
 	int cy = m_Config.GetInt(_T("AppSetting"),_T("Height"),DEFAULT_HEIGHT);
@@ -351,12 +365,14 @@ BOOL CUSBCopyDlg::OnInitDialog()
 	GetDlgItem(IDC_TEXT_ALIAS)->SetFont(&m_font);
 	GetDlgItem(IDC_TEXT_COPYRIGHT)->SetFont(&m_font);
 	GetDlgItem(IDC_TEXT_CONNECT)->SetFont(&m_font);
+	GetDlgItem(IDC_TEXT_CONFIG)->SetFont(&m_font);
 
 	SetDlgItemText(IDC_TEXT_SN,strSN);
 	SetDlgItemText(IDC_TEXT_MODEL,strModel);
 	SetDlgItemText(IDC_TEXT_ALIAS,strAlias);
 	SetDlgItemText(IDC_TEXT_COPYRIGHT,strVersion);
 	SetDlgItemText(IDC_TEXT_CONNECT,_T(""));
+	SetDlgItemText(IDC_TEXT_CONFIG,CUtils::GetFileTitle(m_strConfigPath));
 
 	m_LogoFont.CreateFont(60,
 						  0,
@@ -1083,6 +1099,9 @@ void CUSBCopyDlg::OnBnClickedBtnSystem()
 
 	CString strAlias = m_Config.GetString(_T("Option"),_T("MachineAlias"),_T("PHIYO"));
 	SetDlgItemText(IDC_TEXT_ALIAS,strAlias);
+
+	CIni machine(m_strAppPath + MACHINE_INFO);
+	machine.WriteString(_T("MachineInfo"),_T("Alias"),strAlias);
 }
 
 
@@ -3727,11 +3746,6 @@ BOOL CUSBCopyDlg::DestroyWindow()
 		m_hBurninEvent = NULL;
 	}
 
-	m_Config.SetPathName(m_strAppPath + MACHINE_INFO);
-	CString strAlias;
-	GetDlgItemText(IDC_TEXT_ALIAS,strAlias);
-	m_Config.WriteString(_T("MachineInfo"),_T("Alias"),strAlias);
-
 	for (UINT i = 0; i < m_nPortNum;i++)
 	{
 		m_PortFrames[i].DestroyWindow();
@@ -5607,4 +5621,18 @@ void CUSBCopyDlg::CleanRecord()
 	}
 
 	find.Close();
+}
+
+
+afx_msg LRESULT CUSBCopyDlg::OnLoadConfig(WPARAM wParam, LPARAM lParam)
+{
+	m_strConfigPath = m_Config.GetPathName();
+	InitialCurrentWorkMode();
+
+	SetDlgItemText(IDC_TEXT_CONFIG,CUtils::GetFileTitle(m_strConfigPath));
+
+	// 设置最近加载的配置文件
+	CIni origin(m_strAppPath + CONFIG_NAME);
+	origin.WriteString(_T("AppSetting"),_T("RecentConfig"),m_strConfigPath);
+	return 0;
 }

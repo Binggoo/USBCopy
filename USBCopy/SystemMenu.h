@@ -42,6 +42,9 @@ private:
 	CButtonST m_BtnPackage;
 	CButtonST m_BtnShutDown;
 
+	CButtonST m_BtnLoadConfig;
+	CButtonST m_BtnSaveConfig;
+
 	UINT m_nMachineType;
 
 public:
@@ -59,4 +62,6 @@ public:
 	afx_msg void OnBnClickedBtnMore();
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
 	afx_msg void OnBnClickedBtnShutdown();
+	afx_msg void OnBnClickedBtnLoadConfig();
+	afx_msg void OnBnClickedBtnSaveConfig();
 };

@@ -100,6 +100,8 @@ private:
 	UINT m_nCols;
 	UINT m_nRows;
 
+	CString m_strConfigPath; //记录配置文件的完整路径
+
 	void ChangeSize( CWnd *pWnd,int cx, int cy );
 
 	void InitialMachine();
@@ -200,4 +202,5 @@ protected:
 	afx_msg LRESULT OnInitCurrentWorkmode(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnExportLogStart(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnExportLogEnd(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnLoadConfig(WPARAM wParam, LPARAM lParam);
 };

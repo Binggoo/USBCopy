@@ -41,6 +41,7 @@
 #define WM_INIT_CURRENT_WORKMODE (WM_USER + 14)
 #define WM_EXPORT_LOG_START (WM_USER + 15)
 #define WM_EXPORT_LOG_END (WM_USER + 16)
+#define WM_LOAD_CONFIG (WM_USER + 17)
 
 class CUSBCopyApp : public CWinApp
 {

@@ -125,6 +125,7 @@
     <None Include="res\fullcopy.bmp" />
     <None Include="res\fullscan.bmp" />
     <None Include="res\imagecopy.bmp" />
+    <None Include="res\load.bmp" />
     <None Include="res\lock.bmp" />
     <None Include="res\makeimage.bmp" />
     <None Include="res\manager.bmp" />
@@ -139,6 +140,7 @@
     <None Include="res\quickcopy.bmp" />
     <None Include="res\restore.bmp" />
     <None Include="res\return.bmp" />
+    <None Include="res\save.bmp" />
     <None Include="res\SD_gray.bmp" />
     <None Include="res\SD_green.bmp" />
     <None Include="res\SD_normal.bmp" />
@@ -201,6 +203,7 @@
     <ClInclude Include="ImageManager.h" />
     <ClInclude Include="ImageNameDlg.h" />
     <ClInclude Include="IoctlDef.h" />
+    <ClInclude Include="LoadConfig.h" />
     <ClInclude Include="MD5.h" />
     <ClInclude Include="MoreFunction.h" />
     <ClInclude Include="MTPCopySetting.h" />
@@ -213,6 +216,7 @@
     <ClInclude Include="PortDlg.h" />
     <ClInclude Include="QuickCopySettingDlg.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="SaveConfig.h" />
     <ClInclude Include="ScanningDlg.h" />
     <ClInclude Include="SelectCurModeDlg.h" />
     <ClInclude Include="SerialPort.h" />
@@ -266,6 +270,7 @@
     <ClCompile Include="ImageMakeSetting.cpp" />
     <ClCompile Include="ImageManager.cpp" />
     <ClCompile Include="ImageNameDlg.cpp" />
+    <ClCompile Include="LoadConfig.cpp" />
     <ClCompile Include="MD5.cpp" />
     <ClCompile Include="MoreFunction.cpp" />
     <ClCompile Include="MTPCopySetting.cpp" />
@@ -277,6 +282,7 @@
     <ClCompile Include="PortCommand.cpp" />
     <ClCompile Include="PortDlg.cpp" />
     <ClCompile Include="QuickCopySettingDlg.cpp" />
+    <ClCompile Include="SaveConfig.cpp" />
     <ClCompile Include="ScanningDlg.cpp" />
     <ClCompile Include="SelectCurModeDlg.cpp" />
     <ClCompile Include="SerialPort.cpp" />
