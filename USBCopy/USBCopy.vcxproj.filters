@@ -1,0 +1,605 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="EnumUSB">
+      <UniqueIdentifier>{04e66858-ca33-424b-ad71-f92d7380532b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="HashMethod">
+      <UniqueIdentifier>{059d8128-1373-4b97-b76b-88f1482ccff1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UI">
+      <UniqueIdentifier>{f015f75d-a023-4717-959a-d24be1726e85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common">
+      <UniqueIdentifier>{c5ecf27c-eb25-4a6f-8946-66699f9243b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data">
+      <UniqueIdentifier>{cfccea37-c0e2-4be1-905e-9c02d0173d83}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="CXFolderDialog">
+      <UniqueIdentifier>{c0b8c71f-4b4b-4812-8e20-db8259aa6091}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SerialPort">
+      <UniqueIdentifier>{36f01885-9c48-40b9-88f1-5db6a4939734}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="database">
+      <UniqueIdentifier>{ebd68ba4-4d1b-4714-aa9a-9f30e8ecaff1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ReadMe.txt" />
+    <None Include="res\USBCopy.rc2">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\USBCopy.ico">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\SD_gray.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\SD_green.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\SD_normal.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\SD_red.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\SD_yellow.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\start.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\stop.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\lock.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\unlock.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\menu.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\setting.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\diskclean.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\diskcompare.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\diskformat.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\filecopy.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\fullcopy.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\imagecopy.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\makeimage.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\quickcopy.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\debug.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\manager.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\restore.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\return.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\sync.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\update.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\viewlog.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\burnin.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\export.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\USB_gray.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\USB_green.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\USB_normal.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\USB_red.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\USB_yellow.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\more.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\diffcopy.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\package.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\shutdown.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\tablet.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\warning.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\capcheck.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\FakePicker.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\fullscan.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\speed.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\tools.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\NGFF_gray.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\NGFF_GREEN.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\NGFF_normal.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\NGFF_RED.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\NGFF_YELLOW.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\load.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\save.bmp">
+      <Filter>资源文件</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="USBCopy.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="stdafx.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GlobalDef.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DeviceList.h">
+      <Filter>EnumUSB</Filter>
+    </ClInclude>
+    <ClInclude Include="EnumStorage.h">
+      <Filter>EnumUSB</Filter>
+    </ClInclude>
+    <ClInclude Include="EnumUSB.h">
+      <Filter>EnumUSB</Filter>
+    </ClInclude>
+    <ClInclude Include="Checksum32.h">
+      <Filter>HashMethod</Filter>
+    </ClInclude>
+    <ClInclude Include="CRC32.h">
+      <Filter>HashMethod</Filter>
+    </ClInclude>
+    <ClInclude Include="HashMethod.h">
+      <Filter>HashMethod</Filter>
+    </ClInclude>
+    <ClInclude Include="MD5.h">
+      <Filter>HashMethod</Filter>
+    </ClInclude>
+    <ClInclude Include="PortDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="USBCopyDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="DiskCleanSettingDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="DiskCompareSettingDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="FullCopySettingDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="GlobalSetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageCopySetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageMakeSetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageManager.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageNameDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="QuickCopySettingDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ScanningDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="SelectCurModeDlg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="SystemMenu.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Password.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Thread.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Port.h">
+      <Filter>Data</Filter>
+    </ClInclude>
+    <ClInclude Include="DataQueue.h">
+      <Filter>Data</Filter>
+    </ClInclude>
+    <ClInclude Include="PortCommand.h">
+      <Filter>SerialPort</Filter>
+    </ClInclude>
+    <ClInclude Include="SerialPort.h">
+      <Filter>SerialPort</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Binggoo\common\Ini.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Binggoo\common\Utils.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Binggoo\common\zlib.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="XFolderDialog\XFileOpenListView.h">
+      <Filter>CXFolderDialog</Filter>
+    </ClInclude>
+    <ClInclude Include="XFolderDialog\XFolderDialog.h">
+      <Filter>CXFolderDialog</Filter>
+    </ClInclude>
+    <ClInclude Include="XFolderDialog\XFolderDialogRes.h">
+      <Filter>CXFolderDialog</Filter>
+    </ClInclude>
+    <ClInclude Include="XFolderDialog\XHistoryCombo.h">
+      <Filter>CXFolderDialog</Filter>
+    </ClInclude>
+    <ClInclude Include="XFolderDialog\XWinVer.h">
+      <Filter>CXFolderDialog</Filter>
+    </ClInclude>
+    <ClInclude Include="CompleteMsg.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="DiskFormatSetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="FileCopySetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="BurnIn.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Binggoo\common\Lisence.h">
+      <Filter>HashMethod</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Binggoo\common\BtnST.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="IoctlDef.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SoftwareRecovery.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="MoreFunction.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="ExportLog.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="DiffCopySetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="PackageName.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="MTPCopySetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Tools.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Disk.h">
+      <Filter>Data</Filter>
+    </ClInclude>
+    <ClInclude Include="Fat32.h">
+      <Filter>Data</Filter>
+    </ClInclude>
+    <ClInclude Include="Fs.h">
+      <Filter>Data</Filter>
+    </ClInclude>
+    <ClInclude Include="MyMessageBox.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="WpdDevice.h">
+      <Filter>Data</Filter>
+    </ClInclude>
+    <ClInclude Include="WPDFunction.h">
+      <Filter>Data</Filter>
+    </ClInclude>
+    <ClInclude Include="FadePickerSetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="FullRWTest.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="SpeedCheckSetting.h">
+      <Filter>UI</Filter>
+    </ClInclude>
+    <ClInclude Include="MyDatabase.h">
+      <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Binggoo\common\sqlite3\CppSQLite3U.h">
+      <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\Binggoo\common\sqlite3\sqlite3.h">
+      <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="LoadConfig.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SaveConfig.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="USBCopy.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DeviceList.cpp">
+      <Filter>EnumUSB</Filter>
+    </ClCompile>
+    <ClCompile Include="EnumStorage.cpp">
+      <Filter>EnumUSB</Filter>
+    </ClCompile>
+    <ClCompile Include="EnumUSB.cpp">
+      <Filter>EnumUSB</Filter>
+    </ClCompile>
+    <ClCompile Include="Checksum32.cpp">
+      <Filter>HashMethod</Filter>
+    </ClCompile>
+    <ClCompile Include="CRC32.cpp">
+      <Filter>HashMethod</Filter>
+    </ClCompile>
+    <ClCompile Include="HashMethod.cpp">
+      <Filter>HashMethod</Filter>
+    </ClCompile>
+    <ClCompile Include="MD5.cpp">
+      <Filter>HashMethod</Filter>
+    </ClCompile>
+    <ClCompile Include="PortDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="USBCopyDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="DiskCleanSettingDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="DiskCompareSettingDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="FullCopySettingDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="GlobalSetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageCopySetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageMakeSetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageManager.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageNameDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="QuickCopySettingDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ScanningDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="SelectCurModeDlg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="SystemMenu.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Password.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Thread.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Port.cpp">
+      <Filter>Data</Filter>
+    </ClCompile>
+    <ClCompile Include="DataQueue.cpp">
+      <Filter>Data</Filter>
+    </ClCompile>
+    <ClCompile Include="PortCommand.cpp">
+      <Filter>SerialPort</Filter>
+    </ClCompile>
+    <ClCompile Include="SerialPort.cpp">
+      <Filter>SerialPort</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Binggoo\common\Ini.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Binggoo\common\Utils.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Binggoo\common\ProgressCtrlEx.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="XFolderDialog\XFileOpenListView.cpp">
+      <Filter>CXFolderDialog</Filter>
+    </ClCompile>
+    <ClCompile Include="XFolderDialog\XFolderDialog.cpp">
+      <Filter>CXFolderDialog</Filter>
+    </ClCompile>
+    <ClCompile Include="XFolderDialog\XHistoryCombo.cpp">
+      <Filter>CXFolderDialog</Filter>
+    </ClCompile>
+    <ClCompile Include="XFolderDialog\XWinVer.cpp">
+      <Filter>CXFolderDialog</Filter>
+    </ClCompile>
+    <ClCompile Include="CompleteMsg.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="DiskFormatSetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="FileCopySetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="BurnIn.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Binggoo\common\Lisence.cpp">
+      <Filter>HashMethod</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Binggoo\common\BtnST.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="SoftwareRecovery.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="MoreFunction.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="ExportLog.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="DiffCopySetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="PackageName.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="MTPCopySetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Tools.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="MyMessageBox.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Disk.cpp">
+      <Filter>Data</Filter>
+    </ClCompile>
+    <ClCompile Include="Fat32.cpp">
+      <Filter>Data</Filter>
+    </ClCompile>
+    <ClCompile Include="Fs.cpp">
+      <Filter>Data</Filter>
+    </ClCompile>
+    <ClCompile Include="WpdDevice.cpp">
+      <Filter>Data</Filter>
+    </ClCompile>
+    <ClCompile Include="WPDFunction.cpp">
+      <Filter>Data</Filter>
+    </ClCompile>
+    <ClCompile Include="FadePickerSetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="FullRWTest.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="SpeedCheckSetting.cpp">
+      <Filter>UI</Filter>
+    </ClCompile>
+    <ClCompile Include="MyDatabase.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\Binggoo\common\sqlite3\CppSQLite3U.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="LoadConfig.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SaveConfig.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="USBCopy.rc">
+      <Filter>资源文件</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>
